@@ -14,6 +14,7 @@ import { useStreamerProfileSubmissionsStatus } from '@/features/streamer-profile
 import { useStreamerProfileWallet } from '@/features/streamer-profile/model/useStreamerProfileWallet';
 import { StreamerProfileErrorState } from '@/features/streamer-profile/ui/StreamerProfileErrorState';
 import { StreamerProfileHeader } from '@/features/streamer-profile/ui/StreamerProfileHeader';
+import { StreamerProfileLeaderboard } from '@/features/streamer-profile/ui/StreamerProfileLeaderboard';
 import { StreamerProfileMemesSection } from '@/features/streamer-profile/ui/StreamerProfileMemesSection';
 import { StreamerProfileModals } from '@/features/streamer-profile/ui/StreamerProfileModals';
 import { StreamerProfileSearch } from '@/features/streamer-profile/ui/StreamerProfileSearch';
@@ -43,6 +44,7 @@ const StreamerProfile = memo(function StreamerProfile() {
   const [listMode, setListMode] = useState<StreamerListMode>('all');
   const [trendingScope, setTrendingScope] = useState<'channel' | 'global'>('channel');
   const [trendingPeriod, setTrendingPeriod] = useState<7 | 30>(7);
+  const [leaderboardPeriod, setLeaderboardPeriod] = useState<7 | 30>(7);
 
   const normalizedSlug = (slug || '').trim().toLowerCase();
   const isAuthed = !!user;
@@ -202,7 +204,24 @@ const StreamerProfile = memo(function StreamerProfile() {
         toast.success(t('toast.memeActivated'));
         syncWalletFromUser();
       } catch (error: unknown) {
-        const apiError = error as { message?: string };
+        const apiError = error as { message?: string; errorCode?: string; details?: unknown };
+        if (apiError.errorCode === 'MEME_COOLDOWN_ACTIVE') {
+          const details = apiError.details as { cooldownSecondsRemaining?: number } | null;
+          const remaining = typeof details?.cooldownSecondsRemaining === 'number' ? details.cooldownSecondsRemaining : null;
+          const label = remaining
+            ? (() => {
+                const minutes = Math.floor(remaining / 60);
+                const seconds = Math.floor(remaining % 60);
+                return minutes > 0 ? `${minutes}:${String(seconds).padStart(2, '0')}` : `${seconds}s`;
+              })()
+            : null;
+          toast.error(
+            label
+              ? t('memeModal.cooldownActive', { defaultValue: 'Cooldown {{time}}', time: label })
+              : apiError.message || t('toast.failedToActivate'),
+          );
+          return;
+        }
         toast.error(apiError.message || t('toast.failedToActivate'));
       }
     },
@@ -361,6 +380,13 @@ const StreamerProfile = memo(function StreamerProfile() {
           searchResultsCount={searchResults.length}
           mix={mix}
         />
+        {channelInfo?.stats?.memesCount ? (
+          <StreamerProfileLeaderboard
+            channelSlug={String(channelInfo.slug || normalizedSlug)}
+            periodDays={leaderboardPeriod}
+            onChangePeriod={setLeaderboardPeriod}
+          />
+        ) : null}
         <StreamerProfileMemesSection
           memes={memes}
           searchResults={searchResults}

@@ -4,17 +4,22 @@ import type { Server } from 'socket.io';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../../lib/prisma.js';
 import { activateMemeSchema } from '../../shared/schemas.js';
+import { ERROR_CODES } from '../../shared/errors.js';
 import { getActivePromotion, calculatePriceWithDiscount } from '../../utils/promotions.js';
 import { WalletService } from '../WalletService.js';
 import { emitWalletUpdated, relayWalletUpdatedToPeer, type WalletUpdatedEvent } from '../../realtime/walletBridge.js';
 import { logger } from '../../utils/logger.js';
 import { TasteProfileService } from '../taste/TasteProfileService.js';
+import { computeDynamicPricing, loadDynamicPricingSnapshot, normalizeDynamicPricingSettings } from './dynamicPricing.js';
 
 type PoolChannelRow = {
   id: string;
   slug: string;
   memeCatalogMode: string | null;
   defaultPriceCoins: number | null;
+  dynamicPricingEnabled?: boolean | null;
+  dynamicPricingMinMult?: number | null;
+  dynamicPricingMaxMult?: number | null;
 };
 
 type PoolAssetRow = {
@@ -33,6 +38,8 @@ type PoolExistingChannelMemeRow = {
   priceCoins: number | null;
   title: string | null;
   legacyMemeId: string | null;
+  cooldownMinutes?: number | null;
+  lastActivatedAt?: Date | null;
 };
 
 type ChannelSlugContext = {
@@ -49,6 +56,25 @@ const DEFAULT_POOL_PRICE = 100;
 
 const normalizeDefaultPrice = (value: number | null | undefined): number =>
   Number.isFinite(value ?? NaN) ? (value as number) : DEFAULT_POOL_PRICE;
+
+const getCooldownState = (
+  cooldownMinutes?: number | null,
+  lastActivatedAt?: Date | null,
+  now: Date = new Date()
+): { cooldownMinutes: number; cooldownSecondsRemaining: number; cooldownUntil: Date } | null => {
+  const minutes =
+    typeof cooldownMinutes === 'number' && Number.isFinite(cooldownMinutes)
+      ? Math.max(0, Math.floor(cooldownMinutes))
+      : 0;
+  if (!minutes || !lastActivatedAt) return null;
+  const cooldownUntil = new Date(lastActivatedAt.getTime() + minutes * 60_000);
+  if (cooldownUntil <= now) return null;
+  const cooldownSecondsRemaining = Math.max(
+    0,
+    Math.ceil((cooldownUntil.getTime() - now.getTime()) / 1000)
+  );
+  return { cooldownMinutes: minutes, cooldownSecondsRemaining, cooldownUntil };
+};
 
 export const activateMeme = async (req: AuthRequest, res: Response) => {
   const { id: memeId } = req.params;
@@ -81,7 +107,15 @@ export const activateMeme = async (req: AuthRequest, res: Response) => {
             where: channelIdFromQuery
               ? { id: channelIdFromQuery }
               : { slug: { equals: channelSlugFromQuery, mode: 'insensitive' } },
-            select: { id: true, slug: true, memeCatalogMode: true, defaultPriceCoins: true },
+            select: {
+              id: true,
+              slug: true,
+              memeCatalogMode: true,
+              defaultPriceCoins: true,
+              dynamicPricingEnabled: true,
+              dynamicPricingMinMult: true,
+              dynamicPricingMaxMult: true,
+            },
           })
         : null;
 
@@ -97,7 +131,16 @@ export const activateMeme = async (req: AuthRequest, res: Response) => {
       !channelMeme && !legacyMeme && poolChannel && poolAsset
         ? await prisma.channelMeme.findUnique({
             where: { channelId_memeAssetId: { channelId: poolChannel.id, memeAssetId: poolAsset.id } },
-            select: { id: true, status: true, deletedAt: true, priceCoins: true, title: true, legacyMemeId: true },
+            select: {
+              id: true,
+              status: true,
+              deletedAt: true,
+              priceCoins: true,
+              title: true,
+              legacyMemeId: true,
+              cooldownMinutes: true,
+              lastActivatedAt: true,
+            },
           })
         : null;
 
@@ -127,20 +170,6 @@ export const activateMeme = async (req: AuthRequest, res: Response) => {
     }
 
     const promotion = await getActivePromotion(channelId);
-    const originalPrice = (() => {
-      if (channelMeme) return channelMeme.priceCoins;
-      if (legacyMeme) return legacyMeme.priceCoins;
-      if (
-        poolExistingChannelMeme &&
-        poolExistingChannelMeme.status === 'approved' &&
-        !poolExistingChannelMeme.deletedAt
-      )
-        return Number.isFinite(poolExistingChannelMeme.priceCoins)
-          ? (poolExistingChannelMeme.priceCoins as number)
-          : normalizeDefaultPrice(poolChannel?.defaultPriceCoins);
-      return normalizeDefaultPrice(poolChannel?.defaultPriceCoins);
-    })();
-    const finalPrice = promotion ? calculatePriceWithDiscount(originalPrice, promotion.discountPercent) : originalPrice;
 
     const result = await prisma.$transaction(
       async (tx) => {
@@ -163,6 +192,8 @@ export const activateMeme = async (req: AuthRequest, res: Response) => {
               senderDisplayName: sender?.displayName ?? null,
               resolvedChannelMemeId: existing.channelMemeId ?? null,
               idempotencyHit: true,
+              originalPrice: existing.coinsSpent ?? 0,
+              finalPrice: existing.coinsSpent ?? 0,
             };
           }
         }
@@ -239,6 +270,70 @@ export const activateMeme = async (req: AuthRequest, res: Response) => {
 
         if (!resolvedLegacyMemeId) throw new Error('Meme is not available');
 
+        const now = new Date();
+        const channelMemeIdForPricing = resolvedChannelMeme?.id ?? null;
+        const channelMemeRow = channelMemeIdForPricing
+          ? await tx.channelMeme.findUnique({
+              where: { id: channelMemeIdForPricing },
+              select: { priceCoins: true, cooldownMinutes: true, lastActivatedAt: true },
+            })
+          : null;
+
+        const cooldownState = getCooldownState(
+          channelMemeRow?.cooldownMinutes ?? null,
+          channelMemeRow?.lastActivatedAt ?? null,
+          now
+        );
+        if (cooldownState) {
+          const err = new Error('Cooldown active');
+          (err as { errorCode?: string }).errorCode = ERROR_CODES.MEME_COOLDOWN_ACTIVE;
+          (err as { details?: unknown }).details = {
+            cooldownMinutes: cooldownState.cooldownMinutes,
+            cooldownSecondsRemaining: cooldownState.cooldownSecondsRemaining,
+            cooldownUntil: cooldownState.cooldownUntil.toISOString(),
+          };
+          throw err;
+        }
+
+        const basePrice =
+          channelMemeRow?.priceCoins ??
+          (legacyMeme
+            ? legacyMeme.priceCoins
+            : poolExistingChannelMeme &&
+                poolExistingChannelMeme.status === 'approved' &&
+                !poolExistingChannelMeme.deletedAt &&
+                Number.isFinite(poolExistingChannelMeme.priceCoins)
+              ? (poolExistingChannelMeme.priceCoins as number)
+              : normalizeDefaultPrice(poolChannel?.defaultPriceCoins));
+
+        const pricingSettings = normalizeDynamicPricingSettings(
+          channelMeme?.channel ?? legacyMeme?.channel ?? poolChannel ?? null
+        );
+        let priceBeforeDiscount = basePrice;
+        if (pricingSettings.enabled && channelMemeIdForPricing) {
+          const snapshot = await loadDynamicPricingSnapshot({
+            channelId,
+            channelMemeIds: [channelMemeIdForPricing],
+            settings: pricingSettings,
+            now,
+            db: tx,
+          });
+          if (snapshot) {
+            const recent = snapshot.counts.get(channelMemeIdForPricing) ?? 0;
+            const dynamic = computeDynamicPricing({
+              basePriceCoins: basePrice,
+              recent,
+              avgRecent: snapshot.avgRecent,
+              settings: pricingSettings,
+            });
+            priceBeforeDiscount = dynamic.dynamicPriceCoins;
+          }
+        }
+
+        const finalPrice = promotion
+          ? calculatePriceWithDiscount(priceBeforeDiscount, promotion.discountPercent)
+          : priceBeforeDiscount;
+
         const wallet = await WalletService.getWalletForUpdate(tx, {
           userId: req.userId!,
           channelId,
@@ -272,6 +367,13 @@ export const activateMeme = async (req: AuthRequest, res: Response) => {
           },
         });
 
+        if (channelMemeIdForPricing) {
+          await tx.channelMeme.update({
+            where: { id: channelMemeIdForPricing },
+            data: { lastActivatedAt: now },
+          });
+        }
+
         const sender = await tx.user.findUnique({
           where: { id: req.userId! },
           select: { displayName: true },
@@ -283,6 +385,8 @@ export const activateMeme = async (req: AuthRequest, res: Response) => {
           senderDisplayName: sender?.displayName ?? null,
           resolvedChannelMemeId: resolvedChannelMeme?.id ?? null,
           idempotencyHit: false,
+          originalPrice: priceBeforeDiscount,
+          finalPrice,
         };
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
@@ -342,13 +446,25 @@ export const activateMeme = async (req: AuthRequest, res: Response) => {
     res.json({
       activation: result.activation,
       wallet: result.wallet,
-      originalPrice,
-      finalPrice,
+      originalPrice: result.originalPrice,
+      finalPrice: result.finalPrice,
       discountApplied: promotion ? promotion.discountPercent : 0,
       isFree: req.channelId === channelId,
     });
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorCode =
+      typeof (error as { errorCode?: unknown })?.errorCode === 'string'
+        ? String((error as { errorCode?: unknown }).errorCode)
+        : null;
+    const details = (error as { details?: unknown })?.details;
+    if (errorCode === ERROR_CODES.MEME_COOLDOWN_ACTIVE) {
+      return res.status(400).json({
+        errorCode,
+        error: 'Meme cooldown active',
+        details,
+      });
+    }
     if (errorMessage === 'Wallet not found' || errorMessage === 'Meme not found') {
       return res.status(404).json({ error: errorMessage });
     }

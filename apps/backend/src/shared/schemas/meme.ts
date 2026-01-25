@@ -7,6 +7,7 @@ export const updateMemeSchema = z.object({
   title: z.string().min(1).max(200).optional(),
   priceCoins: z.number().int().positive().optional(),
   durationMs: z.number().int().positive().optional(),
+  cooldownMinutes: z.number().int().min(0).max(1440).optional(),
 });
 
 export const activateMemeSchema = z.object({

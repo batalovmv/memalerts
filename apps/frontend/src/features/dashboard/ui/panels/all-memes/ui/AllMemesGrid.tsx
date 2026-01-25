@@ -17,6 +17,7 @@ export type AllMemesGridProps = {
   loadMoreRef: React.RefObject<HTMLDivElement>;
   autoplayPreview: 'autoplayMuted' | 'hoverWithSound';
   onSelectMeme: (meme: Meme) => void;
+  showEmptyState?: boolean;
 };
 
 export function AllMemesGrid({
@@ -28,6 +29,7 @@ export function AllMemesGrid({
   loadMoreRef,
   autoplayPreview,
   onSelectMeme,
+  showEmptyState = true,
 }: AllMemesGridProps) {
   const { t } = useTranslation();
 
@@ -74,6 +76,10 @@ export function AllMemesGrid({
           ) : null}
         </div>
       );
+    }
+
+    if (!showEmptyState) {
+      return null;
     }
 
     return (

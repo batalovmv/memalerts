@@ -61,6 +61,7 @@ export const updateMeme = async (req: AuthRequest, res: Response) => {
         data: {
           ...(body.title !== undefined ? { title: body.title } : {}),
           ...(body.priceCoins !== undefined ? { priceCoins: body.priceCoins } : {}),
+          ...(body.cooldownMinutes !== undefined ? { cooldownMinutes: body.cooldownMinutes } : {}),
         },
         include: {
           memeAsset: {
@@ -125,6 +126,7 @@ export const updateMeme = async (req: AuthRequest, res: Response) => {
       fileUrl: updated.memeAsset.fileUrl ?? null,
       durationMs: updated.memeAsset.durationMs,
       priceCoins: updated.priceCoins,
+      cooldownMinutes: updated.cooldownMinutes ?? null,
       status: updated.status,
       deletedAt: updated.deletedAt,
       createdAt: updated.createdAt,

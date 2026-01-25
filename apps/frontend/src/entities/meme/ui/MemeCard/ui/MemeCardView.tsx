@@ -77,6 +77,42 @@ function MemeCardViewBase({
           score: Math.round(qualityScore),
         })
       : null;
+  const basePrice =
+    typeof meme.basePriceCoins === 'number' && Number.isFinite(meme.basePriceCoins)
+      ? meme.basePriceCoins
+      : meme.priceCoins;
+  const dynamicPrice =
+    typeof meme.dynamicPriceCoins === 'number' && Number.isFinite(meme.dynamicPriceCoins)
+      ? meme.dynamicPriceCoins
+      : null;
+  const displayPrice =
+    typeof dynamicPrice === 'number' && Number.isFinite(dynamicPrice) ? dynamicPrice : basePrice;
+  const showPrice = Number.isFinite(displayPrice) && displayPrice > 0;
+  const hasDynamicDiff =
+    typeof dynamicPrice === 'number' &&
+    Number.isFinite(dynamicPrice) &&
+    Number.isFinite(basePrice) &&
+    dynamicPrice !== basePrice;
+  const trend =
+    meme.priceTrend ||
+    (hasDynamicDiff ? (dynamicPrice > basePrice ? 'rising' : 'falling') : 'stable');
+  const trendIcon = trend === 'rising' ? '^' : trend === 'falling' ? 'v' : '.';
+  const trendText =
+    hasDynamicDiff && Number.isFinite(basePrice) && basePrice > 0
+      ? Math.round(((dynamicPrice - basePrice) / basePrice) * 100)
+      : null;
+  const cooldownSeconds =
+    typeof meme.cooldownSecondsRemaining === 'number' && Number.isFinite(meme.cooldownSecondsRemaining)
+      ? Math.max(0, Math.floor(meme.cooldownSecondsRemaining))
+      : 0;
+  const isCooldownActive = cooldownSeconds > 0;
+  const cooldownLabel = isCooldownActive
+    ? (() => {
+        const minutes = Math.floor(cooldownSeconds / 60);
+        const seconds = cooldownSeconds % 60;
+        return minutes > 0 ? `${minutes}:${String(seconds).padStart(2, '0')}` : `${seconds}s`;
+      })()
+    : null;
   const activationsCount =
     typeof meme.activationsCount === 'number' && Number.isFinite(meme.activationsCount)
       ? meme.activationsCount
@@ -141,7 +177,7 @@ function MemeCardViewBase({
           <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/30 backdrop-blur-[1px]">
             <div className="flex items-center gap-2 rounded-full bg-black/70 text-white text-xs font-semibold px-3 py-1.5 animate-pulse">
               <Spinner className="h-4 w-4 border-white/70 border-t-white" />
-              <span>{t('submissions.aiProcessing', { defaultValue: 'AI: processing…' })}</span>
+              <span>{t('submissions.aiProcessing', { defaultValue: 'AI: processing...' })}</span>
             </div>
           </div>
         ) : null}
@@ -158,7 +194,7 @@ function MemeCardViewBase({
               {showAiBadges && isAiProcessing ? (
                 <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-white/90">
                   <Spinner className="h-3 w-3 border-white/60 border-t-white" />
-                  <span>{t('submissions.aiProcessing', { defaultValue: 'AI: processing…' })}</span>
+                  <span>{t('submissions.aiProcessing', { defaultValue: 'AI: processing...' })}</span>
                 </span>
               ) : null}
             </p>
@@ -181,7 +217,7 @@ function MemeCardViewBase({
             ) : hasAiFields ? (
               <span className="inline-flex items-center rounded-full bg-black/65 text-white text-[11px] font-semibold px-2 py-0.5">
                 {isAiProcessing
-                  ? t('submissions.aiProcessing', { defaultValue: 'AI: processing…' })
+                  ? t('submissions.aiProcessing', { defaultValue: 'AI: processing...' })
                   : aiStatusLabel
                     ? `AI: ${aiStatusLabel}`
                     : 'AI: pending'}
@@ -206,12 +242,37 @@ function MemeCardViewBase({
             ) : null}
             {activationsCount > 0 ? (
               <span className="inline-flex items-center gap-1 rounded-full bg-black/70 text-white text-[11px] font-semibold px-2 py-0.5">
-                <span aria-hidden="true">🔥</span>
                 <span>{activationsLabel}</span>
               </span>
             ) : null}
           </div>
         ) : null}
+
+        {(showPrice || isCooldownActive) && (
+          <div className="absolute bottom-2 left-2 z-30 flex flex-col gap-1">
+            {showPrice ? (
+              <span className="inline-flex items-center gap-1 rounded-full bg-black/70 text-white text-[11px] font-semibold px-2 py-0.5">
+                {hasDynamicDiff ? (
+                  <span className="inline-flex items-center gap-1">
+                    <span className="line-through text-white/60">{basePrice}</span>
+                    <span>{displayPrice}</span>
+                  </span>
+                ) : (
+                  <span>{displayPrice}</span>
+                )}
+                <span className={cn('ml-1 text-[10px]', trend === 'rising' && 'text-rose-200', trend === 'falling' && 'text-emerald-200')}>
+                  {trendIcon}
+                  {typeof trendText === 'number' && trendText !== 0 ? `${trendText > 0 ? '+' : ''}${trendText}%` : ''}
+                </span>
+              </span>
+            ) : null}
+            {isCooldownActive && cooldownLabel ? (
+              <span className="inline-flex items-center gap-1 rounded-full bg-black/70 text-white text-[11px] font-semibold px-2 py-0.5">
+                <span>{t('memes.cooldownLabel', { defaultValue: 'Cooldown {{time}}', time: cooldownLabel })}</span>
+              </span>
+            ) : null}
+          </div>
+        )}
       </div>
     </article>
   );

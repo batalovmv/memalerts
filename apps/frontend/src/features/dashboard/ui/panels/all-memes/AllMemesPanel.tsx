@@ -1,3 +1,4 @@
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { PanelHeader } from '../../PanelHeader';
@@ -5,6 +6,7 @@ import { PanelHeader } from '../../PanelHeader';
 import { useAllMemesPanel } from './model/useAllMemesPanel';
 import { AllMemesControls } from './ui/AllMemesControls';
 import { AllMemesGrid } from './ui/AllMemesGrid';
+import { StarterMemesPanel } from './ui/StarterMemesPanel';
 
 import type { Meme } from '@/types';
 
@@ -23,6 +25,39 @@ export function AllMemesPanel({ isOpen, channelId, autoplayPreview, onClose, onS
   const { t } = useTranslation();
   // Dashboard is owner/admin-only context; request fileHash when backend allows it.
   const vm = useAllMemesPanel({ isOpen, channelId, includeFileHash: true });
+  const [starterDismissed, setStarterDismissed] = useState(false);
+
+  const starterDismissKey = useMemo(
+    () => (channelId ? `memalerts:starterMemesDismissed:${channelId}` : 'memalerts:starterMemesDismissed'),
+    [channelId],
+  );
+
+  useEffect(() => {
+    if (!channelId || typeof window === 'undefined') return;
+    try {
+      setStarterDismissed(window.localStorage.getItem(starterDismissKey) === '1');
+    } catch {
+      setStarterDismissed(false);
+    }
+  }, [channelId, starterDismissKey]);
+
+  const handleDismissStarter = useCallback(() => {
+    setStarterDismissed(true);
+    if (typeof window === 'undefined') return;
+    try {
+      window.localStorage.setItem(starterDismissKey, '1');
+    } catch {
+      // ignore storage errors
+    }
+  }, [starterDismissKey]);
+
+  const showStarterPanel = useMemo(() => {
+    if (starterDismissed || vm.loading) return false;
+    if (typeof vm.totalCount === 'number') {
+      return vm.totalCount === 0;
+    }
+    return vm.memes.length === 0;
+  }, [starterDismissed, vm.loading, vm.memes.length, vm.totalCount]);
 
   return (
     <section
@@ -47,6 +82,15 @@ export function AllMemesPanel({ isOpen, channelId, autoplayPreview, onClose, onS
       />
 
       <div className="surface-body">
+        {showStarterPanel ? (
+          <StarterMemesPanel
+            channelId={channelId}
+            isOpen={isOpen}
+            onImported={() => void vm.reload()}
+            onDismiss={handleDismissStarter}
+          />
+        ) : null}
+
         <AllMemesControls
           query={vm.query}
           onQueryChange={vm.setQuery}
@@ -65,10 +109,10 @@ export function AllMemesPanel({ isOpen, channelId, autoplayPreview, onClose, onS
           loadMoreRef={vm.loadMoreRef}
           autoplayPreview={autoplayPreview}
           onSelectMeme={onSelectMeme}
+          showEmptyState={!showStarterPanel}
         />
       </div>
     </section>
   );
 }
-
 

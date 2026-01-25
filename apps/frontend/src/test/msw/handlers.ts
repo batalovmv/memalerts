@@ -481,12 +481,33 @@ export function mockMySubmissions(payload: unknown, onCall?: () => void) {
   });
 }
 
-export function mockMemesPool(payload: unknown, onCall?: (url: URL) => void) {
-  return http.get('*/memes/pool*', ({ request }) => {
-    onCall?.(new URL(request.url));
-    return HttpResponse.json(payload);
-  });
-}
+  export function mockMemesPool(payload: unknown, onCall?: (url: URL) => void) {
+    return http.get('*/memes/pool*', ({ request }) => {
+      onCall?.(new URL(request.url));
+      return HttpResponse.json(payload);
+    });
+  }
+
+  export function mockStarterMemes(payload: unknown, onCall?: (url: URL) => void) {
+    return http.get('*/streamer/starter-memes*', ({ request }) => {
+      onCall?.(new URL(request.url));
+      return HttpResponse.json(payload);
+    });
+  }
+
+  export function mockMemesStats(payload: unknown, onCall?: (url: URL) => void) {
+    return http.get('*/memes/stats*', ({ request }) => {
+      onCall?.(new URL(request.url));
+      return HttpResponse.json(payload);
+    });
+  }
+
+  export function mockChannelLeaderboard(payload: unknown, onCall?: (url: URL) => void) {
+    return http.get('*/channels/:slug/leaderboard*', ({ request }) => {
+      onCall?.(new URL(request.url));
+      return HttpResponse.json(payload);
+    });
+  }
 
 export function mockChannelMemesSearch(payload: unknown, onCall?: (url: URL) => void) {
   return http.get('*/channels/memes/search*', ({ request }) => {

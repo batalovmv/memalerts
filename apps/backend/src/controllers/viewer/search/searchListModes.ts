@@ -3,6 +3,7 @@ import { prisma } from '../../../lib/prisma.js';
 import { buildSearchTerms } from '../../../shared/utils/searchTerms.js';
 import { parseTagNames } from '../cache.js';
 import {
+  buildCooldownPayload,
   getSourceType,
   loadLegacyTagsById,
   toChannelMemeListItemDto,
@@ -10,6 +11,12 @@ import {
 } from '../channelMemeListDto.js';
 import { buildChannelMemeVisibilityFilter, buildMemeAssetVisibilityFilter, applyViewerMemeState, loadViewerMemeState } from '../memeViewerState.js';
 import { sendSearchResponse, type PoolAssetRow, type ChannelMemeRow, type SearchContext } from './searchShared.js';
+import {
+  applyDynamicPricingToItems,
+  collectChannelMemeIds,
+  loadDynamicPricingSnapshot,
+  normalizeDynamicPricingSettings,
+} from '../../../services/meme/dynamicPricing.js';
 
 type SearchRowsResult = {
   items: Array<ChannelMemeListItemDto | Record<string, unknown>>;
@@ -32,6 +39,10 @@ function mapPoolRows(
     const channelPrice = ch?.priceCoins;
     const priceCoins = Number.isFinite(channelPrice) ? (channelPrice as number) : defaultPriceCoins;
     const legacyTags = legacyTagsById?.get(ch?.legacyMemeId ?? '');
+    const cooldownPayload = buildCooldownPayload({
+      cooldownMinutes: ch?.cooldownMinutes ?? null,
+      lastActivatedAt: ch?.lastActivatedAt ?? null,
+    });
     const doneVariants = Array.isArray(r.variants)
       ? r.variants.filter((v) => String(v.status || '') === 'done')
       : [];
@@ -51,7 +62,7 @@ function mapPoolRows(
     return {
       id: r.id,
       channelId,
-      channelMemeId: r.id,
+      channelMemeId: ch?.id ?? r.id,
       memeAssetId: r.id,
       title,
       type: r.type,
@@ -61,6 +72,7 @@ function mapPoolRows(
       durationMs: r.durationMs,
       qualityScore: r.qualityScore ?? null,
       priceCoins,
+      ...(cooldownPayload ?? {}),
       status: 'approved',
       deletedAt: null,
       createdAt: r.createdAt,
@@ -141,7 +153,15 @@ async function attachViewerState(ctx: SearchContext, items: Array<Record<string,
     channelId: ctx.targetChannelId ?? null,
     memeAssetIds: getMemeAssetIds(items),
   });
-  return applyViewerMemeState(items, state);
+  const withState = applyViewerMemeState(items, state);
+  if (!ctx.targetChannelId) return withState;
+  const settings = normalizeDynamicPricingSettings(ctx.targetChannel ?? null);
+  const snapshot = await loadDynamicPricingSnapshot({
+    channelId: ctx.targetChannelId,
+    channelMemeIds: collectChannelMemeIds(withState),
+    settings,
+  });
+  return applyDynamicPricingToItems(withState, snapshot);
 }
 
 async function buildChannelItems(
@@ -241,6 +261,8 @@ async function loadFavorites(ctx: SearchContext): Promise<SearchRowsResult | nul
         aiAutoDescription: true,
         aiAutoTagNamesJson: true,
         priceCoins: true,
+        cooldownMinutes: true,
+        lastActivatedAt: true,
         status: true,
         createdAt: true,
         memeAsset: {
@@ -294,7 +316,7 @@ async function loadFavorites(ctx: SearchContext): Promise<SearchRowsResult | nul
         where: { channelId, status: 'approved', deletedAt: null },
         take: 1,
         orderBy: { createdAt: 'desc' },
-        select: { title: true, priceCoins: true, legacyMemeId: true },
+        select: { id: true, title: true, priceCoins: true, legacyMemeId: true, cooldownMinutes: true, lastActivatedAt: true },
       },
     },
   })) as PoolAssetRow[];
@@ -364,6 +386,8 @@ async function loadHidden(ctx: SearchContext): Promise<SearchRowsResult | null> 
         aiAutoDescription: true,
         aiAutoTagNamesJson: true,
         priceCoins: true,
+        cooldownMinutes: true,
+        lastActivatedAt: true,
         status: true,
         createdAt: true,
         memeAsset: {
@@ -417,7 +441,7 @@ async function loadHidden(ctx: SearchContext): Promise<SearchRowsResult | null> 
         where: { channelId, status: 'approved', deletedAt: null },
         take: 1,
         orderBy: { createdAt: 'desc' },
-        select: { title: true, priceCoins: true, legacyMemeId: true },
+        select: { id: true, title: true, priceCoins: true, legacyMemeId: true, cooldownMinutes: true, lastActivatedAt: true },
       },
     },
   })) as PoolAssetRow[];
@@ -471,7 +495,7 @@ async function loadBlocked(ctx: SearchContext): Promise<SearchRowsResult | null>
         where: { channelId, status: 'approved', deletedAt: null },
         take: 1,
         orderBy: { createdAt: 'desc' },
-        select: { title: true, priceCoins: true, legacyMemeId: true },
+        select: { id: true, title: true, priceCoins: true, legacyMemeId: true, cooldownMinutes: true, lastActivatedAt: true },
       },
     },
   })) as PoolAssetRow[];
@@ -526,6 +550,8 @@ async function loadFrequent(ctx: SearchContext): Promise<SearchRowsResult | null
       aiAutoDescription: true,
       aiAutoTagNamesJson: true,
       priceCoins: true,
+      cooldownMinutes: true,
+      lastActivatedAt: true,
       status: true,
       createdAt: true,
       memeAsset: {
@@ -606,6 +632,8 @@ async function loadRecent(ctx: SearchContext): Promise<SearchRowsResult | null> 
       aiAutoDescription: true,
       aiAutoTagNamesJson: true,
       priceCoins: true,
+      cooldownMinutes: true,
+      lastActivatedAt: true,
       status: true,
       createdAt: true,
       memeAsset: {
@@ -722,6 +750,8 @@ async function loadTrending(ctx: SearchContext): Promise<SearchRowsResult | null
         aiAutoDescription: true,
         aiAutoTagNamesJson: true,
         priceCoins: true,
+        cooldownMinutes: true,
+        lastActivatedAt: true,
         status: true,
         createdAt: true,
         memeAsset: {
@@ -802,7 +832,7 @@ async function loadTrending(ctx: SearchContext): Promise<SearchRowsResult | null
         where: { channelId, status: 'approved', deletedAt: null },
         take: 1,
         orderBy: { createdAt: 'desc' },
-        select: { title: true, priceCoins: true, legacyMemeId: true },
+        select: { id: true, title: true, priceCoins: true, legacyMemeId: true, cooldownMinutes: true, lastActivatedAt: true },
       },
     },
   })) as PoolAssetRow[];

@@ -4,6 +4,7 @@ import type { AuthRequest } from '../../middleware/auth.js';
 import { prisma } from '../../lib/prisma.js';
 import { TasteProfileService } from '../../services/taste/TasteProfileService.js';
 import {
+  buildCooldownPayload,
   getSourceType,
   loadLegacyTagsById,
   toChannelMemeListItemDto,
@@ -16,6 +17,12 @@ import {
   buildMemeAssetVisibilityFilter,
   loadViewerMemeState,
 } from './memeViewerState.js';
+import {
+  applyDynamicPricingToItems,
+  collectChannelMemeIds,
+  loadDynamicPricingSnapshot,
+  normalizeDynamicPricingSettings,
+} from '../../services/meme/dynamicPricing.js';
 
 const MIN_TASTE_ACTIVATIONS = 5;
 
@@ -49,6 +56,8 @@ async function loadChannelCandidates(channelId: string, limit: number, userId?: 
       memeAssetId: true,
       title: true,
       priceCoins: true,
+      cooldownMinutes: true,
+      lastActivatedAt: true,
       status: true,
       createdAt: true,
       aiAutoTagNamesJson: true,
@@ -123,7 +132,7 @@ async function loadPoolCandidates(channelId: string, limit: number, userId?: str
         where: { channelId, status: 'approved', deletedAt: null },
         take: 1,
         orderBy: { createdAt: 'desc' },
-        select: { title: true, priceCoins: true, legacyMemeId: true },
+        select: { id: true, title: true, priceCoins: true, legacyMemeId: true, cooldownMinutes: true, lastActivatedAt: true },
       },
     },
   });
@@ -174,7 +183,15 @@ export const getPersonalizedMemes = async (req: AuthRequest, res: Response) => {
 
   const channel = await prisma.channel.findFirst({
     where: { slug: { equals: slug, mode: 'insensitive' } },
-    select: { id: true, slug: true, memeCatalogMode: true, defaultPriceCoins: true },
+    select: {
+      id: true,
+      slug: true,
+      memeCatalogMode: true,
+      defaultPriceCoins: true,
+      dynamicPricingEnabled: true,
+      dynamicPricingMinMult: true,
+      dynamicPricingMaxMult: true,
+    },
   });
   if (!channel) {
     return res
@@ -196,7 +213,14 @@ export const getPersonalizedMemes = async (req: AuthRequest, res: Response) => {
       channelId: channel.id,
       memeAssetIds,
     });
-    return applyViewerMemeState(items, state);
+    const withState = applyViewerMemeState(items, state);
+    const settings = normalizeDynamicPricingSettings(channel);
+    const snapshot = await loadDynamicPricingSnapshot({
+      channelId: channel.id,
+      channelMemeIds: collectChannelMemeIds(withState),
+      settings,
+    });
+    return applyDynamicPricingToItems(withState, snapshot);
   };
 
   if (!profileReady || !profile) {
@@ -323,7 +347,14 @@ function mapPoolAssetToItem(
     createdAt: Date;
     aiAutoTitle: string | null;
     createdBy?: { id: string; displayName: string } | null;
-    channelMemes?: Array<{ title: string | null; priceCoins: number | null; legacyMemeId: string | null }>;
+    channelMemes?: Array<{
+      id: string;
+      title: string | null;
+      priceCoins: number | null;
+      legacyMemeId: string | null;
+      cooldownMinutes: number | null;
+      lastActivatedAt: Date | null;
+    }>;
   },
   defaultPriceCoins: number | null,
   legacyTagsById: Map<string, MemeTagDto[]>
@@ -338,6 +369,10 @@ function mapPoolAssetToItem(
         ? (defaultPriceCoins as number)
         : 100;
   const legacyTags = legacyTagsById.get(ch?.legacyMemeId ?? '');
+  const cooldownPayload = buildCooldownPayload({
+    cooldownMinutes: ch?.cooldownMinutes ?? null,
+    lastActivatedAt: ch?.lastActivatedAt ?? null,
+  });
 
   const doneVariants = Array.isArray(row.variants) ? row.variants.filter((v) => String(v.status || '') === 'done') : [];
   const preview = doneVariants.find((v) => String(v.format || '') === 'preview');
@@ -357,16 +392,17 @@ function mapPoolAssetToItem(
   return {
     id: row.id,
     channelId,
-    channelMemeId: row.id,
+    channelMemeId: ch?.id ?? row.id,
     memeAssetId: row.id,
     title,
     type: row.type,
     previewUrl: preview?.fileUrl ?? null,
     variants,
-      fileUrl: variants[0]?.fileUrl ?? preview?.fileUrl ?? row.fileUrl ?? null,
-      durationMs: row.durationMs,
-      qualityScore: row.qualityScore ?? null,
-      priceCoins,
+    fileUrl: variants[0]?.fileUrl ?? preview?.fileUrl ?? row.fileUrl ?? null,
+    durationMs: row.durationMs,
+    qualityScore: row.qualityScore ?? null,
+    priceCoins,
+    ...(cooldownPayload ?? {}),
     status: 'approved',
     deletedAt: null,
     createdAt: row.createdAt,

@@ -26,7 +26,14 @@ export type PoolAssetRow = {
   createdAt: Date;
   aiAutoTitle: string | null;
   createdBy: { id: string; displayName: string } | null;
-  channelMemes: Array<{ title: string; priceCoins: number; legacyMemeId: string | null } | null>;
+  channelMemes: Array<{
+    id: string;
+    title: string;
+    priceCoins: number;
+    legacyMemeId: string | null;
+    cooldownMinutes?: number | null;
+    lastActivatedAt?: Date | null;
+  } | null>;
 };
 
 export type ChannelMemeRow = {
@@ -38,6 +45,8 @@ export type ChannelMemeRow = {
   aiAutoDescription: string | null;
   aiAutoTagNamesJson: unknown | null;
   priceCoins: number;
+  cooldownMinutes?: number | null;
+  lastActivatedAt?: Date | null;
   status: string;
   createdAt: Date;
   memeAsset: {
@@ -68,6 +77,9 @@ export type SearchContext = {
     memeCatalogMode: string | null;
     defaultPriceCoins: number | null;
     slug: string | null;
+    dynamicPricingEnabled?: boolean | null;
+    dynamicPricingMinMult?: number | null;
+    dynamicPricingMaxMult?: number | null;
   } | null;
   memeCatalogMode: string;
   minPrice: unknown;

@@ -4,6 +4,7 @@ import type { Prisma } from '@prisma/client';
 import type { CursorFieldSchema } from '../../../utils/pagination.js';
 import type { PaginationError } from '../../../utils/pagination.js';
 import type { toPublicChannelMemeListItemDto } from '../dto/publicChannelMemeListItemDto.js';
+import { buildCooldownPayload } from '../../viewer/channelMemeListDto.js';
 import { safeDecodeCursor } from '../../../utils/pagination.js';
 
 export const CURSOR_SENTINELS = new Set(['', 'null', 'undefined', 'start', 'initial']);
@@ -56,9 +57,12 @@ export type MemeAssetPoolRow = Prisma.MemeAssetGetPayload<{
       take: 1;
       orderBy: { createdAt: 'desc' };
       select: {
+        id: true;
         title: true;
         priceCoins: true;
         legacyMemeId: true;
+        cooldownMinutes: true;
+        lastActivatedAt: true;
         _count: {
           select: {
             activations: {
@@ -217,6 +221,10 @@ export function mapPoolAssetsToDtos(
       typeof ch?._count?.activations === 'number' && Number.isFinite(ch._count.activations)
         ? ch._count.activations
         : 0;
+    const cooldownPayload = buildCooldownPayload({
+      cooldownMinutes: ch?.cooldownMinutes ?? null,
+      lastActivatedAt: ch?.lastActivatedAt ?? null,
+    });
     const doneVariants = Array.isArray(r.variants)
       ? r.variants.filter((v) => String(v.status || '') === 'done')
       : [];
@@ -241,7 +249,7 @@ export function mapPoolAssetsToDtos(
     return {
       id: r.id,
       channelId,
-      channelMemeId: r.id,
+      channelMemeId: ch?.id ?? r.id,
       memeAssetId: r.id,
       title,
       type: r.type,
@@ -250,6 +258,7 @@ export function mapPoolAssetsToDtos(
       fileUrl: variants[0]?.fileUrl ?? preview?.fileUrl ?? r.fileUrl ?? null,
       durationMs: r.durationMs,
       priceCoins,
+      ...(cooldownPayload ?? {}),
       activationsCount,
       createdAt: r.createdAt,
       createdBy: r.createdBy ? { id: r.createdBy.id, displayName: r.createdBy.displayName } : null,

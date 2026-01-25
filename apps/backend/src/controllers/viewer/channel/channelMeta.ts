@@ -13,8 +13,14 @@ import {
 } from '../cache.js';
 import { nsKey, redisGetString, redisSetStringEx } from '../../../utils/redisCache.js';
 import { normalizeDashboardCardOrder } from '../../../utils/dashboardCardOrder.js';
-import { getSourceType, loadLegacyTagsById, toChannelMemeListItemDto } from '../channelMemeListDto.js';
+import { buildCooldownPayload, getSourceType, loadLegacyTagsById, toChannelMemeListItemDto } from '../channelMemeListDto.js';
 import { applyViewerMemeState, buildChannelMemeVisibilityFilter, buildMemeAssetVisibilityFilter, loadViewerMemeState } from '../memeViewerState.js';
+import {
+  applyDynamicPricingToItems,
+  collectChannelMemeIds,
+  loadDynamicPricingSnapshot,
+  normalizeDynamicPricingSettings,
+} from '../../../services/meme/dynamicPricing.js';
 import type { ChannelMemeRow, ChannelResponse, ChannelWithOwner, PoolAssetRow } from './shared.js';
 
 export const getChannelBySlug = async (req: AuthRequest, res: Response) => {
@@ -162,6 +168,9 @@ export const getChannelBySlug = async (req: AuthRequest, res: Response) => {
       submissionsEnabled: channel.submissionsEnabled ?? true,
       submissionsOnlyWhenLive: channel.submissionsOnlyWhenLive ?? false,
       autoApproveEnabled: channel.autoApproveEnabled ?? false,
+      dynamicPricingEnabled: channel.dynamicPricingEnabled ?? false,
+      dynamicPricingMinMult: channel.dynamicPricingMinMult ?? 0.5,
+      dynamicPricingMaxMult: channel.dynamicPricingMaxMult ?? 2,
       coinIconUrl: channel.coinIconUrl ?? null,
       primaryColor: channel.primaryColor ?? null,
       secondaryColor: channel.secondaryColor ?? null,
@@ -234,7 +243,7 @@ export const getChannelBySlug = async (req: AuthRequest, res: Response) => {
               where: { channelId: channel.id, status: 'approved', deletedAt: null },
               take: 1,
               orderBy: { createdAt: 'desc' },
-              select: { title: true, priceCoins: true, legacyMemeId: true },
+              select: { id: true, title: true, priceCoins: true, legacyMemeId: true, cooldownMinutes: true, lastActivatedAt: true },
             },
           },
         });
@@ -253,6 +262,10 @@ export const getChannelBySlug = async (req: AuthRequest, res: Response) => {
           const channelPrice = ch?.priceCoins;
           const priceCoins = Number.isFinite(channelPrice) ? (channelPrice as number) : defaultPriceCoins;
           const legacyTags = legacyTagsById.get(ch?.legacyMemeId ?? '');
+          const cooldownPayload = buildCooldownPayload({
+            cooldownMinutes: ch?.cooldownMinutes ?? null,
+            lastActivatedAt: ch?.lastActivatedAt ?? null,
+          });
           const doneVariants = Array.isArray(r.variants)
             ? r.variants.filter((v) => String(v.status || '') === 'done')
             : [];
@@ -272,7 +285,7 @@ export const getChannelBySlug = async (req: AuthRequest, res: Response) => {
           return {
             id: r.id,
             channelId: channel.id,
-            channelMemeId: r.id,
+            channelMemeId: ch?.id ?? r.id,
             memeAssetId: r.id,
             title,
             type: r.type,
@@ -281,6 +294,7 @@ export const getChannelBySlug = async (req: AuthRequest, res: Response) => {
             fileUrl: variants[0]?.fileUrl ?? preview?.fileUrl ?? r.fileUrl ?? null,
             durationMs: r.durationMs,
             priceCoins,
+            ...(cooldownPayload ?? {}),
             status: 'approved',
             deletedAt: null,
             createdAt: r.createdAt,
@@ -289,15 +303,29 @@ export const getChannelBySlug = async (req: AuthRequest, res: Response) => {
             ...(legacyTags && legacyTags.length > 0 ? { tags: legacyTags } : {}),
           };
         });
-        if (Array.isArray(response.memes) && response.memes.length > 0 && req.userId) {
-          const state = await loadViewerMemeState({
-            userId: req.userId,
+        if (Array.isArray(response.memes) && response.memes.length > 0) {
+          if (req.userId) {
+            const state = await loadViewerMemeState({
+              userId: req.userId,
+              channelId: channel.id,
+              memeAssetIds: response.memes
+                .map((item) =>
+                  typeof item.memeAssetId === 'string' ? item.memeAssetId : typeof item.id === 'string' ? item.id : ''
+                )
+                .filter((id) => id && id.length > 0),
+            });
+            response.memes = applyViewerMemeState(response.memes as Array<Record<string, unknown>>, state);
+          }
+          const dynamicSettings = normalizeDynamicPricingSettings(channel);
+          const snapshot = await loadDynamicPricingSnapshot({
             channelId: channel.id,
-            memeAssetIds: response.memes
-              .map((item) => (typeof item.memeAssetId === 'string' ? item.memeAssetId : typeof item.id === 'string' ? item.id : ''))
-              .filter((id) => id && id.length > 0),
+            channelMemeIds: collectChannelMemeIds(response.memes as Array<Record<string, unknown>>),
+            settings: dynamicSettings,
           });
-          response.memes = applyViewerMemeState(response.memes as Array<Record<string, unknown>>, state);
+          response.memes = applyDynamicPricingToItems(
+            response.memes as Array<Record<string, unknown>>,
+            snapshot
+          );
         }
         response.memesPage = {
           limit: memesLimit,
@@ -330,6 +358,8 @@ export const getChannelBySlug = async (req: AuthRequest, res: Response) => {
             memeAssetId: true,
             title: true,
             priceCoins: true,
+            cooldownMinutes: true,
+            lastActivatedAt: true,
             status: true,
             createdAt: true,
             memeAsset: {
@@ -362,15 +392,29 @@ export const getChannelBySlug = async (req: AuthRequest, res: Response) => {
           const tags = legacyTagsById.get(r.legacyMemeId ?? '');
           return tags && tags.length > 0 ? { ...item, tags } : item;
         });
-        if (Array.isArray(response.memes) && response.memes.length > 0 && req.userId) {
-          const state = await loadViewerMemeState({
-            userId: req.userId,
+        if (Array.isArray(response.memes) && response.memes.length > 0) {
+          if (req.userId) {
+            const state = await loadViewerMemeState({
+              userId: req.userId,
+              channelId: channel.id,
+              memeAssetIds: response.memes
+                .map((item) =>
+                  typeof item.memeAssetId === 'string' ? item.memeAssetId : typeof item.id === 'string' ? item.id : ''
+                )
+                .filter((id) => id && id.length > 0),
+            });
+            response.memes = applyViewerMemeState(response.memes as Array<Record<string, unknown>>, state);
+          }
+          const dynamicSettings = normalizeDynamicPricingSettings(channel);
+          const snapshot = await loadDynamicPricingSnapshot({
             channelId: channel.id,
-            memeAssetIds: response.memes
-              .map((item) => (typeof item.memeAssetId === 'string' ? item.memeAssetId : typeof item.id === 'string' ? item.id : ''))
-              .filter((id) => id && id.length > 0),
+            channelMemeIds: collectChannelMemeIds(response.memes as Array<Record<string, unknown>>),
+            settings: dynamicSettings,
           });
-          response.memes = applyViewerMemeState(response.memes as Array<Record<string, unknown>>, state);
+          response.memes = applyDynamicPricingToItems(
+            response.memes as Array<Record<string, unknown>>,
+            snapshot
+          );
         }
         response.memesPage = {
           limit: memesLimit,

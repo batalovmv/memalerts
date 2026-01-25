@@ -202,7 +202,7 @@ describe('DashboardPage (integration)', () => {
 
     await userEv.click(screen.getByRole('button', { name: /all memes/i }));
 
-    expect(await screen.findByText(/no memes/i)).toBeInTheDocument();
+    expect(await screen.findByText(/quick start/i)).toBeInTheDocument();
   });
 
   it('all memes: shows error + retry when /streamer/memes fails, then succeeds after retry', async () => {

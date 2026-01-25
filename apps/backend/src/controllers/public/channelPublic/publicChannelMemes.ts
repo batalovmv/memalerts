@@ -36,6 +36,12 @@ import {
 } from '../../viewer/cache.js';
 import { nsKey, redisGetString, redisSetStringEx } from '../../../utils/redisCache.js';
 import { parseQueryBool } from '../../../shared/utils/queryParsers.js';
+import {
+  applyDynamicPricingToItems,
+  collectChannelMemeIds,
+  loadDynamicPricingSnapshot,
+  normalizeDynamicPricingSettings,
+} from '../../../services/meme/dynamicPricing.js';
 
 export const getPublicChannelMemes = async (req: AuthRequest, res: Response) => {
   const query = req.query as PublicChannelMemesQuery;
@@ -79,7 +85,14 @@ export const getPublicChannelMemes = async (req: AuthRequest, res: Response) => 
 
   const channel = await prisma.channel.findFirst({
     where: { slug: { equals: slug, mode: 'insensitive' } },
-    select: { id: true, memeCatalogMode: true, defaultPriceCoins: true },
+    select: {
+      id: true,
+      memeCatalogMode: true,
+      defaultPriceCoins: true,
+      dynamicPricingEnabled: true,
+      dynamicPricingMinMult: true,
+      dynamicPricingMaxMult: true,
+    },
   });
   if (!channel)
     return res
@@ -154,9 +167,12 @@ export const getPublicChannelMemes = async (req: AuthRequest, res: Response) => 
             take: 1,
             orderBy: { createdAt: 'desc' },
             select: {
+              id: true,
               title: true,
               priceCoins: true,
               legacyMemeId: true,
+              cooldownMinutes: true,
+              lastActivatedAt: true,
               _count: {
                 select: {
                   activations: {
@@ -186,6 +202,8 @@ export const getPublicChannelMemes = async (req: AuthRequest, res: Response) => 
           memeAssetId: true,
           title: true,
           priceCoins: true,
+          cooldownMinutes: true,
+          lastActivatedAt: true,
           aiAutoTagNamesJson: true,
           status: true,
           createdAt: true,
@@ -222,6 +240,18 @@ export const getPublicChannelMemes = async (req: AuthRequest, res: Response) => 
         const tags = legacyTagsById.get(row.legacyMemeId ?? '');
         return tags && tags.length > 0 ? { ...item, tags } : item;
       });
+    }
+    if (items.length > 0) {
+      const dynamicSettings = normalizeDynamicPricingSettings(channel);
+      const snapshot = await loadDynamicPricingSnapshot({
+        channelId: channel.id,
+        channelMemeIds: collectChannelMemeIds(items as Array<Record<string, unknown>>),
+        settings: dynamicSettings,
+      });
+      items = applyDynamicPricingToItems(
+        items as Array<Record<string, unknown>>,
+        snapshot
+      ) as PublicChannelMemeListItem[];
     }
 
     try {
@@ -273,9 +303,12 @@ export const getPublicChannelMemes = async (req: AuthRequest, res: Response) => 
           take: 1,
           orderBy: { createdAt: 'desc' },
           select: {
+            id: true,
             title: true,
             priceCoins: true,
             legacyMemeId: true,
+            cooldownMinutes: true,
+            lastActivatedAt: true,
             _count: {
               select: {
                 activations: {
@@ -311,6 +344,8 @@ export const getPublicChannelMemes = async (req: AuthRequest, res: Response) => 
         memeAssetId: true,
         title: true,
         priceCoins: true,
+        cooldownMinutes: true,
+        lastActivatedAt: true,
         aiAutoTagNamesJson: true,
         status: true,
         createdAt: true,
@@ -354,6 +389,19 @@ export const getPublicChannelMemes = async (req: AuthRequest, res: Response) => 
         where: buildChannelMemeWhere(channel.id),
       });
     }
+  }
+
+  if (items.length > 0) {
+    const dynamicSettings = normalizeDynamicPricingSettings(channel);
+    const snapshot = await loadDynamicPricingSnapshot({
+      channelId: channel.id,
+      channelMemeIds: collectChannelMemeIds(items as Array<Record<string, unknown>>),
+      settings: dynamicSettings,
+    });
+    items = applyDynamicPricingToItems(
+      items as Array<Record<string, unknown>>,
+      snapshot
+    ) as PublicChannelMemeListItem[];
   }
 
   const nextCursor = hasMore && items.length > 0 ? encodeCursorFromItem(items[items.length - 1], cursorSchema) : null;

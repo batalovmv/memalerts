@@ -14,6 +14,9 @@ export type ChannelInfo = {
   primaryColor?: string | null;
   secondaryColor?: string | null;
   accentColor?: string | null;
+  dynamicPricingEnabled?: boolean;
+  dynamicPricingMinMult?: number;
+  dynamicPricingMaxMult?: number;
   submissionsEnabled?: boolean;
   submissionsOnlyWhenLive?: boolean;
   createdAt: string;

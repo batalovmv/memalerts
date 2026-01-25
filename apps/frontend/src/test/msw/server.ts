@@ -37,6 +37,23 @@ export const server = setupServer(
       mode: 'fallback',
     })
   ),
+  http.get('*/memes/stats*', () =>
+    HttpResponse.json({
+      period: 'week',
+      startDate: new Date(0).toISOString(),
+      endDate: new Date(0).toISOString(),
+      stats: [],
+    })
+  ),
+  http.get('*/channels/:slug/leaderboard*', () =>
+    HttpResponse.json({
+      period: 'week',
+      startDate: new Date(0).toISOString(),
+      endDate: new Date(0).toISOString(),
+      stats: [],
+    })
+  ),
+  http.get('*/streamer/starter-memes*', () => HttpResponse.json([])),
   // Agent/debug telemetry (used by some integration tests for snapshots/logs).
   http.options(/http:\/\/127\.0\.0\.1:7245\/ingest\/.+/, () => new HttpResponse(null, { status: 204, headers: corsHeaders })),
   http.post(/http:\/\/127\.0\.0\.1:7245\/ingest\/.+/, () => HttpResponse.json({ ok: true }, { headers: corsHeaders })),

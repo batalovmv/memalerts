@@ -8,6 +8,7 @@ import { submissionsControlController } from '../controllers/streamer/submission
 import { aiRegenerateController } from '../controllers/streamer/aiRegenerateController.js';
 import { bulkSubmissionsController } from '../controllers/streamer/bulkSubmissionsController.js';
 import { addChannelBlocklist, listChannelBlocklist, removeChannelBlocklist } from '../controllers/streamer/channelBlocklistController.js';
+import { getStarterMemes } from '../controllers/streamer/starterMemesController.js';
 
 // Streamer control panel API (role: streamer | admin).
 // NOTE: This router is mounted with authenticate + requireBetaAccess in routes/index.ts.
@@ -27,6 +28,7 @@ streamerRoutes.get('/memes', adminController.getMemes);
 streamerRoutes.patch('/memes/:id', adminController.updateMeme);
 streamerRoutes.delete('/memes/:id', adminController.deleteMeme);
 streamerRoutes.post('/memes/:id/ai/regenerate', aiRegenerateController.regenerate);
+streamerRoutes.get('/starter-memes', getStarterMemes);
 
 // Channel-level meme blocklist
 streamerRoutes.get('/channel-blocklist', listChannelBlocklist);

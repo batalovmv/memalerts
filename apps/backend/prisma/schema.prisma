@@ -51,6 +51,10 @@ model Channel {
   secondaryColor                String? // Hex color for secondary theme
   accentColor                   String? // Hex color for accent
   defaultPriceCoins             Int?     @default(100) // Default price for memes in this channel
+  // Smart Pricing (dynamic meme pricing; opt-in per channel)
+  dynamicPricingEnabled         Boolean  @default(false)
+  dynamicPricingMinMult         Float    @default(0.5)
+  dynamicPricingMaxMult         Float    @default(2.0)
   // Which meme catalog is visible/usable on the channel page:
   // - "channel": only approved ChannelMeme items (current behavior)
   // - "pool_all": entire global pool (MemeAsset) becomes available for the channel
@@ -1245,6 +1249,9 @@ model ChannelMeme {
   aiAutoTagNamesJson Json?
   aiAutoDescription  String? @db.VarChar(2000)
   priceCoins Int
+  // Smart cooldown (prevent rapid repeat activations)
+  cooldownMinutes Int?      @default(0)
+  lastActivatedAt DateTime?
 
   addedByUserId    String?
   approvedByUserId String?

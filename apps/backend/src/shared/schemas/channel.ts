@@ -45,6 +45,10 @@ export const updateChannelSettingsSchema = z
     // Allow submissions only while stream is online (uses best-effort stream status store).
     submissionsOnlyWhenLive: z.boolean().optional(),
     autoApproveEnabled: z.boolean().optional(),
+    // Smart pricing (dynamic meme pricing)
+    dynamicPricingEnabled: z.boolean().optional(),
+    dynamicPricingMinMult: z.number().min(0.1).max(5).optional(),
+    dynamicPricingMaxMult: z.number().min(0.1).max(5).optional(),
     primaryColor: z
       .string()
       .regex(/^#[0-9A-Fa-f]{6}$/)
@@ -120,6 +124,16 @@ export const updateChannelSettingsSchema = z
         }
         seen.add(tierKey);
       }
+    }
+
+    const dynamicMin = (obj as Record<string, unknown>)?.dynamicPricingMinMult;
+    const dynamicMax = (obj as Record<string, unknown>)?.dynamicPricingMaxMult;
+    if (typeof dynamicMin === 'number' && typeof dynamicMax === 'number' && dynamicMin > dynamicMax) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['dynamicPricingMinMult'],
+        message: 'Min multiplier must be <= max multiplier',
+      });
     }
 
     const items = (obj as Record<string, unknown>)?.boostyDiscordTierRoles;
