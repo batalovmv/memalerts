@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main, beta]
+    branches: [main, develop]
   pull_request:
-    branches: [main, beta]
+    branches: [main, develop]
   workflow_dispatch:
     inputs:
       force_deploy:
@@ -672,7 +672,7 @@ jobs:
   deploy-backend-beta:
     name: Deploy backend beta on VPS (self-hosted)
     runs-on: [self-hosted, linux, x64, memalerts-vps]
-    if: (github.event_name == 'push' && github.ref == 'refs/heads/beta') || github.event_name == 'workflow_dispatch'
+    if: (github.event_name == 'push' && github.ref == 'refs/heads/develop') || github.event_name == 'workflow_dispatch'
     needs: [build]
     timeout-minutes: 20
     env:
@@ -1560,7 +1560,7 @@ jobs:
   deploy-frontend-beta:
     name: Deploy frontend beta on VPS (self-hosted)
     runs-on: [self-hosted, linux, x64, memalerts-vps]
-    if: (github.event_name == 'push' && github.ref == 'refs/heads/beta') || github.event_name == 'workflow_dispatch'
+    if: (github.event_name == 'push' && github.ref == 'refs/heads/develop') || github.event_name == 'workflow_dispatch'
     needs: [build]
     timeout-minutes: 20
     defaults:
