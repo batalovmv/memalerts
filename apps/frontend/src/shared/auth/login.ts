@@ -74,6 +74,7 @@ export const login = (redirectTo?: string): void => {
   const effectiveReturnTo = redirectPath && redirectPath !== '/' ? redirectPath : '/post-login';
   const effectiveRedirectTo = sanitizeRedirectToPath(effectiveReturnTo);
   authUrl.searchParams.set('redirect_to', effectiveRedirectTo);
+  authUrl.searchParams.set('origin', window.location.origin);
 
   // Reliable UX: if backend ignores redirect_to and sends user elsewhere (e.g. /settings/accounts),
   // we can still return them to the intended page after /me succeeds.

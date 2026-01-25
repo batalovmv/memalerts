@@ -3,7 +3,7 @@ import type { AuthRequest } from '../../middleware/auth.js';
 import { resolveOAuthProvider } from '../../auth/oauthProviders/registry.js';
 import { OAuthProviderError } from '../../auth/oauthProviders/errors.js';
 import { debugLog } from '../../utils/debug.js';
-import { asRecord, getRedirectUrl } from './utils.js';
+import { asRecord, getRedirectUrl, sanitizeOrigin } from './utils.js';
 
 export async function initiateAuth(req: AuthRequest, res: Response) {
   const params = asRecord(req.params);
@@ -19,12 +19,13 @@ export async function initiateAuth(req: AuthRequest, res: Response) {
 
   const redirectTo = typeof query.redirect_to === 'string' ? query.redirect_to : null;
 
+  const originFromQuery = sanitizeOrigin(query.origin, req);
   const originHost = req.get('host') || '';
   const referer = req.get('referer') || '';
   const isBeta = originHost.includes('beta.') || referer.includes('beta.');
 
-  let originUrl: string | null = null;
-  if (isBeta) {
+  let originUrl: string | null = originFromQuery;
+  if (!originUrl && isBeta) {
     if (originHost.includes('beta.')) {
       originUrl = `https://${originHost.split(':')[0]}`;
     } else if (referer) {

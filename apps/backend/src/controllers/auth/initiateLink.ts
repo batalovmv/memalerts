@@ -8,6 +8,7 @@ import {
   getRedirectUrl,
   sanitizeRedirectTo,
   DEFAULT_LINK_REDIRECT,
+  sanitizeOrigin,
 } from './utils.js';
 
 export async function initiateYouTubeForceSslLink(req: AuthRequest, res: Response) {
@@ -18,7 +19,7 @@ export async function initiateYouTubeForceSslLink(req: AuthRequest, res: Respons
   }
 
   const redirectTo = sanitizeRedirectTo(query.redirect_to);
-  const origin = typeof query.origin === 'string' ? query.origin : null;
+  const origin = sanitizeOrigin(query.origin, req);
 
   try {
     const oauthProvider = resolveOAuthProvider('youtube');
@@ -68,7 +69,7 @@ export async function initiateLink(req: AuthRequest, res: Response) {
 
   const rawRedirectTo = req.query.redirect_to;
   const redirectTo = sanitizeRedirectTo(rawRedirectTo);
-  const origin = (req.query.origin as string) || null;
+  const origin = sanitizeOrigin(req.query.origin, req);
 
   if (providerInput === 'boosty') {
     const redirectUrl = getRedirectUrl(req, origin || undefined);
