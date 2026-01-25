@@ -10,6 +10,7 @@ import {
   clampInt,
   computeKeywordHeuristic,
   downloadPublicFileToDisk,
+  findHardBlocklistMatch,
   isAllowedPublicFileUrl,
   parseBool,
 } from './aiModerationHelpers.js';
@@ -169,6 +170,21 @@ export async function runAiModerationPipeline(args: RunPipelineArgs): Promise<Ai
     autoTags = heuristic.tagNames.length > 0 ? heuristic.tagNames : tagRes.tagNames;
     reason = heuristic.reason;
     modelVersions.pipelineVersion = 'v1-keyword-heuristic';
+  }
+
+  const blocklistOnly = parseBool(process.env.AI_BLOCKLIST_ONLY ?? '1');
+  const hardBlockHit = findHardBlocklistMatch(
+    [submission.title, submission.notes, transcript].filter(Boolean).join('\n')
+  );
+  if (hardBlockHit) {
+    decision = 'high';
+    riskScore = Math.max(riskScore, 0.99);
+    labels = Array.from(new Set([...labels, `kw:${hardBlockHit}`]));
+    reason = 'ai:hard_blocklist';
+  } else if (blocklistOnly) {
+    decision = 'low';
+    riskScore = Math.min(riskScore, 0.1);
+    if (reason.startsWith('ai:text_')) reason = 'ai:hard_blocklist_allow';
   }
 
   return {
