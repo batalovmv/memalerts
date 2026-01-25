@@ -31,4 +31,11 @@ export function registerModerationPaths(ctx: OpenApiContext) {
     tags: ['Moderation'],
     request: { params: idParam },
   });
+
+  registerJsonPath({
+    method: 'post',
+    path: '/moderation/meme-assets/:id/title',
+    tags: ['Moderation'],
+    request: { params: idParam },
+  });
 }

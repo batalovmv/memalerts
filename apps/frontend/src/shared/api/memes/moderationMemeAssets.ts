@@ -112,8 +112,8 @@ export async function getModerationMemeAssets(query: ModerationMemeAssetsQuery =
   };
 }
 
-export async function moderationHideMemeAsset(id: string): Promise<void> {
-  await api.post(`/moderation/meme-assets/${encodeURIComponent(id)}/hide`, {});
+export async function moderationHideMemeAsset(id: string, reason?: string | null): Promise<void> {
+  await api.post(`/moderation/meme-assets/${encodeURIComponent(id)}/hide`, reason ? { reason } : {});
 }
 
 export async function moderationUnhideMemeAsset(id: string): Promise<void> {
@@ -122,6 +122,19 @@ export async function moderationUnhideMemeAsset(id: string): Promise<void> {
 
 export async function moderationQuarantineMemeAsset(id: string, reason: string): Promise<void> {
   await api.post(`/moderation/meme-assets/${encodeURIComponent(id)}/delete`, { reason });
+}
+
+export async function moderationUpdateMemeAssetTitle(
+  id: string,
+  title: string | null,
+): Promise<{ id: string; aiAutoTitle: string | null }> {
+  const res = await api.post<{ id?: string; aiAutoTitle?: string | null }>(
+    `/moderation/meme-assets/${encodeURIComponent(id)}/title`,
+    { title },
+  );
+  const aiAutoTitle =
+    typeof res?.aiAutoTitle === 'string' ? res.aiAutoTitle : res?.aiAutoTitle === null ? null : title;
+  return { id: typeof res?.id === 'string' ? res.id : id, aiAutoTitle };
 }
 
 

@@ -9,11 +9,12 @@ import type { Meme } from '@/types';
 import Header from '@/components/Header';
 import { login } from '@/lib/auth';
 import { resolveMediaUrl } from '@/lib/urls';
-import { getMemesPool } from '@/shared/api/memes';
+import { getMemesPool, moderationHideMemeAsset, moderationQuarantineMemeAsset, moderationUpdateMemeAssetTitle } from '@/shared/api/memes';
 import { createPoolSubmission } from '@/shared/api/submissions';
-import { PageShell, Button, HelpTooltip, Input, Spinner } from '@/shared/ui';
+import { PageShell, Button, HelpTooltip, Input, Spinner, Textarea, Pill } from '@/shared/ui';
 import { Modal } from '@/shared/ui/Modal/Modal';
 import ConfirmDialog from '@/shared/ui/modals/ConfirmDialog';
+import { canModerateGlobalPool } from '@/shared/lib/permissions';
 import { useAppSelector } from '@/store/hooks';
 import MemeCard from '@/widgets/meme-card/MemeCard';
 
@@ -42,7 +43,12 @@ function toPoolCardMeme(m: PoolItem, fallbackTitle: string): Meme {
     ? ((m as unknown as { variants: Meme['variants'] }).variants ?? undefined)
     : undefined;
 
-  const title = (typeof m.sampleTitle === 'string' && m.sampleTitle.trim()) ? m.sampleTitle.trim() : fallbackTitle;
+  const title =
+    (typeof m.aiAutoTitle === 'string' && m.aiAutoTitle.trim())
+      ? m.aiAutoTitle.trim()
+      : (typeof m.sampleTitle === 'string' && m.sampleTitle.trim())
+        ? m.sampleTitle.trim()
+        : fallbackTitle;
   const priceCoins = typeof m.samplePriceCoins === 'number' && Number.isFinite(m.samplePriceCoins) ? m.samplePriceCoins : 0;
   const durationMs = typeof m.durationMs === 'number' && Number.isFinite(m.durationMs) ? m.durationMs : 0;
   const type = (m.type as Meme['type'] | undefined) || 'video';
@@ -68,6 +74,10 @@ export default function PoolPage() {
   const [searchParams] = useSearchParams();
   const [selectedItem, setSelectedItem] = useState<PoolItem | null>(null);
   const [isMemeModalOpen, setIsMemeModalOpen] = useState(false);
+  const canModeratePool = canModerateGlobalPool(user);
+  const [adminTitle, setAdminTitle] = useState('');
+  const [adminReason, setAdminReason] = useState('');
+  const [adminBusy, setAdminBusy] = useState(false);
   const PREVIEW_MUTED_STORAGE_KEY = 'memalerts.pool.previewMuted';
   const [previewMuted, setPreviewMuted] = useState<boolean>(() => {
     try {
@@ -148,6 +158,17 @@ export default function PoolPage() {
     void loadPage(0, false);
   }, [authRequired, loadPage, user]);
 
+  useEffect(() => {
+    if (!selectedItem) return;
+    const initialTitle = (
+      (typeof selectedItem.aiAutoTitle === 'string' && selectedItem.aiAutoTitle.trim()) ||
+      (typeof selectedItem.sampleTitle === 'string' && selectedItem.sampleTitle.trim()) ||
+      ''
+    );
+    setAdminTitle(initialTitle);
+    setAdminReason('');
+  }, [selectedItem?.id]);
+
   const runAdd = async (memeAssetId: string, title: string | null) => {
     try {
       if (submittingAssetId) return;
@@ -224,6 +245,87 @@ export default function PoolPage() {
     const suggested = (typeof m.sampleTitle === 'string' && m.sampleTitle.trim()) ? m.sampleTitle.trim() : '';
     setPendingAdd({ memeAssetId });
     setPendingAddTitle(suggested);
+  };
+
+  const handleAdminRename = async () => {
+    if (!selectedItem) return;
+    const memeAssetId = getPoolMemeAssetId(selectedItem);
+    if (!memeAssetId) {
+      toast.error(t('pool.missingMemeAssetId', { defaultValue: 'This pool item has no memeAssetId.' }));
+      return;
+    }
+    const nextTitle = adminTitle.trim();
+    setAdminBusy(true);
+    try {
+      const res = await moderationUpdateMemeAssetTitle(memeAssetId, nextTitle || null);
+      const updatedTitle = typeof res.aiAutoTitle === 'string' ? res.aiAutoTitle : nextTitle || null;
+      setItems((prev) =>
+        prev.map((item) =>
+          getPoolMemeAssetId(item) === memeAssetId
+            ? { ...item, aiAutoTitle: updatedTitle }
+            : item
+        )
+      );
+      setSelectedItem((prev) =>
+        prev && getPoolMemeAssetId(prev) === memeAssetId ? { ...prev, aiAutoTitle: updatedTitle } : prev
+      );
+      toast.success(t('pool.titleUpdated', { defaultValue: 'Title updated.' }));
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { error?: string } } };
+      toast.error(err.response?.data?.error || t('pool.failedToSubmit', { defaultValue: 'Action failed.' }));
+    } finally {
+      setAdminBusy(false);
+    }
+  };
+
+  const handleAdminHide = async () => {
+    if (!selectedItem) return;
+    const memeAssetId = getPoolMemeAssetId(selectedItem);
+    if (!memeAssetId) {
+      toast.error(t('pool.missingMemeAssetId', { defaultValue: 'This pool item has no memeAssetId.' }));
+      return;
+    }
+    const reason = adminReason.trim();
+    setAdminBusy(true);
+    try {
+      await moderationHideMemeAsset(memeAssetId, reason || null);
+      setItems((prev) => prev.filter((item) => getPoolMemeAssetId(item) !== memeAssetId));
+      setIsMemeModalOpen(false);
+      setSelectedItem(null);
+      toast.success(t('moderation.hidden', { defaultValue: 'Hidden.' }));
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { error?: string } } };
+      toast.error(err.response?.data?.error || t('moderation.failedAction', { defaultValue: 'Action failed.' }));
+    } finally {
+      setAdminBusy(false);
+    }
+  };
+
+  const handleAdminQuarantine = async () => {
+    if (!selectedItem) return;
+    const memeAssetId = getPoolMemeAssetId(selectedItem);
+    if (!memeAssetId) {
+      toast.error(t('pool.missingMemeAssetId', { defaultValue: 'This pool item has no memeAssetId.' }));
+      return;
+    }
+    const reason = adminReason.trim();
+    if (reason.length < 3) {
+      toast.error(t('moderation.reasonMin', { defaultValue: 'Minimum 3 characters.' }));
+      return;
+    }
+    setAdminBusy(true);
+    try {
+      await moderationQuarantineMemeAsset(memeAssetId, reason);
+      setItems((prev) => prev.filter((item) => getPoolMemeAssetId(item) !== memeAssetId));
+      setIsMemeModalOpen(false);
+      setSelectedItem(null);
+      toast.success(t('moderation.quarantined', { defaultValue: 'Moved to quarantine.' }));
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { error?: string } } };
+      toast.error(err.response?.data?.error || t('moderation.failedAction', { defaultValue: 'Action failed.' }));
+    } finally {
+      setAdminBusy(false);
+    }
   };
 
   return (
@@ -422,6 +524,16 @@ export default function PoolPage() {
           const mediaUrl = resolveMediaUrl(meme.fileUrl);
           const isBusyForThis =
             !!submittingAssetId && submittingAssetId === getPoolMemeAssetId(selectedItem);
+          const aiTags = Array.isArray(selectedItem.aiAutoTagNames)
+            ? selectedItem.aiAutoTagNames.filter((tag): tag is string => typeof tag === 'string' && tag.trim().length > 0)
+            : [];
+          const aiDesc =
+            typeof selectedItem.aiAutoDescription === 'string' ? selectedItem.aiAutoDescription.trim() : '';
+          const hasAiDesc = aiDesc.length > 0;
+          const aiStatus =
+            typeof selectedItem.aiStatus === 'string' && selectedItem.aiStatus.trim()
+              ? selectedItem.aiStatus.trim()
+              : null;
 
           return (
             <div className="flex flex-col">
@@ -542,6 +654,80 @@ export default function PoolPage() {
                     })}
                   </div>
                 ) : null}
+
+                {canModeratePool && (
+                  <div className="mt-4 pt-4 border-t border-black/5 dark:border-white/10 space-y-4">
+                    <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                      {t('moderation.title', { defaultValue: 'Pool moderation' })}
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                        {t('pool.adminTitleLabel', { defaultValue: 'Pool title' })}
+                      </label>
+                      <Input
+                        value={adminTitle}
+                        onChange={(e) => setAdminTitle(e.target.value)}
+                        placeholder={t('pool.adminTitlePlaceholder', { defaultValue: 'Set a base title…' })}
+                      />
+                      <div className="flex items-center gap-2">
+                        <Button type="button" variant="secondary" onClick={handleAdminRename} disabled={adminBusy}>
+                          {adminBusy ? t('common.loading', { defaultValue: 'Loading…' }) : t('common.save', { defaultValue: 'Save' })}
+                        </Button>
+                      </div>
+                    </div>
+
+                    {(aiTags.length > 0 || hasAiDesc || aiStatus) && (
+                      <div className="space-y-2">
+                        <div className="text-sm font-semibold text-gray-700 dark:text-gray-200">AI</div>
+                        {aiStatus && (
+                          <div className="text-xs text-gray-500 dark:text-gray-400">
+                            {`AI: ${aiStatus}`}
+                          </div>
+                        )}
+                        {aiTags.length > 0 && (
+                          <div className="flex flex-wrap gap-1.5">
+                            {aiTags.slice(0, 20).map((tag) => (
+                              <Pill key={tag} variant="primary" size="sm">
+                                {tag}
+                              </Pill>
+                            ))}
+                            {aiTags.length > 20 ? (
+                              <Pill variant="neutral" size="sm">
+                                +{aiTags.length - 20}
+                              </Pill>
+                            ) : null}
+                          </div>
+                        )}
+                        {hasAiDesc && (
+                          <div className="text-xs text-gray-600 dark:text-gray-300 whitespace-pre-wrap">
+                            {aiDesc}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    <div className="space-y-2">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                        {t('moderation.reasonLabel', { defaultValue: 'Reason (required)' })}
+                      </label>
+                      <Textarea
+                        value={adminReason}
+                        onChange={(e) => setAdminReason(e.target.value)}
+                        rows={3}
+                        placeholder={t('moderation.reasonPlaceholder', { defaultValue: 'Describe why this should be deleted…' })}
+                      />
+                      <div className="flex flex-wrap gap-2">
+                        <Button type="button" variant="secondary" onClick={handleAdminHide} disabled={adminBusy}>
+                          {t('moderation.hide', { defaultValue: 'Hide' })}
+                        </Button>
+                        <Button type="button" variant="danger" onClick={handleAdminQuarantine} disabled={adminBusy}>
+                          {t('moderation.quarantine', { defaultValue: 'Delete (quarantine)' })}
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           );

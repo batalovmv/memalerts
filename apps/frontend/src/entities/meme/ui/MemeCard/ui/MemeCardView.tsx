@@ -25,6 +25,7 @@ export type MemeCardViewProps = {
   onMouseDown: () => void;
   onTouchStart: () => void;
   onKeyDown: (e: React.KeyboardEvent) => void;
+  showAiBadges?: boolean;
 };
 
 function MemeCardViewBase({
@@ -44,6 +45,7 @@ function MemeCardViewBase({
   onMouseDown,
   onTouchStart,
   onKeyDown,
+  showAiBadges = false,
 }: MemeCardViewProps) {
   const { t } = useTranslation();
   const hasAiFields = 'aiAutoDescription' in meme || 'aiAutoTagNames' in meme || 'aiStatus' in meme || 'aiAutoTitle' in meme;
@@ -116,7 +118,7 @@ function MemeCardViewBase({
             onError={onMediaError}
           />
         )}
-        {isAiProcessing ? (
+        {showAiBadges && isAiProcessing ? (
           <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/30 backdrop-blur-[1px]">
             <div className="flex items-center gap-2 rounded-full bg-black/70 text-white text-xs font-semibold px-3 py-1.5 animate-pulse">
               <Spinner className="h-4 w-4 border-white/70 border-t-white" />
@@ -134,7 +136,7 @@ function MemeCardViewBase({
           >
             <p className="text-sm font-medium truncate px-2 flex items-center justify-center gap-2">
               <span className="truncate">{meme.title}</span>
-              {isAiProcessing ? (
+              {showAiBadges && isAiProcessing ? (
                 <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-white/90">
                   <Spinner className="h-3 w-3 border-white/60 border-t-white" />
                   <span>{t('submissions.aiProcessing', { defaultValue: 'AI: processing…' })}</span>
@@ -144,7 +146,7 @@ function MemeCardViewBase({
           </div>
         )}
 
-        {hasAi || hasAiFields ? (
+        {showAiBadges && (hasAi || hasAiFields) ? (
           <div className="absolute top-2 left-2 z-30 flex flex-col gap-1">
             {aiTags.length > 0 ? (
               <span className="inline-flex items-center rounded-full bg-black/65 text-white text-[11px] font-semibold px-2 py-0.5">
@@ -188,6 +190,7 @@ export const MemeCardView = memo(MemeCardViewBase, (prev, next) => {
     prev.aspectRatio === next.aspectRatio &&
     prev.isHovered === next.isHovered &&
     prev.shouldLoadMedia === next.shouldLoadMedia &&
-    prev.videoMuted === next.videoMuted
+    prev.videoMuted === next.videoMuted &&
+    prev.showAiBadges === next.showAiBadges
   );
 });
