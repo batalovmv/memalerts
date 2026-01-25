@@ -130,7 +130,7 @@ describe('StreamerProfilePage (integration)', () => {
     expect(memesCalls[0]!.searchParams.get('channelSlug')).toBe(slug);
 
     // Clicking favorites while logged out should open auth required modal
-    await user.click(screen.getByRole('button', { name: /my favorites/i }));
+    await user.click(screen.getByRole('tab', { name: /favorites/i }));
     expect(await screen.findByTestId('auth-required-modal-open')).toBeInTheDocument();
   });
 
