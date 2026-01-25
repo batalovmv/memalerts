@@ -21,6 +21,7 @@ import {
   type PublicChannelResponse,
 } from './shared.js';
 import { toPublicChannelMemeListItemDto } from '../dto/publicChannelMemeListItemDto.js';
+import { loadLegacyTagsById } from '../../viewer/channelMemeListDto.js';
 
 export const getPublicChannelBySlug = async (req: AuthRequest, res: Response) => {
   const query = req.query as PublicChannelMetaQuery;
@@ -179,6 +180,7 @@ export const getPublicChannelBySlug = async (req: AuthRequest, res: Response) =>
           },
           createdAt: true,
           aiAutoTitle: true,
+          aiAutoTagNamesJson: true,
           createdBy: { select: { id: true, displayName: true } },
           channelMemes: {
             where: { channelId: channel.id, status: 'approved', deletedAt: null },
@@ -187,6 +189,7 @@ export const getPublicChannelBySlug = async (req: AuthRequest, res: Response) =>
             select: {
               title: true,
               priceCoins: true,
+              legacyMemeId: true,
               _count: {
                 select: {
                   activations: {
@@ -199,7 +202,12 @@ export const getPublicChannelBySlug = async (req: AuthRequest, res: Response) =>
         },
       });
 
-      response.memes = mapPoolAssetsToDtos(rows, channel.id, defaultPriceCoins);
+      const legacyTagsById = await loadLegacyTagsById(rows.map((row) => row.channelMemes?.[0]?.legacyMemeId ?? null));
+      response.memes = mapPoolAssetsToDtos(rows, channel.id, defaultPriceCoins).map((item, idx) => {
+        const legacyId = rows[idx]?.channelMemes?.[0]?.legacyMemeId ?? '';
+        const tags = legacyTagsById.get(legacyId);
+        return tags && tags.length > 0 ? { ...item, tags } : item;
+      });
       response.memesPage = {
         limit: memesLimit,
         offset: memesOffset,
@@ -218,6 +226,7 @@ export const getPublicChannelBySlug = async (req: AuthRequest, res: Response) =>
           memeAssetId: true,
           title: true,
           priceCoins: true,
+          aiAutoTagNamesJson: true,
           status: true,
           createdAt: true,
           memeAsset: {
@@ -247,7 +256,12 @@ export const getPublicChannelBySlug = async (req: AuthRequest, res: Response) =>
         },
       });
 
-      const mapped = channelRows.map((row) => toPublicChannelMemeListItemDto(channel.id, row));
+      const legacyTagsById = await loadLegacyTagsById(channelRows.map((row) => row.legacyMemeId));
+      const mapped = channelRows.map((row) => {
+        const item = toPublicChannelMemeListItemDto(channel.id, row);
+        const tags = legacyTagsById.get(row.legacyMemeId ?? '');
+        return tags && tags.length > 0 ? { ...item, tags } : item;
+      });
       response.memes = mapped;
       response.memesPage = {
         limit: memesLimit,
