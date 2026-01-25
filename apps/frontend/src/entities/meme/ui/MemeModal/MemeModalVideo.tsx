@@ -104,6 +104,7 @@ export function MemeModalVideo({
     >
       {showBackdropVideo ? (
         <video
+          data-testid="meme-modal-backdrop"
           src={backdropUrl || undefined}
           muted
           loop
@@ -122,6 +123,7 @@ export function MemeModalVideo({
       <div className="absolute inset-0 z-10">
         {hasPreview ? (
           <video
+            data-testid="meme-modal-preview"
             ref={previewVideoRef}
             src={previewUrl}
             muted
@@ -140,6 +142,7 @@ export function MemeModalVideo({
         ) : null}
 
         <video
+          data-testid="meme-modal-full"
           ref={videoRef}
           src={fullCandidate?.url}
           muted={isMuted}
