@@ -347,7 +347,14 @@ function mapPoolAssetToItem(
     createdAt: Date;
     aiAutoTitle: string | null;
     createdBy?: { id: string; displayName: string } | null;
-    channelMemes?: Array<{ title: string | null; priceCoins: number | null; legacyMemeId: string | null }>;
+    channelMemes?: Array<{
+      id: string;
+      title: string | null;
+      priceCoins: number | null;
+      legacyMemeId: string | null;
+      cooldownMinutes: number | null;
+      lastActivatedAt: Date | null;
+    }>;
   },
   defaultPriceCoins: number | null,
   legacyTagsById: Map<string, MemeTagDto[]>

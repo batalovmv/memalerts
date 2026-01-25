@@ -1,4 +1,5 @@
 import type { Response } from 'express';
+import type { ParsedQs } from 'qs';
 import type { Prisma } from '@prisma/client';
 import { prisma } from '../../lib/prisma.js';
 import {
@@ -352,7 +353,7 @@ export const getMemeStats = async (req: MemeStatsRequest, res: Response) => {
 
 export const getChannelLeaderboard = async (req: AuthRequest, res: Response) => {
   const slug = typeof req.params?.slug === 'string' ? req.params.slug.trim() : '';
-  const query = { ...(req.query ?? {}) } as Record<string, unknown>;
+  const query = { ...(req.query ?? {}) } as ParsedQs;
   if (slug) {
     query.channelSlug = slug;
   }
