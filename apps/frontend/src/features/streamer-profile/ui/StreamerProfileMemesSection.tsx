@@ -21,7 +21,6 @@ type StreamerProfileMemesSectionProps = {
   trendingPeriod: 7 | 30;
   onChangeTrendingScope: (next: 'channel' | 'global') => void;
   onChangeTrendingPeriod: (next: 7 | 30) => void;
-  canViewBlocked: boolean;
   isAuthed: boolean;
   onRequireAuth: () => void;
   isSearching: boolean;
@@ -53,7 +52,6 @@ export function StreamerProfileMemesSection({
   trendingPeriod,
   onChangeTrendingScope,
   onChangeTrendingPeriod,
-  canViewBlocked,
   isAuthed,
   onRequireAuth,
   isSearching,
@@ -106,45 +104,21 @@ export function StreamerProfileMemesSection({
                 }),
                 requiresAuth: true,
               },
-              { value: 'all', label: t('profile.filters.all', { defaultValue: 'All' }), requiresAuth: false },
-              {
-                value: 'favorites',
-                label: t('profile.filters.favorites', {
-                  defaultValue: t('search.myFavorites', { defaultValue: 'Favorites' }),
-                }),
-                requiresAuth: true,
-              },
-              {
-                value: 'frequent',
-                label: t('profile.filters.frequent', { defaultValue: 'Frequent' }),
-                requiresAuth: true,
-              },
-              {
-                value: 'recent',
-                label: t('profile.filters.recent', { defaultValue: 'Recent' }),
-                requiresAuth: true,
-              },
-              {
-                value: 'hidden',
-                label: t('profile.filters.hidden', { defaultValue: 'Hidden' }),
-                requiresAuth: true,
-              },
-              {
-                value: 'trending',
-                label: t('profile.filters.trending', { defaultValue: 'Trending' }),
-                requiresAuth: false,
-              },
-              ...(canViewBlocked
-                ? [
-                    {
-                      value: 'blocked',
-                      label: t('profile.filters.blocked', { defaultValue: 'Blocked' }),
-                      requiresAuth: true,
-                    },
-                  ]
-                : []),
-            ] as Array<{ value: StreamerProfileMemesSectionProps['listMode']; label: string; requiresAuth: boolean }>
-          ).map((option) => {
+          { value: 'all', label: t('profile.filters.all', { defaultValue: 'All' }), requiresAuth: false },
+          {
+            value: 'favorites',
+            label: t('profile.filters.favorites', {
+              defaultValue: t('search.myFavorites', { defaultValue: 'Favorites' }),
+            }),
+            requiresAuth: true,
+          },
+          {
+            value: 'frequent',
+            label: t('profile.filters.frequent', { defaultValue: 'Frequent' }),
+            requiresAuth: true,
+          },
+        ] as Array<{ value: StreamerProfileMemesSectionProps['listMode']; label: string; requiresAuth: boolean }>
+      ).map((option) => {
             const isActive = listMode === option.value;
             const isDisabled = option.requiresAuth && !isAuthed;
             return (
