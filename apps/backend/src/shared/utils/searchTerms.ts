@@ -73,6 +73,10 @@ function stemToken(token: string): string | null {
   return null;
 }
 
+function isCyrillicToken(token: string): boolean {
+  return /[а-яё]/i.test(token);
+}
+
 let cachedSynonyms: Map<string, string[]> | null = null;
 
 function parseSynonymsEnv(): Map<string, string[]> {
@@ -116,7 +120,9 @@ export function buildSearchTerms(raw: string, maxTerms = 8): string[] {
     terms.add(token);
     const stem = stemToken(token);
     if (stem) terms.add(stem);
-    if (token.length >= 5) terms.add(token.slice(0, 4));
+    if (isCyrillicToken(token) && token.length >= 5) {
+      terms.add(token.slice(0, 4));
+    }
     const syn = synonyms.get(token);
     if (syn) syn.forEach((s) => terms.add(s));
     if (stem) {
