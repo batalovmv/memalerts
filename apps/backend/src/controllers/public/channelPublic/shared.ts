@@ -98,6 +98,7 @@ export type PublicChannelMemesQuery = {
 
 export type PublicChannelSearchQuery = {
   q?: string;
+  tags?: string;
   limit?: string;
   offset?: string;
   sortBy?: 'priceCoins' | 'createdAt' | string;
