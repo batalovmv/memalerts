@@ -292,7 +292,7 @@ export function StreamerProfileMemesSection({
               </div>
             );
           }
-        } else if (memesLoading && !hasSearch && !isForYou) {
+        } else if (memesLoading && !hasSearch && !isForYou && memesToDisplay.length === 0) {
           return (
             <div className="columns-2 md:columns-3 lg:columns-4 xl:columns-5 gap-0" style={{ columnGap: 0 }}>
               {[...Array(6)].map((_, i) => (
