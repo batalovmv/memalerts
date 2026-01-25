@@ -15,6 +15,7 @@ import { handleExistingAssetForUpload } from './submissionCreateExistingAsset.js
 import { resolveSubmissionTagIds } from './submissionCreateTags.js';
 import { handleOwnerDirectSubmission } from './submissionCreateOwnerDirect.js';
 import { handlePendingSubmission } from './submissionCreatePending.js';
+import { evaluateAndApplySpamBan, getActiveSpamBan } from '../spamBan.js';
 
 type CreateSubmissionInput = z.infer<typeof createSubmissionSchema>;
 
@@ -54,6 +55,24 @@ export const createSubmissionWithRepos = async (deps: SubmissionDeps, req: AuthR
     !!req.channelId &&
     (req.userRole === 'streamer' || req.userRole === 'admin') &&
     String(req.channelId) === String(channelId);
+
+  if (!isOwner && req.userId) {
+    const banState = await getActiveSpamBan(req.userId);
+    if (banState.isBanned) {
+      if (banState.retryAfterSeconds) {
+        res.setHeader('Retry-After', String(banState.retryAfterSeconds));
+      }
+      return res.status(429).json({
+        errorCode: 'USER_SPAM_BANNED',
+        error: 'User is temporarily banned from submissions',
+        details: {
+          banUntil: banState.banUntil,
+          banCount: banState.banCount,
+          reason: banState.reason,
+        },
+      });
+    }
+  }
 
   const submissionIdempotencyKey = !isOwner && rawIdempotencyKey ? rawIdempotencyKey : null;
   if (submissionIdempotencyKey && req.userId) {
@@ -227,6 +246,10 @@ export const createSubmissionWithRepos = async (deps: SubmissionDeps, req: AuthR
       fileHashForCleanup,
       fileHashRefAdded,
     });
+
+    if (!isOwner && req.userId) {
+      void evaluateAndApplySpamBan(req.userId);
+    }
   } catch (error) {
     const isZodError = error instanceof ZodError;
     const errorMessage = error instanceof Error ? error.message : String(error);

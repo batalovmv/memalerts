@@ -6,6 +6,7 @@ import { persistAiModerationResults } from './aiModerationPersistence.js';
 import { tryReuseAiResults } from './aiModerationReuse.js';
 import { maybeAutoApproveSubmission } from './aiModerationAutoApprove.js';
 import type { AiModerationSubmission } from './aiModerationTypes.js';
+import { evaluateAndApplySpamBan } from '../spamBan.js';
 
 async function loadSubmissionForModeration(submissionId: string): Promise<AiModerationSubmission | null> {
   const submission = await prisma.memeSubmission.findUnique({
@@ -70,4 +71,13 @@ export async function processOneSubmission(submissionId: string): Promise<void> 
     pipeline,
   });
   await maybeAutoApproveSubmission({ submission, fileUrl, fileHash, contentHash, durationMs, pipeline, canonicalTagNames });
+
+  if (submission.submitterUserId) {
+    try {
+      await evaluateAndApplySpamBan(submission.submitterUserId);
+    } catch (error) {
+      const errMsg = error instanceof Error ? error.message : String(error ?? 'unknown');
+      logger.warn('submission.spam_ban_check_failed', { submissionId, errorMessage: errMsg });
+    }
+  }
 }

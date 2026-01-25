@@ -130,61 +130,88 @@ export function StreamerProfileMemesSection({
     <>
       <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
         <h2 className="text-2xl font-bold dark:text-white">{t('profile.availableMemes')}</h2>
-        <div
-          role="tablist"
-          aria-label={t('profile.availableMemes', { defaultValue: 'Available memes' })}
-          className={cn(
-            'flex flex-wrap items-center gap-1 rounded-full border border-gray-200/70 dark:border-white/10',
-            'bg-white/70 dark:bg-gray-900/50 p-1 shadow-sm',
-          )}
-        >
-          {(
-            [
-              {
-                value: 'forYou',
-                label: t('profile.filters.forYou', {
-                  defaultValue: t('profile.forYouTitle', { defaultValue: 'For you' }),
-                }),
-                requiresAuth: true,
-              },
-              { value: 'all', label: t('profile.filters.all', { defaultValue: 'All' }), requiresAuth: false },
-              {
-                value: 'favorites',
-                label: t('profile.filters.favorites', {
-                  defaultValue: t('search.myFavorites', { defaultValue: 'Favorites' }),
-                }),
-                requiresAuth: true,
-              },
-            ] as Array<{ value: StreamerProfileMemesSectionProps['listMode']; label: string; requiresAuth: boolean }>
-          ).map((option) => {
-            const isActive = listMode === option.value;
-            const isDisabled = option.requiresAuth && !isAuthed;
-            return (
-              <button
-                key={option.value}
-                type="button"
-                role="tab"
-                aria-selected={isActive}
-                aria-disabled={isDisabled}
-                onClick={() => {
-                  if (isDisabled) {
-                    onRequireAuth();
-                    return;
-                  }
-                  onChangeListMode(option.value);
-                }}
-                className={cn(
-                  'px-3 py-1.5 text-xs font-semibold rounded-full transition-colors',
-                  isActive
-                    ? 'bg-primary text-white shadow-[0_6px_14px_rgba(10,132,255,0.25)]'
-                    : 'text-gray-700 dark:text-gray-200 hover:bg-white/80 dark:hover:bg-white/10',
-                  isDisabled && 'opacity-60',
-                )}
-              >
-                {option.label}
-              </button>
-            );
-          })}
+        <div className="flex items-center gap-2">
+          <div
+            role="tablist"
+            aria-label={t('profile.availableMemes', { defaultValue: 'Available memes' })}
+            className={cn(
+              'flex flex-wrap items-center gap-1 rounded-full border border-gray-200/70 dark:border-white/10',
+              'bg-white/70 dark:bg-gray-900/50 p-1 shadow-sm',
+            )}
+          >
+            {(
+              [
+                {
+                  value: 'forYou',
+                  label: t('profile.filters.forYou', {
+                    defaultValue: t('profile.forYouTitle', { defaultValue: 'For you' }),
+                  }),
+                  requiresAuth: true,
+                },
+                { value: 'all', label: t('profile.filters.all', { defaultValue: 'All' }), requiresAuth: false },
+                {
+                  value: 'favorites',
+                  label: t('profile.filters.favorites', {
+                    defaultValue: t('search.myFavorites', { defaultValue: 'Favorites' }),
+                  }),
+                  requiresAuth: true,
+                },
+              ] as Array<{ value: StreamerProfileMemesSectionProps['listMode']; label: string; requiresAuth: boolean }>
+            ).map((option) => {
+              const isActive = listMode === option.value;
+              const isDisabled = option.requiresAuth && !isAuthed;
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  role="tab"
+                  aria-selected={isActive}
+                  aria-disabled={isDisabled}
+                  onClick={() => {
+                    if (isDisabled) {
+                      onRequireAuth();
+                      return;
+                    }
+                    onChangeListMode(option.value);
+                  }}
+                  className={cn(
+                    'px-3 py-1.5 text-xs font-semibold rounded-full transition-colors',
+                    isActive
+                      ? 'bg-primary text-white shadow-[0_6px_14px_rgba(10,132,255,0.25)]'
+                      : 'text-gray-700 dark:text-gray-200 hover:bg-white/80 dark:hover:bg-white/10',
+                    isDisabled && 'opacity-60',
+                  )}
+                >
+                  {option.label}
+                </button>
+              );
+            })}
+          </div>
+          {isAuthed ? (
+            <button
+              type="button"
+              onClick={() => onChangeListMode(listMode === 'hidden' ? 'all' : 'hidden')}
+              className={cn(
+                'h-9 w-9 rounded-full border border-gray-200/70 dark:border-white/10',
+                'bg-white/70 dark:bg-gray-900/50 shadow-sm flex items-center justify-center transition-colors',
+                listMode === 'hidden'
+                  ? 'bg-gray-900 text-white shadow-[0_6px_14px_rgba(15,23,42,0.25)] dark:bg-white/20'
+                  : 'text-gray-600 dark:text-gray-200 hover:bg-white/90 dark:hover:bg-white/10',
+              )}
+              aria-label={t('profile.filters.hidden', { defaultValue: 'Hidden' })}
+              aria-pressed={listMode === 'hidden'}
+              title={t('profile.filters.hidden', { defaultValue: 'Hidden' })}
+            >
+              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M6 7h12M9 7v11a2 2 0 002 2h2a2 2 0 002-2V7M9 7l1-3h4l1 3"
+                />
+              </svg>
+            </button>
+          ) : null}
         </div>
       </div>
 

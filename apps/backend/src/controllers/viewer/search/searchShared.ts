@@ -14,6 +14,7 @@ export type PoolAssetRow = {
   id: string;
   type: string;
   fileUrl: string | null;
+  qualityScore?: number | null;
   variants?: Array<{
     format: string;
     fileUrl: string;
@@ -44,6 +45,7 @@ export type ChannelMemeRow = {
     fileUrl: string | null;
     fileHash: string | null;
     durationMs: number;
+    qualityScore?: number | null;
     variants?: Array<{
       format: string;
       fileUrl: string;

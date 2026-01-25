@@ -11,9 +11,12 @@ type DashboardExpandedPanelProps = {
   helpEnabled: boolean;
   submissionsEnabled: boolean | null;
   submissionsOnlyWhenLive: boolean | null;
+  autoApproveEnabled: boolean | null;
   savingSubmissionsSettings: null | 'enabled' | 'onlyWhenLive';
+  savingAutoApprove: boolean;
   onToggleSubmissionsEnabled: (next: boolean) => void;
   onToggleOnlyWhenLive: (next: boolean) => void;
+  onToggleAutoApprove: (next: boolean) => void;
   memeCatalogMode: null | 'channel' | 'pool_all';
   savingMemeCatalogMode: boolean;
   onChangeMemeCatalogMode: (nextMode: 'channel' | 'pool_all') => void;
@@ -35,9 +38,12 @@ export function DashboardExpandedPanel({
   helpEnabled,
   submissionsEnabled,
   submissionsOnlyWhenLive,
+  autoApproveEnabled,
   savingSubmissionsSettings,
+  savingAutoApprove,
   onToggleSubmissionsEnabled,
   onToggleOnlyWhenLive,
+  onToggleAutoApprove,
   memeCatalogMode,
   savingMemeCatalogMode,
   onChangeMemeCatalogMode,
@@ -67,9 +73,12 @@ export function DashboardExpandedPanel({
           helpEnabled={helpEnabled}
           submissionsEnabled={submissionsEnabled}
           submissionsOnlyWhenLive={submissionsOnlyWhenLive}
+          autoApproveEnabled={autoApproveEnabled}
           savingSubmissionsSettings={savingSubmissionsSettings}
+          savingAutoApprove={savingAutoApprove}
           onToggleSubmissionsEnabled={onToggleSubmissionsEnabled}
           onToggleOnlyWhenLive={onToggleOnlyWhenLive}
+          onToggleAutoApprove={onToggleAutoApprove}
           memeCatalogMode={memeCatalogMode}
           savingMemeCatalogMode={savingMemeCatalogMode}
           onChangeMemeCatalogMode={onChangeMemeCatalogMode}
@@ -98,9 +107,12 @@ type SubmissionsControlPanelProps = {
   helpEnabled: boolean;
   submissionsEnabled: boolean | null;
   submissionsOnlyWhenLive: boolean | null;
+  autoApproveEnabled: boolean | null;
   savingSubmissionsSettings: null | 'enabled' | 'onlyWhenLive';
+  savingAutoApprove: boolean;
   onToggleSubmissionsEnabled: (next: boolean) => void;
   onToggleOnlyWhenLive: (next: boolean) => void;
+  onToggleAutoApprove: (next: boolean) => void;
   memeCatalogMode: null | 'channel' | 'pool_all';
   savingMemeCatalogMode: boolean;
   onChangeMemeCatalogMode: (nextMode: 'channel' | 'pool_all') => void;
@@ -115,9 +127,12 @@ function SubmissionsControlPanel({
   helpEnabled,
   submissionsEnabled,
   submissionsOnlyWhenLive,
+  autoApproveEnabled,
   savingSubmissionsSettings,
+  savingAutoApprove,
   onToggleSubmissionsEnabled,
   onToggleOnlyWhenLive,
+  onToggleAutoApprove,
   memeCatalogMode,
   savingMemeCatalogMode,
   onChangeMemeCatalogMode,
@@ -182,6 +197,28 @@ function SubmissionsControlPanel({
             ariaLabel={t('dashboard.submissions.onlyWhenLiveTitle', { defaultValue: 'Только когда стрим онлайн' })}
             onChange={onToggleOnlyWhenLive}
           />
+        </div>
+
+        <div className="pt-4 border-t border-black/5 dark:border-white/10">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <div className="font-medium text-gray-900 dark:text-white">
+                {t('dashboard.submissions.autoApproveTitle', { defaultValue: 'Авто‑одобрение безопасных мемов' })}
+              </div>
+              <div className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                {t('dashboard.submissions.autoApproveHint', {
+                  defaultValue: 'Включает строгую AI‑проверку. Подходящие мемы будут одобряться автоматически.',
+                })}
+              </div>
+            </div>
+            <ToggleSwitch
+              checked={autoApproveEnabled ?? false}
+              busy={savingAutoApprove}
+              disabled={autoApproveEnabled === null}
+              ariaLabel={t('dashboard.submissions.autoApproveTitle', { defaultValue: 'Авто‑одобрение безопасных мемов' })}
+              onChange={onToggleAutoApprove}
+            />
+          </div>
         </div>
 
         <div className="pt-4 border-t border-black/5 dark:border-white/10">

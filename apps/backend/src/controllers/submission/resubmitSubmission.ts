@@ -9,6 +9,7 @@ import { logAdminAction } from '../../utils/auditLogger.js';
 import { emitSubmissionEvent, relaySubmissionEventToPeer } from '../../realtime/submissionBridge.js';
 import { assertSubmissionOwner } from '../../utils/accessControl.js';
 import { logger } from '../../utils/logger.js';
+import { getActiveSpamBan } from '../../services/spamBan.js';
 
 export const resubmitSubmission = async (req: AuthRequest, res: Response) => {
   const { id } = req.params;
@@ -16,6 +17,22 @@ export const resubmitSubmission = async (req: AuthRequest, res: Response) => {
 
   if (!userId) {
     return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  const banState = await getActiveSpamBan(userId);
+  if (banState.isBanned) {
+    if (banState.retryAfterSeconds) {
+      res.setHeader('Retry-After', String(banState.retryAfterSeconds));
+    }
+    return res.status(429).json({
+      errorCode: 'USER_SPAM_BANNED',
+      error: 'User is temporarily banned from submissions',
+      details: {
+        banUntil: banState.banUntil,
+        banCount: banState.banCount,
+        reason: banState.reason,
+      },
+    });
   }
 
   const maxFromEnv = parseInt(String(process.env.SUBMISSION_MAX_RESUBMITS || ''), 10);

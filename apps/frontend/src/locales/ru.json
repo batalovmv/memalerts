@@ -490,7 +490,10 @@
       "enabledTitle": "Разрешить отправку",
       "enabledHint": "Если выключено — зритель увидит сообщение вместо формы отправки.",
       "onlyWhenLiveTitle": "Только когда стрим онлайн",
-      "onlyWhenLiveHint": "Если включено — отправка будет отклоняться, когда стрим оффлайн."
+      "onlyWhenLiveHint": "Если включено — отправка будет отклоняться, когда стрим оффлайн.",
+      "autoApproveTitle": "Авто‑одобрение безопасных мемов",
+      "autoApproveHint": "Включает строгую AI‑проверку. Подходящие мемы будут одобряться автоматически.",
+      "autoApproveSaved": "Сохранено"
     },
     "noSubmissionsFound": "Ничего не найдено.",
     "submissionsFilters": {
@@ -594,6 +597,7 @@
     "submitAnother": "Отправить ещё",
     "errors": {
       "rateLimited": "Слишком много запросов. Подождите {{seconds}} секунд.",
+      "spamBanned": "Вы временно заблокированы за спам. Повторите через {{seconds}} сек.",
       "fileTooLarge": "Файл слишком большой. Максимум {{maxMb}} МБ.",
       "videoTooLong": "Видео слишком длинное. Максимум 5 минут.",
       "invalidType": "Неверный тип файла. Загрузите видео.",
@@ -1576,6 +1580,7 @@
     "createdAt": "Создано",
     "yourBalance": "Ваш баланс: {{balance}} монет",
     "insufficientCoins": "Недостаточно монет (нужно {{price}})",
+    "activating": "Отправляем…",
     "deleteMeme": "Удалить мем",
     "videoLoadFailed": "Не удалось загрузить видео",
     "ariaVideo": "Видео",
@@ -1594,7 +1599,8 @@
   },
   "memes": {
     "activationCountLabel_one": "{{count}} activation",
-    "activationCountLabel_other": "{{count}} activations"
+    "activationCountLabel_other": "{{count}} activations",
+    "qualityScoreLabel": "Качество: {{score}}"
   },
   "subscription": {
     "boostyAccessDescription": "Статус доступа определяется через Discord roles. Никаких Boosty-токенов больше не нужно.",

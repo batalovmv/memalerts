@@ -2,6 +2,7 @@ import { prisma } from '../../lib/prisma.js';
 import { auditLog } from '../../utils/auditLogger.js';
 import { approveSubmissionInternal } from '../approveSubmissionInternal.js';
 import { isAllowedPublicFileUrl, parseBool } from './aiModerationHelpers.js';
+import { evaluateAutoApprovePolicy } from './contentPolicy.js';
 import type { AiModerationPipelineResult, AiModerationSubmission } from './aiModerationTypes.js';
 
 type AutoApproveArgs = {
@@ -16,8 +17,10 @@ type AutoApproveArgs = {
 
 export async function maybeAutoApproveSubmission(opts: AutoApproveArgs): Promise<void> {
   const { submission, fileUrl, fileHash, contentHash, durationMs, pipeline, canonicalTagNames } = opts;
-  const autoApproveEnabled = parseBool(process.env.AI_LOW_AUTOPROVE_ENABLED);
-  if (!autoApproveEnabled || pipeline.decision !== 'low') return;
+  const autoApproveEnabled =
+    parseBool(process.env.AI_AUTO_APPROVE_ENABLED) || parseBool(process.env.AI_LOW_AUTOPROVE_ENABLED);
+  if (!autoApproveEnabled) return;
+  if (pipeline.decision !== 'low') return;
   if (!isAllowedPublicFileUrl(fileUrl)) return;
   if (durationMs === null) return;
 
@@ -48,8 +51,17 @@ export async function maybeAutoApproveSubmission(opts: AutoApproveArgs): Promise
 
   const channel = await prisma.channel.findUnique({
     where: { id: submission.channelId },
-    select: { defaultPriceCoins: true },
+    select: { defaultPriceCoins: true, autoApproveEnabled: true },
   });
+  if (!channel?.autoApproveEnabled) return;
+
+  const policy = evaluateAutoApprovePolicy({
+    submission,
+    pipeline,
+    canonicalTagNames,
+    durationMs,
+  });
+  if (!policy.allowed) return;
 
   const priceCoins = channel?.defaultPriceCoins ?? 100;
   const resolvedTagNames = Array.isArray(canonicalTagNames) && canonicalTagNames.length > 0 ? canonicalTagNames : pipeline.autoTags;
@@ -81,6 +93,7 @@ export async function maybeAutoApproveSubmission(opts: AutoApproveArgs): Promise
           aiRiskScore: pipeline.riskScore,
           labels: pipeline.labels,
           tagNames: resolvedTagNames,
+          autoApprovePolicy: policy,
           pipelineVersion: pipeline.modelVersions?.pipelineVersion ?? null,
           memeAssetId: res.memeAssetId,
           channelMemeId: res.channelMemeId,

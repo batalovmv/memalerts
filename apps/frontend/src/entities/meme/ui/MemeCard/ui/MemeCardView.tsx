@@ -58,6 +58,25 @@ function MemeCardViewBase({
   const hasAiDesc = !!aiDesc.trim() && !aiDescEffectivelyEmpty;
   const aiDescFirstLine = hasAiDesc ? aiDesc.trim().split('\n')[0]?.slice(0, 120) || '' : '';
   const hasAi = aiTags.length > 0 || hasAiDesc;
+  const qualityScore =
+    typeof meme.qualityScore === 'number' && Number.isFinite(meme.qualityScore) ? meme.qualityScore : null;
+  const qualityTier =
+    qualityScore === null
+      ? null
+      : qualityScore >= 90
+        ? { label: 'S', className: 'bg-emerald-500/90 text-white' }
+        : qualityScore >= 80
+          ? { label: 'A', className: 'bg-sky-500/90 text-white' }
+          : qualityScore >= 65
+            ? { label: 'B', className: 'bg-amber-400/95 text-black' }
+            : { label: 'C', className: 'bg-slate-500/85 text-white' };
+  const qualityLabel =
+    qualityScore !== null
+      ? t('memes.qualityScoreLabel', {
+          defaultValue: 'Quality: {{score}}',
+          score: Math.round(qualityScore),
+        })
+      : null;
   const activationsCount =
     typeof meme.activationsCount === 'number' && Number.isFinite(meme.activationsCount)
       ? meme.activationsCount
@@ -171,12 +190,26 @@ function MemeCardViewBase({
           </div>
         ) : null}
 
-        {activationsCount > 0 ? (
-          <div className="absolute top-2 right-2 z-30">
-            <span className="inline-flex items-center gap-1 rounded-full bg-black/70 text-white text-[11px] font-semibold px-2 py-0.5">
-              <span aria-hidden="true">🔥</span>
-              <span>{activationsLabel}</span>
-            </span>
+        {qualityTier || activationsCount > 0 ? (
+          <div className="absolute top-2 right-2 z-30 flex flex-col items-end gap-1">
+            {qualityTier ? (
+              <Tooltip delayMs={200} content={qualityLabel || 'Quality score'}>
+                <span
+                  className={cn(
+                    'inline-flex items-center justify-center rounded-full text-[11px] font-semibold px-2 py-0.5 shadow-sm ring-1 ring-black/10',
+                    qualityTier.className,
+                  )}
+                >
+                  {qualityTier.label}
+                </span>
+              </Tooltip>
+            ) : null}
+            {activationsCount > 0 ? (
+              <span className="inline-flex items-center gap-1 rounded-full bg-black/70 text-white text-[11px] font-semibold px-2 py-0.5">
+                <span aria-hidden="true">🔥</span>
+                <span>{activationsLabel}</span>
+              </span>
+            ) : null}
           </div>
         ) : null}
       </div>

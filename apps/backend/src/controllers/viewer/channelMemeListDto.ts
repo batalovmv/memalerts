@@ -47,6 +47,7 @@ export type ChannelMemeListItemDto = {
   createdAt: Date;
   createdBy: { id: string; displayName: string } | null;
   tags?: MemeTagDto[];
+  qualityScore?: number | null;
 
   // Optional internal-ish dedup key (SHA-256 of bytes). Returned only for owner/admin when requested.
   fileHash: string | null;
@@ -107,6 +108,7 @@ export function toChannelMemeListItemDto(
       fileUrl: string | null;
       fileHash?: string | null;
       durationMs: number;
+      qualityScore?: number | null;
       variants?: Array<{
         format: string;
         fileUrl: string;
@@ -159,6 +161,7 @@ export function toChannelMemeListItemDto(
     status: row.status,
     deletedAt: null,
     createdAt: row.createdAt,
+    qualityScore: row.memeAsset.qualityScore ?? null,
     createdBy: row.memeAsset.createdBy
       ? { id: row.memeAsset.createdBy.id, displayName: row.memeAsset.createdBy.displayName }
       : null,

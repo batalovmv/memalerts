@@ -53,9 +53,10 @@ function mapPoolRows(
       type: r.type,
       previewUrl: preview?.fileUrl ?? null,
       variants,
-      fileUrl: variants[0]?.fileUrl ?? preview?.fileUrl ?? r.fileUrl ?? null,
-      durationMs: r.durationMs,
-      priceCoins,
+        fileUrl: variants[0]?.fileUrl ?? preview?.fileUrl ?? r.fileUrl ?? null,
+        durationMs: r.durationMs,
+        qualityScore: r.qualityScore ?? null,
+        priceCoins,
       status: 'approved',
       deletedAt: null,
       createdAt: r.createdAt,
@@ -135,6 +136,7 @@ export async function handleChannelListingMode(ctx: SearchContext) {
         type: true,
         fileUrl: true,
         durationMs: true,
+        qualityScore: true,
         variants: {
           select: {
             format: true,
@@ -207,6 +209,7 @@ export async function handleChannelListingMode(ctx: SearchContext) {
           fileUrl: true,
           fileHash: true,
           durationMs: true,
+          qualityScore: true,
           variants: {
             select: {
               format: true,
@@ -297,6 +300,7 @@ export async function handlePoolAllChannelFilterMode(ctx: SearchContext) {
       type: true,
       fileUrl: true,
       durationMs: true,
+      qualityScore: true,
       variants: {
         select: {
           format: true,
@@ -391,6 +395,7 @@ export async function handleChannelSearchMode(ctx: SearchContext) {
         type: true,
         fileUrl: true,
         durationMs: true,
+        qualityScore: true,
         createdAt: true,
         aiAutoTitle: true,
         createdBy: { select: { id: true, displayName: true } },
@@ -472,6 +477,7 @@ export async function handleChannelSearchMode(ctx: SearchContext) {
           fileUrl: true,
           fileHash: true,
           durationMs: true,
+          qualityScore: true,
           variants: {
             select: {
               format: true,

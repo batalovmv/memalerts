@@ -68,6 +68,8 @@ model Channel {
   // - submissionsOnlyWhenLive=true => viewers can submit only while stream is online (best-effort per stream status store).
   submissionsEnabled            Boolean  @default(true)
   submissionsOnlyWhenLive       Boolean  @default(false)
+  // Strict auto-approve for viewer submissions (AI low-risk + content policy checks).
+  autoApproveEnabled            Boolean  @default(false)
   // Public control token for StreamDeck/StreamerBot-like integrations.
   // Stored as SHA-256 hex hash (never store raw token).
   submissionsControlTokenHash   String?  @unique
@@ -703,6 +705,7 @@ model User {
   globalModerator             GlobalModerator?
   moderatorsGranted           GlobalModerator[]            @relation("GlobalModeratorGrantedBy")
   moderatorsRevoked           GlobalModerator[]            @relation("GlobalModeratorRevokedBy")
+  banState                    UserBanState?
   tasteProfile                UserTasteProfile?
   tagActivities               UserTagActivity[]
   tagSuggestionsReviewed      TagSuggestion[]              @relation("TagSuggestionReviewedBy")
@@ -1125,6 +1128,8 @@ model MemeAsset {
   aiTranscript       String?  @db.VarChar(50000)
   aiSearchText       String?  @db.VarChar(4000)
   aiCompletedAt      DateTime?
+  // Engagement/recency score for ranking (0-100+).
+  qualityScore       Float    @default(50)
 
   // Audio normalization for playback (site + OBS). Done once per unique asset and reused via playFileUrl.
   audioNormStatus      String   @default("pending") // pending|processing|done|failed|failed_final
@@ -1169,6 +1174,18 @@ model MemeAsset {
   @@index([purgeNotBefore])
   @@index([purgedAt])
   @@index([createdAt])
+}
+
+model UserBanState {
+  id              String   @id @default(uuid())
+  userId          String   @unique
+  banCount        Int      @default(0)
+  currentBanUntil DateTime?
+  lastBanAt       DateTime?
+  banDecayAt      DateTime?
+  reason          String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model MemeAssetVariant {

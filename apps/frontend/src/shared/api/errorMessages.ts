@@ -42,6 +42,7 @@ const ERROR_MESSAGES: Record<string, string> = {
   STREAMER_SUBMISSIONS_DISABLED: 'Submissions are disabled by the streamer',
   SUBMISSIONS_DISABLED: 'Submissions are disabled',
   SUBMISSIONS_OFFLINE: 'Submissions are allowed only while the stream is live',
+  USER_SPAM_BANNED: 'Temporarily blocked from submitting memes',
   ONLY_WHEN_LIVE: 'Available only while live',
   SUBMISSION_NOT_FOUND: 'Submission not found',
   SUBMISSION_NOT_PENDING: 'Submission is not pending',

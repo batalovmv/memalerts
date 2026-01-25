@@ -44,6 +44,7 @@ export const updateChannelSettingsSchema = z
     submissionsEnabled: z.boolean().optional(),
     // Allow submissions only while stream is online (uses best-effort stream status store).
     submissionsOnlyWhenLive: z.boolean().optional(),
+    autoApproveEnabled: z.boolean().optional(),
     primaryColor: z
       .string()
       .regex(/^#[0-9A-Fa-f]{6}$/)
