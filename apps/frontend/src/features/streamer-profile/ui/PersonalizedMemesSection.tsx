@@ -17,6 +17,7 @@ type PersonalizedMemesSectionProps = {
   onSelectMeme: (meme: Meme) => void;
   showAll?: boolean;
   onShowAll?: () => void;
+  onHideAll?: () => void;
 };
 
 const MIN_ACTIVATIONS = 5;
@@ -94,6 +95,7 @@ export function PersonalizedMemesSection({
   onSelectMeme,
   showAll = false,
   onShowAll,
+  onHideAll,
 }: PersonalizedMemesSectionProps) {
   const { t } = useTranslation();
   const remaining = useMemo(() => Math.max(0, MIN_ACTIVATIONS - totalActivations), [totalActivations]);
@@ -158,6 +160,17 @@ export function PersonalizedMemesSection({
             >
               {t('common.seeAll', { defaultValue: 'See all' })}
             </button>
+          ) : onHideAll && showAll ? (
+            <button
+              type="button"
+              onClick={onHideAll}
+              className={cn(
+                'text-xs font-semibold text-gray-700 dark:text-gray-200 hover:text-primary transition-colors',
+                'opacity-100',
+              )}
+            >
+              {t('common.hide', { defaultValue: 'Hide' })}
+            </button>
           ) : null}
         </div>
       </div>
@@ -176,15 +189,36 @@ export function PersonalizedMemesSection({
           {t('profile.forYouEmpty', { defaultValue: 'No picks yet. Try activating a few memes.' })}
         </div>
       ) : showAll ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {memes.map((meme) => (
-            <PersonalizedMemeTile
-              key={getMemePrimaryId(meme)}
-              meme={meme}
-              autoplay={autoplayMemesEnabled}
-              onSelect={onSelectMeme}
-            />
-          ))}
+        <div className="rounded-2xl border border-white/10 bg-white/40 dark:bg-white/5 shadow-[inset_0_1px_0_rgba(255,255,255,0.12)] p-4 sm:p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+            <div>
+              <div className="text-xs uppercase tracking-[0.24em] text-gray-500 dark:text-gray-400">
+                {t('profile.forYouTitle', { defaultValue: 'For you' })}
+              </div>
+              <div className="text-sm text-gray-600 dark:text-gray-300">
+                {t('profile.forYouHint', { defaultValue: 'Personal picks based on your activations.' })}
+              </div>
+            </div>
+            {onHideAll ? (
+              <button
+                type="button"
+                onClick={onHideAll}
+                className="inline-flex items-center gap-2 rounded-full border border-black/10 dark:border-white/10 px-3 py-1.5 text-xs font-semibold text-gray-700 dark:text-gray-200 hover:border-primary/40 hover:text-primary transition-colors"
+              >
+                {t('common.hide', { defaultValue: 'Hide' })}
+              </button>
+            ) : null}
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {memes.map((meme) => (
+              <PersonalizedMemeTile
+                key={getMemePrimaryId(meme)}
+                meme={meme}
+                autoplay={autoplayMemesEnabled}
+                onSelect={onSelectMeme}
+              />
+            ))}
+          </div>
         </div>
       ) : (
         <div className="relative">

@@ -174,6 +174,10 @@ const StreamerProfile = memo(function StreamerProfile() {
     setPersonalizedExpanded(true);
     setPersonalizedLimit(60);
   }, []);
+  const handleHideAllPersonalized = useCallback(() => {
+    setPersonalizedExpanded(false);
+    setPersonalizedLimit(12);
+  }, []);
   const handleTagSearch = useCallback(
     (tag: string) => {
       setMyFavorites(false);
@@ -268,23 +272,26 @@ const StreamerProfile = memo(function StreamerProfile() {
             onSelectMeme={handleSelectMeme}
             showAll={personalizedExpanded}
             onShowAll={handleShowAllPersonalized}
+            onHideAll={handleHideAllPersonalized}
           />
         ) : null}
 
-        <StreamerProfileMemesSection
-          memes={memes}
-          searchResults={searchResults}
-          searchQuery={searchQuery}
-          myFavorites={myFavorites}
-          memesLoading={memesLoading}
-          loadingMore={loadingMore}
-          hasMore={hasMore}
-          loadMoreRef={loadMoreRef}
-          autoplayMemesEnabled={autoplayMemesEnabled}
-          isOwner={isOwner}
-          hasAiProcessing={hasAiProcessing}
-          onSelectMeme={handleSelectMeme}
-        />
+        {!personalizedExpanded && (
+          <StreamerProfileMemesSection
+            memes={memes}
+            searchResults={searchResults}
+            searchQuery={searchQuery}
+            myFavorites={myFavorites}
+            memesLoading={memesLoading}
+            loadingMore={loadingMore}
+            hasMore={hasMore}
+            loadMoreRef={loadMoreRef}
+            autoplayMemesEnabled={autoplayMemesEnabled}
+            isOwner={isOwner}
+            hasAiProcessing={hasAiProcessing}
+            onSelectMeme={handleSelectMeme}
+          />
+        )}
       </PageShell>
 
       <StreamerProfileModals
