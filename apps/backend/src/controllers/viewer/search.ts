@@ -18,7 +18,8 @@ import {
   handlePoolAllChannelFilterMode,
 } from './search/searchModes.js';
 import { handleLegacySearch } from './search/searchLegacy.js';
-import type { SearchContext, SearchRequest } from './search/searchShared.js';
+import type { SearchContext, SearchListMode, SearchRequest, TrendingPeriod, TrendingScope } from './search/searchShared.js';
+import { handleListMode } from './search/searchListModes.js';
 
 export const searchMemes = async (req: SearchRequest, res: Response) => {
   const query = (req.query ?? {}) as Record<string, unknown>;
@@ -33,6 +34,9 @@ export const searchMemes = async (req: SearchRequest, res: Response) => {
     sortOrder = 'desc',
     includeUploader,
     favorites,
+    listMode,
+    trendingScope,
+    trendingPeriod,
     limit = 50,
     offset = 0,
   } = query;
@@ -58,7 +62,24 @@ export const searchMemes = async (req: SearchRequest, res: Response) => {
     : null;
   const memeCatalogMode = String(targetChannel?.memeCatalogMode || 'channel');
 
-  const favoritesEnabled = String(favorites || '') === '1' && !!req.userId && !!targetChannelId;
+  const listModeRaw = String(listMode || '').trim().toLowerCase();
+  const normalizedListMode: SearchListMode | null =
+    listModeRaw === 'favorites' ||
+    listModeRaw === 'frequent' ||
+    listModeRaw === 'recent' ||
+    listModeRaw === 'hidden' ||
+    listModeRaw === 'trending' ||
+    listModeRaw === 'blocked'
+      ? (listModeRaw as SearchListMode)
+      : null;
+  const legacyFavorites = String(favorites || '') === '1' && !!req.userId && !!targetChannelId;
+  const effectiveListMode = normalizedListMode ?? (legacyFavorites ? 'frequent' : null);
+  const favoritesEnabled = effectiveListMode === 'frequent';
+
+  const scopeRaw = String(trendingScope || '').trim().toLowerCase();
+  const normalizedScope: TrendingScope = scopeRaw === 'global' ? 'global' : 'channel';
+  const periodRaw = parseInt(String(trendingPeriod || ''), 10);
+  const normalizedPeriod: TrendingPeriod = periodRaw === 7 ? 7 : 30;
 
   const parsedLimitRaw = parseInt(limit as string, 10);
   const parsedOffsetRaw = parseInt(offset as string, 10);
@@ -67,7 +88,10 @@ export const searchMemes = async (req: SearchRequest, res: Response) => {
   const parsedLimit = clampInt(parsedLimitRaw, 1, MAX_SEARCH_PAGE, 50);
   const parsedOffset = clampInt(parsedOffsetRaw, 0, 1_000_000, 0);
 
-  if (favoritesEnabled) {
+  const hasUser = !!req.userId;
+  const personalized = favoritesEnabled || !!effectiveListMode || hasUser;
+
+  if (personalized) {
     res.setHeader('Cache-Control', 'no-store');
     res.setHeader('Pragma', 'no-cache');
     res.setHeader('Expires', '0');
@@ -139,11 +163,17 @@ export const searchMemes = async (req: SearchRequest, res: Response) => {
     tagsStr,
     includeUploaderEnabled,
     favoritesEnabled,
+    listMode: effectiveListMode,
+    trendingScope: normalizedScope,
+    trendingPeriod: normalizedPeriod,
     sortByStr,
     sortOrderStr,
     parsedLimit,
     parsedOffset,
   };
+
+  const listModeResponse = await handleListMode(ctx);
+  if (listModeResponse) return listModeResponse;
 
   const listing = await handleChannelListingMode(ctx);
   if (listing) return listing;

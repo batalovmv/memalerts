@@ -11,6 +11,7 @@ import * as boostyAccess from './viewer/boostyAccess.js';
 import * as youtubeLikeReward from './viewer/youtubeLikeReward.js';
 import * as tasteProfile from './viewer/tasteProfile.js';
 import * as personalizedMemes from './viewer/personalizedMemes.js';
+import * as memeLists from './viewer/memeLists.js';
 
 // Back-compat facade: keep `viewerController` shape stable for routes.
 export const viewerController = {
@@ -27,4 +28,5 @@ export const viewerController = {
   ...youtubeLikeReward,
   ...tasteProfile,
   ...personalizedMemes,
+  ...memeLists,
 };

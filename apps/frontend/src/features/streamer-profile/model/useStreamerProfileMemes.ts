@@ -95,9 +95,11 @@ type UseStreamerProfileMemesParams = {
   channelInfo: ChannelInfo | null;
   normalizedSlug: string;
   user: User | null;
-  isAuthed: boolean;
   reloadNonce: number;
   onReloadChannel: () => void;
+  listMode: 'all' | 'favorites' | 'frequent' | 'recent' | 'hidden' | 'trending' | 'blocked' | 'forYou';
+  trendingScope: 'channel' | 'global';
+  trendingPeriod: 7 | 30;
 };
 
 type UseStreamerProfileMemesState = {
@@ -110,8 +112,6 @@ type UseStreamerProfileMemesState = {
   setSearchQuery: (next: string) => void;
   tagFilter: string;
   setTagFilter: (next: string) => void;
-  myFavorites: boolean;
-  setMyFavorites: (next: boolean | ((prev: boolean) => boolean)) => void;
   searchResults: Meme[];
   isSearching: boolean;
   hasAiProcessing: boolean;
@@ -123,9 +123,11 @@ export function useStreamerProfileMemes({
   channelInfo,
   normalizedSlug,
   user,
-  isAuthed,
   reloadNonce,
   onReloadChannel,
+  listMode,
+  trendingScope,
+  trendingPeriod,
 }: UseStreamerProfileMemesParams): UseStreamerProfileMemesState {
   const [memes, setMemes] = useState<Meme[]>([]);
   const [memesLoading, setMemesLoading] = useState(true);
@@ -136,12 +138,13 @@ export function useStreamerProfileMemes({
   const [isSearching, setIsSearching] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [tagFilter, setTagFilter] = useState('');
-  const [myFavorites, setMyFavorites] = useState(false);
   const [ownerAiProcessingCount, setOwnerAiProcessingCount] = useState(0);
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
   const lastLoadKeyRef = useRef<string>('');
 
   const debouncedSearchQuery = useDebounce(searchQuery, 500);
+  const isForYou = listMode === 'forYou';
+  const isListMode = listMode !== 'all' && !isForYou;
 
   const isOwner = useMemo(() => !!(user && channelInfo && user.channelId === channelInfo.id), [channelInfo, user]);
   const canIncludeFileHash = useMemo(
@@ -186,11 +189,56 @@ export function useStreamerProfileMemes({
     return () => window.removeEventListener('memalerts:channelMemesUpdated', handler as EventListener);
   }, [channelInfo?.id, onReloadChannel]);
 
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const ce = e as CustomEvent<{
+        memeAssetId?: string;
+        channelMemeId?: string;
+        isFavorite?: boolean;
+        isHidden?: boolean;
+        isChannelBlocked?: boolean;
+      }>;
+      const assetId = ce.detail?.memeAssetId;
+      const channelMemeId = ce.detail?.channelMemeId;
+      if (!assetId && !channelMemeId) return;
+
+      const matches = (meme: Meme) => {
+        const memeAssetId =
+          typeof meme.memeAssetId === 'string' && meme.memeAssetId ? meme.memeAssetId : meme.id;
+        const memeChannelId =
+          typeof meme.channelMemeId === 'string' && meme.channelMemeId ? meme.channelMemeId : meme.id;
+        return (assetId && memeAssetId === assetId) || (channelMemeId && memeChannelId === channelMemeId);
+      };
+
+      const applyUpdate = (items: Meme[]) =>
+        items.flatMap((meme) => {
+          if (!matches(meme)) return [meme];
+          const next = { ...meme };
+          if (typeof ce.detail?.isFavorite === 'boolean') next.isFavorite = ce.detail.isFavorite;
+          if (typeof ce.detail?.isHidden === 'boolean') next.isHidden = ce.detail.isHidden;
+          const shouldRemove =
+            (listMode === 'favorites' && ce.detail?.isFavorite === false) ||
+            (listMode === 'hidden' && ce.detail?.isHidden === false) ||
+            (listMode === 'blocked' && ce.detail?.isChannelBlocked === false) ||
+            (listMode !== 'hidden' && ce.detail?.isHidden === true) ||
+            (listMode !== 'blocked' && ce.detail?.isChannelBlocked === true);
+          return shouldRemove ? [] : [next];
+        });
+
+      setMemes((prev) => applyUpdate(prev));
+      setSearchResults((prev) => applyUpdate(prev));
+    };
+
+    window.addEventListener('memalerts:memeViewerStateChanged', handler as EventListener);
+    return () =>
+      window.removeEventListener('memalerts:memeViewerStateChanged', handler as EventListener);
+  }, [listMode]);
+
   // Initial meme load (and reload after manual refresh).
   useEffect(() => {
     if (!channelInfo?.id) return;
 
-    const loadKey = `${channelInfo.id}:${channelInfo.memeCatalogMode || 'channel'}:${reloadNonce}`;
+    const loadKey = `${channelInfo.id}:${channelInfo.memeCatalogMode || 'channel'}:${reloadNonce}:${listMode}:${trendingScope}:${trendingPeriod}`;
     if (lastLoadKeyRef.current === loadKey) return;
     lastLoadKeyRef.current = loadKey;
 
@@ -202,19 +250,47 @@ export function useStreamerProfileMemes({
 
     const load = async () => {
       try {
+        const channelSlug = String(channelInfo.slug || normalizedSlug).toLowerCase();
+        if (isListMode) {
+          const listParams = new URLSearchParams();
+          listParams.set('channelSlug', channelSlug);
+          listParams.set('limit', String(MEMES_PER_PAGE));
+          listParams.set('offset', '0');
+          listParams.set('listMode', listMode);
+          if (listMode === 'trending') {
+            listParams.set('trendingScope', trendingScope);
+            listParams.set('trendingPeriod', String(trendingPeriod));
+          }
+          if (canIncludeAi) listParams.set('includeAi', '1');
+          listParams.set('_ts', String(Date.now()));
+          const resp = await api.get<unknown>(`/channels/memes/search?${listParams.toString()}`, {
+            timeout: 15000,
+            headers: { 'Cache-Control': 'no-store' },
+          });
+          const initial = extractMemesFromResponse(resp);
+          setMemes(initial);
+          setHasMore(initial.length === MEMES_PER_PAGE);
+          return;
+        }
+
         // NOTE: Some backends expose pool_all catalog via `/public/channels/:slug/memes/search`.
         // Prefer it for pool_all mode, but keep a fallback to `/channels/memes/search` for back-compat.
         if (channelInfo.memeCatalogMode === 'pool_all') {
           // On production/beta deployments, the only reliable "global pool" endpoint is `/memes/pool`.
           // Channel-scoped `/public/channels/:slug/memes/search` may be missing and fall back to SPA HTML.
           try {
-            const poolMemes = await fetchMemesPool({ limit: MEMES_PER_PAGE, offset: 0, timeoutMs: 15000 });
+            const poolMemes = await fetchMemesPool({
+              limit: MEMES_PER_PAGE,
+              offset: 0,
+              channelSlug,
+              timeoutMs: 15000,
+            });
             setMemes(poolMemes);
             setHasMore(poolMemes.length === MEMES_PER_PAGE);
           } catch {
             // If pool is not accessible (beta gating / auth), fall back to channel listings.
             const listParams = new URLSearchParams();
-            listParams.set('channelSlug', String(channelInfo.slug || normalizedSlug).toLowerCase());
+            listParams.set('channelSlug', channelSlug);
             listParams.set('limit', String(MEMES_PER_PAGE));
             listParams.set('offset', '0');
             listParams.set('sortBy', 'createdAt');
@@ -245,7 +321,7 @@ export function useStreamerProfileMemes({
           }
         } else {
           const listParams = new URLSearchParams();
-          listParams.set('channelSlug', String(channelInfo.slug || normalizedSlug).toLowerCase());
+          listParams.set('channelSlug', channelSlug);
           listParams.set('limit', String(MEMES_PER_PAGE));
           listParams.set('offset', '0');
           listParams.set('sortBy', 'createdAt');
@@ -284,11 +360,21 @@ export function useStreamerProfileMemes({
     };
 
     void load();
-  }, [canIncludeAi, canIncludeFileHash, channelInfo, normalizedSlug, reloadNonce]);
+  }, [
+    canIncludeAi,
+    canIncludeFileHash,
+    channelInfo,
+    isListMode,
+    listMode,
+    normalizedSlug,
+    reloadNonce,
+    trendingPeriod,
+    trendingScope,
+  ]);
 
   // Load more memes function
   const loadMoreMemes = useCallback(async () => {
-    if (!channelInfo || loadingMore || !hasMore || searchQuery.trim() || tagFilter.trim() || myFavorites) {
+    if (!channelInfo || loadingMore || !hasMore || searchQuery.trim() || tagFilter.trim() || isForYou) {
       return;
     }
 
@@ -296,15 +382,38 @@ export function useStreamerProfileMemes({
     try {
       const nextOffset = memesOffset + MEMES_PER_PAGE;
       let newMemes: Meme[] = [];
-      if (channelInfo.memeCatalogMode === 'pool_all') {
+      const channelSlug = String(channelInfo.slug || normalizedSlug).toLowerCase();
+      if (isListMode) {
+        const listParams = new URLSearchParams();
+        listParams.set('channelSlug', channelSlug);
+        listParams.set('limit', String(MEMES_PER_PAGE));
+        listParams.set('offset', String(nextOffset));
+        listParams.set('listMode', listMode);
+        if (listMode === 'trending') {
+          listParams.set('trendingScope', trendingScope);
+          listParams.set('trendingPeriod', String(trendingPeriod));
+        }
+        if (canIncludeAi) listParams.set('includeAi', '1');
+        listParams.set('_ts', String(Date.now()));
+        const resp = await api.get<unknown>(`/channels/memes/search?${listParams.toString()}`, {
+          timeout: 15000,
+          headers: { 'Cache-Control': 'no-store' },
+        });
+        newMemes = extractMemesFromResponse(resp);
+      } else if (channelInfo.memeCatalogMode === 'pool_all') {
         try {
-          newMemes = await fetchMemesPool({ limit: MEMES_PER_PAGE, offset: nextOffset, timeoutMs: 15000 });
+          newMemes = await fetchMemesPool({
+            limit: MEMES_PER_PAGE,
+            offset: nextOffset,
+            channelSlug,
+            timeoutMs: 15000,
+          });
         } catch {
           newMemes = [];
         }
       } else {
         const listParams = new URLSearchParams();
-        listParams.set('channelSlug', String(channelInfo.slug || normalizedSlug).toLowerCase());
+        listParams.set('channelSlug', channelSlug);
         listParams.set('limit', String(MEMES_PER_PAGE));
         listParams.set('offset', String(nextOffset));
         listParams.set('sortBy', 'createdAt');
@@ -316,7 +425,7 @@ export function useStreamerProfileMemes({
         let resp: unknown;
         try {
           resp = await fetchChannelMemesSearch({
-            channelSlug: String(channelInfo.slug || normalizedSlug).toLowerCase(),
+            channelSlug,
             params: listParams,
             timeoutMs: 15000,
           });
@@ -349,17 +458,21 @@ export function useStreamerProfileMemes({
     canIncludeFileHash,
     channelInfo,
     hasMore,
+    isForYou,
+    isListMode,
+    listMode,
     loadingMore,
     memesOffset,
-    myFavorites,
     normalizedSlug,
     searchQuery,
     tagFilter,
+    trendingPeriod,
+    trendingScope,
   ]);
 
   // Intersection Observer for infinite scroll
   useEffect(() => {
-    if (!loadMoreRef.current || searchQuery.trim() || tagFilter.trim() || myFavorites || !channelInfo?.id) {
+    if (!loadMoreRef.current || searchQuery.trim() || tagFilter.trim() || isForYou || !channelInfo?.id) {
       return;
     }
 
@@ -378,13 +491,18 @@ export function useStreamerProfileMemes({
     return () => {
       observer.disconnect();
     };
-  }, [channelInfo?.id, hasMore, loadMoreMemes, loadingMore, memesLoading, myFavorites, searchQuery, tagFilter]);
+  }, [channelInfo?.id, hasMore, loadMoreMemes, loadingMore, memesLoading, isForYou, searchQuery, tagFilter]);
 
   // Perform search when debounced query changes
   useEffect(() => {
     const tagValue = tagFilter.trim();
     const hasTagFilter = tagValue.length > 0;
-    if (!normalizedSlug || (!debouncedSearchQuery.trim() && !myFavorites && !hasTagFilter)) {
+    if (!normalizedSlug || (!debouncedSearchQuery.trim() && !hasTagFilter)) {
+      setSearchResults([]);
+      setIsSearching(false);
+      return;
+    }
+    if (isForYou) {
       setSearchResults([]);
       setIsSearching(false);
       return;
@@ -393,12 +511,6 @@ export function useStreamerProfileMemes({
     const performSearch = async () => {
       setIsSearching(true);
       try {
-        // Favorites search requires auth; for regular search use safe public endpoint.
-        if (myFavorites && !isAuthed) {
-          setSearchResults([]);
-          return;
-        }
-
         const params = new URLSearchParams();
         if (debouncedSearchQuery.trim()) params.set('q', debouncedSearchQuery.trim());
         if (hasTagFilter) params.set('tags', tagValue);
@@ -407,16 +519,21 @@ export function useStreamerProfileMemes({
         params.set('sortOrder', 'desc');
 
         let memesResp: unknown;
-        if (myFavorites) {
-          memesResp = await api.get<unknown>(
-            `/channels/memes/search?${(() => {
-              const p = new URLSearchParams(params);
-              p.set('channelSlug', normalizedSlug);
-              p.set('favorites', '1');
-              if (canIncludeAi) p.set('includeAi', '1');
-              return p.toString();
-            })()}`,
-          );
+        const channelSlug = String(channelInfo?.slug || normalizedSlug).toLowerCase();
+        if (isListMode) {
+          const listParams = new URLSearchParams(params);
+          listParams.set('channelSlug', channelSlug);
+          listParams.set('listMode', listMode);
+          if (listMode === 'trending') {
+            listParams.set('trendingScope', trendingScope);
+            listParams.set('trendingPeriod', String(trendingPeriod));
+          }
+          if (canIncludeAi) listParams.set('includeAi', '1');
+          listParams.set('_ts', String(Date.now()));
+          memesResp = await api.get<unknown>(`/channels/memes/search?${listParams.toString()}`, {
+            timeout: 15000,
+            headers: { 'Cache-Control': 'no-store' },
+          });
         } else {
           if (channelInfo?.memeCatalogMode === 'pool_all') {
             const poolQuery = debouncedSearchQuery.trim();
@@ -425,6 +542,7 @@ export function useStreamerProfileMemes({
               offset: 0,
               q: poolQuery || undefined,
               tags: hasTagFilter ? tagValue : undefined,
+              channelSlug,
               timeoutMs: 15000,
             });
             const ranked = poolQuery ? rankSearchResults(pool, poolQuery) : pool;
@@ -433,7 +551,7 @@ export function useStreamerProfileMemes({
           }
           const searchParams = new URLSearchParams(params);
           if (channelInfo?.slug || normalizedSlug) {
-            searchParams.set('channelSlug', String(channelInfo?.slug || normalizedSlug).toLowerCase());
+            searchParams.set('channelSlug', channelSlug);
           } else if (channelInfo?.id) {
             // Back-compat only.
             searchParams.set('channelId', channelInfo.id);
@@ -444,7 +562,7 @@ export function useStreamerProfileMemes({
 
           try {
             memesResp = await fetchChannelMemesSearch({
-              channelSlug: String(channelInfo?.slug || normalizedSlug).toLowerCase(),
+              channelSlug,
               params: searchParams,
               // We already early-returned for pool_all above, so this branch is channel-only.
               preferPublic: false,
@@ -475,7 +593,18 @@ export function useStreamerProfileMemes({
     };
 
     void performSearch();
-  }, [canIncludeAi, channelInfo, debouncedSearchQuery, isAuthed, myFavorites, normalizedSlug, tagFilter]);
+  }, [
+    canIncludeAi,
+    channelInfo,
+    debouncedSearchQuery,
+    isForYou,
+    isListMode,
+    listMode,
+    normalizedSlug,
+    tagFilter,
+    trendingPeriod,
+    trendingScope,
+  ]);
 
   const hasAiProcessingInList = memes.some((m) => m.aiStatus === 'pending' || m.aiStatus === 'processing');
   const hasOwnerAiProcessing = ownerAiProcessingCount > 0;
@@ -522,7 +651,7 @@ export function useStreamerProfileMemes({
     if (!canIncludeAi || !channelId) return;
     if (channelInfo?.memeCatalogMode === 'pool_all') return;
     if (memesLoading || loadingMore) return;
-    if (searchQuery.trim() || myFavorites || tagFilter.trim()) return;
+    if (searchQuery.trim() || tagFilter.trim() || listMode !== 'all') return;
     if (!hasAiProcessing) return;
 
     let cancelled = false;
@@ -577,7 +706,7 @@ export function useStreamerProfileMemes({
     memes,
     memesLoading,
     loadingMore,
-    myFavorites,
+    listMode,
     normalizedSlug,
     searchQuery,
     tagFilter,
@@ -593,8 +722,6 @@ export function useStreamerProfileMemes({
     setSearchQuery,
     tagFilter,
     setTagFilter,
-    myFavorites,
-    setMyFavorites,
     searchResults,
     isSearching,
     hasAiProcessing,

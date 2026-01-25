@@ -24,6 +24,16 @@ import { PageShell } from '@/shared/ui';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { activateMeme } from '@/store/slices/memesSlice';
 
+type StreamerListMode = 'all' | 'favorites' | 'frequent' | 'recent' | 'hidden' | 'trending' | 'blocked' | 'forYou';
+const AUTH_REQUIRED_LIST_MODES: StreamerListMode[] = [
+  'favorites',
+  'frequent',
+  'recent',
+  'hidden',
+  'blocked',
+  'forYou',
+];
+
 const StreamerProfile = memo(function StreamerProfile() {
   const { t } = useTranslation();
   const { slug } = useParams<{ slug: string }>();
@@ -36,7 +46,9 @@ const StreamerProfile = memo(function StreamerProfile() {
   const [isMemeModalOpen, setIsMemeModalOpen] = useState(false);
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
   const [authModalOpen, setAuthModalOpen] = useState(false);
-  const [listMode, setListMode] = useState<'all' | 'favorites' | 'forYou'>('all');
+  const [listMode, setListMode] = useState<StreamerListMode>('all');
+  const [trendingScope, setTrendingScope] = useState<'channel' | 'global'>('channel');
+  const [trendingPeriod, setTrendingPeriod] = useState<7 | 30>(7);
 
   const normalizedSlug = (slug || '').trim().toLowerCase();
   const isAuthed = !!user;
@@ -71,7 +83,6 @@ const StreamerProfile = memo(function StreamerProfile() {
     setSearchQuery,
     tagFilter,
     setTagFilter,
-    setMyFavorites,
     searchResults,
     isSearching,
     hasAiProcessing,
@@ -79,9 +90,11 @@ const StreamerProfile = memo(function StreamerProfile() {
     channelInfo,
     normalizedSlug,
     user,
-    isAuthed,
     reloadNonce,
     onReloadChannel: handleReloadChannel,
+    listMode,
+    trendingScope,
+    trendingPeriod,
   });
 
   const {
@@ -99,13 +112,19 @@ const StreamerProfile = memo(function StreamerProfile() {
   });
 
   const isOwner = !!(user && channelInfo && user.channelId === channelInfo.id);
+  const canViewBlocked = isAuthed && (user?.role === 'admin' || isOwner);
 
   useEffect(() => {
-    if (!isAuthed && listMode !== 'all') {
+    if (!isAuthed && AUTH_REQUIRED_LIST_MODES.includes(listMode)) {
       setListMode('all');
-      setMyFavorites(false);
     }
-  }, [isAuthed, listMode, setMyFavorites]);
+  }, [isAuthed, listMode]);
+
+  useEffect(() => {
+    if (listMode === 'blocked' && !canViewBlocked) {
+      setListMode('all');
+    }
+  }, [canViewBlocked, listMode]);
 
   useEffect(() => {
     if (listMode === 'forYou' && searchQuery.trim()) {
@@ -195,43 +214,49 @@ const StreamerProfile = memo(function StreamerProfile() {
     [setSearchQuery, setTagFilter, tagFilter],
   );
   const handleChangeListMode = useCallback(
-    (nextMode: 'all' | 'favorites' | 'forYou') => {
+    (nextMode: StreamerListMode) => {
       if (nextMode === 'forYou') {
         if (!isAuthed) {
           setAuthModalOpen(true);
           return;
         }
         setListMode('forYou');
-        setMyFavorites(false);
         if (tagFilter.trim()) setTagFilter('');
         if (searchQuery.trim()) setSearchQuery('');
         return;
       }
-      if (nextMode === 'favorites') {
+
+      if (nextMode === 'blocked') {
+        if (!canViewBlocked) {
+          if (!isAuthed) setAuthModalOpen(true);
+          return;
+        }
+        setListMode('blocked');
+        return;
+      }
+
+      if (nextMode === 'favorites' || nextMode === 'frequent' || nextMode === 'hidden') {
         if (!isAuthed) {
           setAuthModalOpen(true);
           return;
         }
-        setListMode('favorites');
-        setMyFavorites(true);
-        if (tagFilter.trim()) setTagFilter('');
+        setListMode(nextMode);
         return;
       }
-      setListMode('all');
-      setMyFavorites(false);
+
+      setListMode(nextMode);
     },
-    [isAuthed, searchQuery, setMyFavorites, setSearchQuery, tagFilter, setTagFilter],
+    [canViewBlocked, isAuthed, searchQuery, setSearchQuery, tagFilter, setTagFilter],
   );
   const handleTagSearch = useCallback(
     (tag: string) => {
       setListMode('all');
-      setMyFavorites(false);
       setTagFilter(tag);
       setSearchQuery('');
       setIsMemeModalOpen(false);
       setSelectedMeme(null);
     },
-    [setMyFavorites, setSearchQuery, setTagFilter],
+    [setSearchQuery, setTagFilter],
   );
   const handleAuthCta = useCallback(() => {
     setAuthModalOpen(false);
@@ -311,6 +336,11 @@ const StreamerProfile = memo(function StreamerProfile() {
           tagFilter={tagFilter}
           listMode={listMode}
           onChangeListMode={handleChangeListMode}
+          trendingScope={trendingScope}
+          trendingPeriod={trendingPeriod}
+          onChangeTrendingScope={setTrendingScope}
+          onChangeTrendingPeriod={setTrendingPeriod}
+          canViewBlocked={canViewBlocked}
           isAuthed={isAuthed}
           onRequireAuth={handleOpenAuthModal}
           isSearching={isSearching}
@@ -343,6 +373,7 @@ const StreamerProfile = memo(function StreamerProfile() {
         onCloseSubmitModal={handleCloseSubmitModal}
         channelSlug={slug}
         channelId={channelInfo?.id}
+        listMode={listMode}
         submissionBlocked={channelInfo?.submissionsEnabled === false}
         showCoinsInfo={!!channelInfo}
         rewardTitle={channelInfo?.rewardTitle || null}

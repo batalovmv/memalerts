@@ -14,6 +14,7 @@ import {
 import { nsKey, redisGetString, redisSetStringEx } from '../../../utils/redisCache.js';
 import { normalizeDashboardCardOrder } from '../../../utils/dashboardCardOrder.js';
 import { getSourceType, loadLegacyTagsById, toChannelMemeListItemDto } from '../channelMemeListDto.js';
+import { applyViewerMemeState, buildChannelMemeVisibilityFilter, buildMemeAssetVisibilityFilter, loadViewerMemeState } from '../memeViewerState.js';
 import type { ChannelMemeRow, ChannelResponse, ChannelWithOwner, PoolAssetRow } from './shared.js';
 
 export const getChannelBySlug = async (req: AuthRequest, res: Response) => {
@@ -194,6 +195,12 @@ export const getChannelBySlug = async (req: AuthRequest, res: Response) => {
             },
           },
         };
+        const visibility = buildMemeAssetVisibilityFilter({
+          channelId: channel.id,
+          userId: req.userId ?? null,
+          includeUserHidden: true,
+        });
+        if (visibility) Object.assign(poolWhere, visibility);
 
         const poolCount = await prisma.memeAsset.count({ where: poolWhere });
         response.stats.memesCount = poolCount;
@@ -280,6 +287,16 @@ export const getChannelBySlug = async (req: AuthRequest, res: Response) => {
             ...(legacyTags && legacyTags.length > 0 ? { tags: legacyTags } : {}),
           };
         });
+        if (Array.isArray(response.memes) && response.memes.length > 0 && req.userId) {
+          const state = await loadViewerMemeState({
+            userId: req.userId,
+            channelId: channel.id,
+            memeAssetIds: response.memes
+              .map((item) => (typeof item.memeAssetId === 'string' ? item.memeAssetId : typeof item.id === 'string' ? item.id : ''))
+              .filter((id) => id && id.length > 0),
+          });
+          response.memes = applyViewerMemeState(response.memes as Array<Record<string, unknown>>, state);
+        }
         response.memesPage = {
           limit: memesLimit,
           offset: memesOffset,
@@ -288,7 +305,20 @@ export const getChannelBySlug = async (req: AuthRequest, res: Response) => {
         };
       } else {
         const rows = await prisma.channelMeme.findMany({
-          where: { channelId: channel.id, status: 'approved', deletedAt: null },
+          where: (() => {
+            const where: Prisma.ChannelMemeWhereInput = { channelId: channel.id, status: 'approved', deletedAt: null };
+            const visibility = buildChannelMemeVisibilityFilter({
+              channelId: channel.id,
+              userId: req.userId ?? null,
+              includeUserHidden: true,
+            });
+            if (visibility) {
+              if (!where.AND) where.AND = [visibility];
+              else if (Array.isArray(where.AND)) where.AND.push(visibility);
+              else where.AND = [where.AND, visibility];
+            }
+            return where;
+          })(),
           orderBy: orderBy as Prisma.ChannelMemeOrderByWithRelationInput[],
           take: memesLimit,
           skip: memesOffset,
@@ -329,6 +359,16 @@ export const getChannelBySlug = async (req: AuthRequest, res: Response) => {
           const tags = legacyTagsById.get(r.legacyMemeId ?? '');
           return tags && tags.length > 0 ? { ...item, tags } : item;
         });
+        if (Array.isArray(response.memes) && response.memes.length > 0 && req.userId) {
+          const state = await loadViewerMemeState({
+            userId: req.userId,
+            channelId: channel.id,
+            memeAssetIds: response.memes
+              .map((item) => (typeof item.memeAssetId === 'string' ? item.memeAssetId : typeof item.id === 'string' ? item.id : ''))
+              .filter((id) => id && id.length > 0),
+          });
+          response.memes = applyViewerMemeState(response.memes as Array<Record<string, unknown>>, state);
+        }
         response.memesPage = {
           limit: memesLimit,
           offset: memesOffset,

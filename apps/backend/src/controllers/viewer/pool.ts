@@ -15,6 +15,7 @@ import {
 import { loadLegacyTagsById } from './channelMemeListDto.js';
 import { nsKey, redisGetString, redisSetStringEx } from '../../utils/redisCache.js';
 import { buildSearchTerms } from '../../shared/utils/searchTerms.js';
+import { applyViewerMemeState, buildMemeAssetVisibilityFilter, loadViewerMemeState } from './memeViewerState.js';
 
 function getSourceType(format: 'webm' | 'mp4' | 'preview'): string {
   switch (format) {
@@ -36,48 +37,69 @@ export const getMemePool = async (req: AuthRequest, res: Response) => {
   const limitRaw = query.limit ? parseInt(String(query.limit), 10) : 50;
   const offsetRaw = query.offset ? parseInt(String(query.offset), 10) : 0;
   const isAdmin = String(req.userRole || '') === 'admin';
+  const channelIdRaw = query.channelId ? String(query.channelId).trim() : '';
+  const channelSlugRaw = query.channelSlug ? String(query.channelSlug).trim() : '';
+
+  let targetChannelId: string | null = channelIdRaw || null;
+  if (!targetChannelId && channelSlugRaw) {
+    const channel = await prisma.channel.findFirst({
+      where: { slug: { equals: channelSlugRaw, mode: 'insensitive' } },
+      select: { id: true },
+    });
+    targetChannelId = channel?.id ?? null;
+  }
 
   const maxFromEnv = parseInt(String(process.env.SEARCH_PAGE_MAX || ''), 10);
   const MAX_PAGE = Number.isFinite(maxFromEnv) && maxFromEnv > 0 ? maxFromEnv : 50;
   const limit = clampInt(limitRaw, 1, MAX_PAGE, 50);
   const offset = clampInt(offsetRaw, 0, 1_000_000, 0);
 
-  // Non-personalized → allow short cache + ETag/304
-  setSearchCacheHeaders(req, res);
+  const personalized = !!req.userId;
+  if (personalized) {
+    res.setHeader('Cache-Control', 'no-store');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+  } else {
+    // Non-personalized → allow short cache + ETag/304
+    setSearchCacheHeaders(req, res);
+  }
 
   const tagsKey = tagNames.join(',');
   const cacheKey = [
     'pool',
     'v2',
     isAdmin ? 'admin' : 'public',
+    targetChannelId ?? '',
     q.toLowerCase(),
     tagsKey,
     String(limit),
     String(offset),
   ].join('|');
 
-  const ttl = getSearchCacheMs();
-  const cached = searchCache.get(cacheKey);
-  if (cached && Date.now() - cached.ts < ttl) {
-    res.setHeader('ETag', cached.etag);
-    if (ifNoneMatchHit(req, cached.etag)) return res.status(304).end();
-    return res.type('application/json').send(cached.body);
-  }
-
-  // Redis shared cache (optional)
-  try {
-    const rkey = nsKey('search', cacheKey);
-    const body = await redisGetString(rkey);
-    if (body) {
-      const etag = makeEtagFromString(body);
-      res.setHeader('ETag', etag);
-      if (ifNoneMatchHit(req, etag)) return res.status(304).end();
-      searchCache.set(cacheKey, { ts: Date.now(), body, etag });
-      if (searchCache.size > SEARCH_CACHE_MAX) searchCache.clear();
-      return res.type('application/json').send(body);
+  if (!personalized) {
+    const ttl = getSearchCacheMs();
+    const cached = searchCache.get(cacheKey);
+    if (cached && Date.now() - cached.ts < ttl) {
+      res.setHeader('ETag', cached.etag);
+      if (ifNoneMatchHit(req, cached.etag)) return res.status(304).end();
+      return res.type('application/json').send(cached.body);
     }
-  } catch {
-    // ignore
+
+    // Redis shared cache (optional)
+    try {
+      const rkey = nsKey('search', cacheKey);
+      const body = await redisGetString(rkey);
+      if (body) {
+        const etag = makeEtagFromString(body);
+        res.setHeader('ETag', etag);
+        if (ifNoneMatchHit(req, etag)) return res.status(304).end();
+        searchCache.set(cacheKey, { ts: Date.now(), body, etag });
+        if (searchCache.size > SEARCH_CACHE_MAX) searchCache.clear();
+        return res.type('application/json').send(body);
+      }
+    } catch {
+      // ignore
+    }
   }
 
   // IMPORTANT (product): pool visibility is governed by MemeAsset moderation only.
@@ -87,6 +109,12 @@ export const getMemePool = async (req: AuthRequest, res: Response) => {
     poolVisibility: 'visible',
     purgedAt: null,
   };
+  const visibility = buildMemeAssetVisibilityFilter({
+    channelId: targetChannelId,
+    userId: req.userId ?? null,
+    includeUserHidden: true,
+  });
+  if (visibility) Object.assign(where, visibility);
 
   if (tagNames.length > 0) {
     where.AND = tagNames.map((tag) => ({ aiSearchText: { contains: tag, mode: 'insensitive' } }));
@@ -212,13 +240,25 @@ export const getMemePool = async (req: AuthRequest, res: Response) => {
     };
   });
 
+  const withState = await (async () => {
+    if (!req.userId || !targetChannelId || items.length === 0) return items;
+    const state = await loadViewerMemeState({
+      userId: req.userId,
+      channelId: targetChannelId,
+      memeAssetIds: items.map((item) => String(item.memeAssetId || item.id || '')).filter(Boolean),
+    });
+    return applyViewerMemeState(items, state);
+  })();
+
   // Cache (best-effort)
   try {
-    const body = JSON.stringify(items);
+    const body = JSON.stringify(withState);
     const etag = makeEtagFromString(body);
-    searchCache.set(cacheKey, { ts: Date.now(), body, etag });
-    if (searchCache.size > SEARCH_CACHE_MAX) searchCache.clear();
-    void redisSetStringEx(nsKey('search', cacheKey), Math.ceil(getSearchCacheMs() / 1000), body);
+    if (!personalized) {
+      searchCache.set(cacheKey, { ts: Date.now(), body, etag });
+      if (searchCache.size > SEARCH_CACHE_MAX) searchCache.clear();
+      void redisSetStringEx(nsKey('search', cacheKey), Math.ceil(getSearchCacheMs() / 1000), body);
+    }
     res.setHeader('ETag', etag);
     if (ifNoneMatchHit(req, etag)) return res.status(304).end();
     return res.type('application/json').send(body);
@@ -226,5 +266,5 @@ export const getMemePool = async (req: AuthRequest, res: Response) => {
     // fall through
   }
 
-  return res.json(items);
+  return res.json(withState);
 };

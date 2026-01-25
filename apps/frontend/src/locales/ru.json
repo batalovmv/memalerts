@@ -1485,7 +1485,20 @@
     "filters": {
       "forYou": "Для тебя",
       "all": "Все",
-      "favorites": "Любимые"
+      "favorites": "Любимые",
+      "recent": "Недавние",
+      "frequent": "Частые",
+      "hidden": "Скрытые",
+      "trending": "Тренды",
+      "blocked": "Заблокированные"
+    },
+    "trendingScope": {
+      "channel": "Канал",
+      "global": "Весь сайт"
+    },
+    "trendingPeriod": {
+      "week": "7 дней",
+      "month": "30 дней"
     },
     "availableMemes": "Доступные мемы",
     "aiProcessingNotice": "AI обрабатывает новые мемы. Они появятся автоматически.",
@@ -1569,7 +1582,15 @@
     "deleteConfirm": "Are you sure you want to delete \"{{title}}\"?",
     "deleteReasonLabel": "Reason (optional)",
     "deleteReasonPlaceholder": "Write a short note… (optional)",
-    "deleteWarning": "This action cannot be undone."
+    "deleteWarning": "This action cannot be undone.",
+    "actions": "Действия",
+    "favorite": "В избранное",
+    "unfavorite": "Убрать из избранного",
+    "hide": "Скрыть",
+    "unhide": "Показать",
+    "block": "Заблокировать для канала",
+    "unblock": "Разблокировать для канала",
+    "loginToManage": "Войдите, чтобы управлять избранным и скрытыми мемами."
   },
   "memes": {
     "activationCountLabel_one": "{{count}} activation",

@@ -64,6 +64,11 @@ export interface Meme {
    * Optional AI title proposal (additive; backend may omit).
    */
   aiAutoTitle?: string | null;
+  /**
+   * Viewer-specific flags (optional; only when authenticated).
+   */
+  isFavorite?: boolean;
+  isHidden?: boolean;
   createdAt?: string;
   updatedAt?: string;
   createdBy?: {

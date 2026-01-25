@@ -10,6 +10,12 @@ import {
   type ChannelMemeListItemDto,
   type MemeTagDto,
 } from './channelMemeListDto.js';
+import {
+  applyViewerMemeState,
+  buildChannelMemeVisibilityFilter,
+  buildMemeAssetVisibilityFilter,
+  loadViewerMemeState,
+} from './memeViewerState.js';
 
 const MIN_TASTE_ACTIVATIONS = 5;
 
@@ -27,9 +33,16 @@ type ScoredItem = {
   key: string;
 };
 
-async function loadChannelCandidates(channelId: string, limit: number) {
+async function loadChannelCandidates(channelId: string, limit: number, userId?: string | null) {
+  const where: Prisma.ChannelMemeWhereInput = { channelId, status: 'approved', deletedAt: null };
+  const visibility = buildChannelMemeVisibilityFilter({ channelId, userId: userId ?? null, includeUserHidden: true });
+  if (visibility) {
+    if (!where.AND) where.AND = [visibility];
+    else if (Array.isArray(where.AND)) where.AND.push(visibility);
+    else where.AND = [where.AND, visibility];
+  }
   return prisma.channelMeme.findMany({
-    where: { channelId, status: 'approved', deletedAt: null },
+    where,
     select: {
       id: true,
       legacyMemeId: true,
@@ -65,7 +78,7 @@ async function loadChannelCandidates(channelId: string, limit: number) {
   });
 }
 
-async function loadPoolCandidates(channelId: string, limit: number) {
+async function loadPoolCandidates(channelId: string, limit: number, userId?: string | null) {
   const where: Prisma.MemeAssetWhereInput = {
     poolVisibility: 'visible',
     purgedAt: null,
@@ -79,6 +92,8 @@ async function loadPoolCandidates(channelId: string, limit: number) {
       },
     },
   };
+  const visibility = buildMemeAssetVisibilityFilter({ channelId, userId: userId ?? null, includeUserHidden: true });
+  if (visibility) Object.assign(where, visibility);
 
   return prisma.memeAsset.findMany({
     where,
@@ -170,21 +185,36 @@ export const getPersonalizedMemes = async (req: AuthRequest, res: Response) => {
   const profileReady = totalActivations >= MIN_TASTE_ACTIVATIONS;
   const catalogMode = String(channel.memeCatalogMode || 'channel');
 
+  const attachViewerState = async (items: Array<Record<string, unknown>>) => {
+    const memeAssetIds = items
+      .map((item) => (typeof item.memeAssetId === 'string' ? item.memeAssetId : typeof item.id === 'string' ? item.id : ''))
+      .filter((id) => id && id.length > 0);
+    const state = await loadViewerMemeState({
+      userId: req.userId ?? null,
+      channelId: channel.id,
+      memeAssetIds,
+    });
+    return applyViewerMemeState(items, state);
+  };
+
   if (!profileReady || !profile) {
     const items =
       catalogMode === 'pool_all'
         ? await buildPoolFallbackItems(req, channel.id, channel.defaultPriceCoins, limit)
         : await buildChannelFallbackItems(req, channel.id, limit);
-    return res.json({ items, profileReady: false, totalActivations, mode: 'fallback' });
+    const withState = await attachViewerState(items as Array<Record<string, unknown>>);
+    return res.json({ items: withState, profileReady: false, totalActivations, mode: 'fallback' });
   }
 
   if (catalogMode === 'pool_all') {
     const items = await buildPoolPersonalizedItems(req, channel.id, channel.defaultPriceCoins, profile, candidateLimit, limit);
-    return res.json({ items, profileReady: true, totalActivations, mode: 'personalized' });
+    const withState = await attachViewerState(items as Array<Record<string, unknown>>);
+    return res.json({ items: withState, profileReady: true, totalActivations, mode: 'personalized' });
   }
 
   const items = await buildChannelPersonalizedItems(req, channel.id, profile, candidateLimit, limit);
-  return res.json({ items, profileReady: true, totalActivations, mode: 'personalized' });
+  const withState = await attachViewerState(items as Array<Record<string, unknown>>);
+  return res.json({ items: withState, profileReady: true, totalActivations, mode: 'personalized' });
 };
 
 async function buildChannelFallbackItems(
@@ -192,7 +222,7 @@ async function buildChannelFallbackItems(
   channelId: string,
   limit: number
 ): Promise<ChannelMemeListItemDto[]> {
-  const rows = await loadChannelCandidates(channelId, limit);
+  const rows = await loadChannelCandidates(channelId, limit, req.userId);
   const legacyTagsById = await loadLegacyTagsById(rows.map((r) => r.legacyMemeId));
   return rows.map((row) => {
     const item = toChannelMemeListItemDto(req, channelId, row);
@@ -208,7 +238,7 @@ async function buildChannelPersonalizedItems(
   candidateLimit: number,
   limit: number
 ): Promise<ChannelMemeListItemDto[]> {
-  const rows = await loadChannelCandidates(channelId, candidateLimit);
+  const rows = await loadChannelCandidates(channelId, candidateLimit, req.userId);
   const legacyTagsById = await loadLegacyTagsById(rows.map((r) => r.legacyMemeId));
 
   const scored: ScoredItem[] = rows.map((row) => {
@@ -235,7 +265,7 @@ async function buildPoolFallbackItems(
   defaultPriceCoins: number | null,
   limit: number
 ): Promise<Array<Record<string, unknown>>> {
-  const rows = await loadPoolCandidates(channelId, limit);
+  const rows = await loadPoolCandidates(channelId, limit, req.userId);
   const legacyTagsById = await loadLegacyTagsById(
     rows.flatMap((row) => (Array.isArray(row.channelMemes) ? row.channelMemes.map((ch) => ch?.legacyMemeId ?? null) : []))
   );
@@ -250,7 +280,7 @@ async function buildPoolPersonalizedItems(
   candidateLimit: number,
   limit: number
 ): Promise<Array<Record<string, unknown>>> {
-  const rows = await loadPoolCandidates(channelId, candidateLimit);
+  const rows = await loadPoolCandidates(channelId, candidateLimit, req.userId);
   const legacyTagsById = await loadLegacyTagsById(
     rows.flatMap((row) => (Array.isArray(row.channelMemes) ? row.channelMemes.map((ch) => ch?.legacyMemeId ?? null) : []))
   );

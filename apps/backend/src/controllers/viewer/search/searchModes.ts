@@ -4,6 +4,12 @@ import { getSourceType, loadLegacyTagsById, toChannelMemeListItemDto } from '../
 import { parseTagNames } from '../cache.js';
 import { sendSearchResponse, type ChannelMemeRow, type PoolAssetRow, type SearchContext } from './searchShared.js';
 import { buildSearchTerms } from '../../../shared/utils/searchTerms.js';
+import {
+  applyViewerMemeState,
+  buildChannelMemeVisibilityFilter,
+  buildMemeAssetVisibilityFilter,
+  loadViewerMemeState,
+} from '../memeViewerState.js';
 
 function defaultPriceCoinsFromChannel(ctx: SearchContext): number {
   const raw = ctx.targetChannel?.defaultPriceCoins ?? null;
@@ -60,10 +66,35 @@ function mapPoolRows(
   });
 }
 
+async function attachViewerState(ctx: SearchContext, items: Array<Record<string, unknown>>) {
+  const memeAssetIds = items
+    .map((item) => (typeof item.memeAssetId === 'string' ? item.memeAssetId : typeof item.id === 'string' ? item.id : ''))
+    .filter((id) => id && id.length > 0);
+  const state = await loadViewerMemeState({
+    userId: ctx.req.userId ?? null,
+    channelId: ctx.targetChannelId ?? null,
+    memeAssetIds,
+  });
+  return applyViewerMemeState(items, state);
+}
+
+function mergeChannelAnd(where: Prisma.ChannelMemeWhereInput, extra: Prisma.ChannelMemeWhereInput) {
+  if (!where.AND) {
+    where.AND = [extra];
+    return;
+  }
+  if (Array.isArray(where.AND)) {
+    where.AND.push(extra);
+    return;
+  }
+  where.AND = [where.AND, extra];
+}
+
 export async function handleChannelListingMode(ctx: SearchContext) {
   const isChannelListingMode =
     !!ctx.targetChannelId &&
     !ctx.favoritesEnabled &&
+    !ctx.listMode &&
     !ctx.qStr &&
     !ctx.tagsStr &&
     ctx.minPrice === undefined &&
@@ -87,6 +118,12 @@ export async function handleChannelListingMode(ctx: SearchContext) {
         },
       },
     };
+    const visibility = buildMemeAssetVisibilityFilter({
+      channelId: ctx.targetChannelId!,
+      userId: ctx.req.userId ?? null,
+      includeUserHidden: true,
+    });
+    if (visibility) Object.assign(poolWhere, visibility);
 
     const rows = (await prisma.memeAsset.findMany({
       where: poolWhere,
@@ -127,7 +164,8 @@ export async function handleChannelListingMode(ctx: SearchContext) {
       )
     );
     const items = mapPoolRows(rows, ctx.targetChannelId!, defaultPriceCoinsFromChannel(ctx), legacyTagsById);
-    return sendSearchResponse(ctx.req, ctx.res, items);
+    const withState = await attachViewerState(ctx, items);
+    return sendSearchResponse(ctx.req, ctx.res, withState);
   }
 
   const orderBy =
@@ -135,8 +173,20 @@ export async function handleChannelListingMode(ctx: SearchContext) {
       ? [{ priceCoins: ctx.sortOrderStr }, { createdAt: 'desc' as const }, { id: 'desc' as const }]
       : [{ createdAt: ctx.sortOrderStr }, { id: 'desc' as const }];
 
+  const baseWhere: Prisma.ChannelMemeWhereInput = {
+    channelId: ctx.targetChannelId!,
+    status: 'approved',
+    deletedAt: null,
+  };
+  const channelVisibility = buildChannelMemeVisibilityFilter({
+    channelId: ctx.targetChannelId!,
+    userId: ctx.req.userId ?? null,
+    includeUserHidden: true,
+  });
+  if (channelVisibility) mergeChannelAnd(baseWhere, channelVisibility);
+
   const rows = (await prisma.channelMeme.findMany({
-    where: { channelId: ctx.targetChannelId!, status: 'approved', deletedAt: null },
+    where: baseWhere,
     orderBy,
     take: ctx.parsedLimit,
     skip: ctx.parsedOffset,
@@ -180,7 +230,8 @@ export async function handleChannelListingMode(ctx: SearchContext) {
     const tags = legacyTagsById.get(r.legacyMemeId ?? '');
     return tags && tags.length > 0 ? { ...item, tags } : item;
   });
-  return sendSearchResponse(ctx.req, ctx.res, items);
+  const withState = await attachViewerState(ctx, items as Array<Record<string, unknown>>);
+  return sendSearchResponse(ctx.req, ctx.res, withState);
 }
 
 export async function handlePoolAllChannelFilterMode(ctx: SearchContext) {
@@ -188,6 +239,7 @@ export async function handlePoolAllChannelFilterMode(ctx: SearchContext) {
     !!ctx.targetChannelId &&
     ctx.memeCatalogMode === 'pool_all' &&
     !ctx.favoritesEnabled &&
+    !ctx.listMode &&
     (!!ctx.qStr || !!ctx.tagsStr) &&
     ctx.minPrice === undefined &&
     ctx.maxPrice === undefined &&
@@ -208,6 +260,12 @@ export async function handlePoolAllChannelFilterMode(ctx: SearchContext) {
       },
     },
   };
+  const visibility = buildMemeAssetVisibilityFilter({
+    channelId: ctx.targetChannelId!,
+    userId: ctx.req.userId ?? null,
+    includeUserHidden: true,
+  });
+  if (visibility) Object.assign(poolWhere, visibility);
 
   const and: Prisma.MemeAssetWhereInput[] = [];
   const tagNames = parseTagNames(ctx.tagsStr);
@@ -268,13 +326,15 @@ export async function handlePoolAllChannelFilterMode(ctx: SearchContext) {
     )
   );
   const items = mapPoolRows(rows, ctx.targetChannelId!, defaultPriceCoinsFromChannel(ctx), legacyTagsById);
-  return sendSearchResponse(ctx.req, ctx.res, items);
+  const withState = await attachViewerState(ctx, items);
+  return sendSearchResponse(ctx.req, ctx.res, withState);
 }
 
 export async function handleChannelSearchMode(ctx: SearchContext) {
   const isChannelSearchMode =
     !!ctx.targetChannelId &&
     !ctx.favoritesEnabled &&
+    !ctx.listMode &&
     (!!ctx.qStr || !!ctx.tagsStr) &&
     ctx.minPrice === undefined &&
     ctx.maxPrice === undefined &&
@@ -296,6 +356,12 @@ export async function handleChannelSearchMode(ctx: SearchContext) {
         },
       },
     };
+    const visibility = buildMemeAssetVisibilityFilter({
+      channelId: ctx.targetChannelId!,
+      userId: ctx.req.userId ?? null,
+      includeUserHidden: true,
+    });
+    if (visibility) Object.assign(where, visibility);
     if (ctx.tagsStr) {
       const tagNames = parseTagNames(ctx.tagsStr);
       if (tagNames.length > 0) {
@@ -345,7 +411,8 @@ export async function handleChannelSearchMode(ctx: SearchContext) {
       )
     );
     const items = mapPoolRows(rows, ctx.targetChannelId!, defaultPriceCoinsFromChannel(ctx), legacyTagsById);
-    return sendSearchResponse(ctx.req, ctx.res, items);
+    const withState = await attachViewerState(ctx, items);
+    return sendSearchResponse(ctx.req, ctx.res, withState);
   }
 
   const orderBy =
@@ -358,6 +425,12 @@ export async function handleChannelSearchMode(ctx: SearchContext) {
     status: 'approved',
     deletedAt: null,
   };
+  const channelVisibility = buildChannelMemeVisibilityFilter({
+    channelId: ctx.targetChannelId!,
+    userId: ctx.req.userId ?? null,
+    includeUserHidden: true,
+  });
+  if (channelVisibility) mergeChannelAnd(where, channelVisibility);
   if (ctx.qStr) {
     const terms = buildSearchTerms(ctx.qStr);
     const searchTerms = terms.length > 0 ? terms : [ctx.qStr];
@@ -422,5 +495,6 @@ export async function handleChannelSearchMode(ctx: SearchContext) {
     const tags = legacyTagsById.get(r.legacyMemeId ?? '');
     return tags && tags.length > 0 ? { ...item, tags } : item;
   });
-  return sendSearchResponse(ctx.req, ctx.res, items);
+  const withState = await attachViewerState(ctx, items as Array<Record<string, unknown>>);
+  return sendSearchResponse(ctx.req, ctx.res, withState);
 }
