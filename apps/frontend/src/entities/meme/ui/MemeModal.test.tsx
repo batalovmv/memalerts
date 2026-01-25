@@ -41,4 +41,27 @@ describe('MemeModal', () => {
     expect(video).not.toBeNull();
     expect(video?.getAttribute('src')).toBe('https://cdn.example.com/play.mp4');
   });
+
+  it('keeps preview in the modal and preloads full metadata', () => {
+    const onClose = vi.fn();
+    const onUpdate = vi.fn();
+    const meme = makeMeme({
+      previewUrl: 'https://cdn.example.com/preview.mp4',
+      playFileUrl: 'https://cdn.example.com/full.mp4',
+    });
+
+    renderWithProviders(
+      <MemeModal meme={meme} isOpen onClose={onClose} onUpdate={onUpdate} isOwner={false} mode="viewer" />,
+      { preloadedState: { auth: { user: null, loading: false, error: null } } },
+    );
+
+    const preview = document.querySelector('[data-testid="meme-modal-preview"]');
+    const full = document.querySelector('[data-testid="meme-modal-full"]');
+
+    expect(preview).not.toBeNull();
+    expect(full).not.toBeNull();
+    expect(preview?.getAttribute('src')).toBe('https://cdn.example.com/preview.mp4');
+    expect(full?.getAttribute('src')).toBe('https://cdn.example.com/full.mp4');
+    expect(full?.getAttribute('preload')).toBe('metadata');
+  });
 });

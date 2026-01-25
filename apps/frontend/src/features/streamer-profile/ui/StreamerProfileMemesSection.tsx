@@ -1,3 +1,4 @@
+import { memo, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import type { Meme } from '@/types';
@@ -41,6 +42,34 @@ type StreamerProfileMemesSectionProps = {
 
 const MIN_ACTIVATIONS = 5;
 
+type MemeCardItemProps = {
+  meme: Meme;
+  previewMode: 'hoverMuted' | 'autoplayMuted';
+  isOwner: boolean;
+  onSelectMeme: (meme: Meme) => void;
+};
+
+const MemeCardItem = memo(
+  function MemeCardItem({ meme, previewMode, isOwner, onSelectMeme }: MemeCardItemProps) {
+    const handleClick = useCallback(() => onSelectMeme(meme), [meme, onSelectMeme]);
+
+    return (
+      <MemeCard
+        meme={meme}
+        onClick={handleClick}
+        isOwner={isOwner}
+        previewMode={previewMode}
+        showAiBadges={false}
+      />
+    );
+  },
+  (prev, next) =>
+    prev.meme === next.meme &&
+    prev.previewMode === next.previewMode &&
+    prev.isOwner === next.isOwner &&
+    prev.onSelectMeme === next.onSelectMeme,
+);
+
 export function StreamerProfileMemesSection({
   memes,
   searchResults,
@@ -82,6 +111,20 @@ export function StreamerProfileMemesSection({
         defaultValue: 'Make {{count}} more activations to unlock personalization.',
         count: remaining,
       });
+  const previewMode = autoplayMemesEnabled ? 'autoplayMuted' : 'hoverMuted';
+  const cardNodes = useMemo(
+    () =>
+      memesToDisplay.map((meme) => (
+        <MemeCardItem
+          key={getMemePrimaryId(meme)}
+          meme={meme}
+          onSelectMeme={onSelectMeme}
+          previewMode={previewMode}
+          isOwner={isOwner}
+        />
+      )),
+    [isOwner, memesToDisplay, onSelectMeme, previewMode],
+  );
 
   return (
     <>
@@ -104,21 +147,16 @@ export function StreamerProfileMemesSection({
                 }),
                 requiresAuth: true,
               },
-          { value: 'all', label: t('profile.filters.all', { defaultValue: 'All' }), requiresAuth: false },
-          {
-            value: 'favorites',
-            label: t('profile.filters.favorites', {
-              defaultValue: t('search.myFavorites', { defaultValue: 'Favorites' }),
-            }),
-            requiresAuth: true,
-          },
-          {
-            value: 'frequent',
-            label: t('profile.filters.frequent', { defaultValue: 'Frequent' }),
-            requiresAuth: true,
-          },
-        ] as Array<{ value: StreamerProfileMemesSectionProps['listMode']; label: string; requiresAuth: boolean }>
-      ).map((option) => {
+              { value: 'all', label: t('profile.filters.all', { defaultValue: 'All' }), requiresAuth: false },
+              {
+                value: 'favorites',
+                label: t('profile.filters.favorites', {
+                  defaultValue: t('search.myFavorites', { defaultValue: 'Favorites' }),
+                }),
+                requiresAuth: true,
+              },
+            ] as Array<{ value: StreamerProfileMemesSectionProps['listMode']; label: string; requiresAuth: boolean }>
+          ).map((option) => {
             const isActive = listMode === option.value;
             const isDisabled = option.requiresAuth && !isAuthed;
             return (
@@ -291,15 +329,7 @@ export function StreamerProfileMemesSection({
         return (
           <>
             <div className="meme-masonry">
-              {memesToDisplay.map((meme) => (
-                <MemeCard
-                  key={getMemePrimaryId(meme)}
-                  meme={meme}
-                  onClick={() => onSelectMeme(meme)}
-                  isOwner={isOwner}
-                  previewMode={autoplayMemesEnabled ? 'autoplayMuted' : 'hoverMuted'}
-                />
-              ))}
+              {cardNodes}
             </div>
             {/* Infinite scroll trigger and loading indicator */}
             {!isForYou && !hasSearch && (

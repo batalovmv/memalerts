@@ -186,7 +186,9 @@ function MemeCardViewBase({
 
 export const MemeCardView = memo(MemeCardViewBase, (prev, next) => {
   return (
-    prev.meme.id === next.meme.id &&
+    prev.meme === next.meme &&
+    prev.mediaUrl === next.mediaUrl &&
+    prev.previewMode === next.previewMode &&
     prev.aspectRatio === next.aspectRatio &&
     prev.isHovered === next.isHovered &&
     prev.shouldLoadMedia === next.shouldLoadMedia &&
