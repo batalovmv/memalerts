@@ -705,6 +705,7 @@ model User {
   globalModerator             GlobalModerator?
   moderatorsGranted           GlobalModerator[]            @relation("GlobalModeratorGrantedBy")
   moderatorsRevoked           GlobalModerator[]            @relation("GlobalModeratorRevokedBy")
+  banState                    UserBanState?
   tasteProfile                UserTasteProfile?
   tagActivities               UserTagActivity[]
   tagSuggestionsReviewed      TagSuggestion[]              @relation("TagSuggestionReviewedBy")
