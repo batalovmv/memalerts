@@ -25,7 +25,7 @@ export function StreamerProfileLeaderboard({ channelSlug, periodDays, onChangePe
   const { stats, loading, error } = useStreamerProfileLeaderboard({
     channelSlug,
     periodDays,
-    limit: 6,
+    limit: 3,
     enabled: !!channelSlug,
   });
 
@@ -34,17 +34,10 @@ export function StreamerProfileLeaderboard({ channelSlug, periodDays, onChangePe
       stats.map((entry, index) => {
         const meme = entry.meme;
         const title = meme?.title?.trim() || t('common.unknown', { defaultValue: 'Unknown' });
-        const tags = Array.isArray(meme?.tags)
-          ? meme.tags
-              .map((tag) => tag?.tag?.name)
-              .filter((name): name is string => typeof name === 'string' && name.trim().length > 0)
-              .slice(0, 2)
-          : [];
         return {
           id: meme?.id ?? `${index}`,
           index,
           title,
-          tags,
           activations: entry.activationsCount ?? 0,
           coins: entry.totalCoinsSpent ?? 0,
         };
@@ -53,20 +46,10 @@ export function StreamerProfileLeaderboard({ channelSlug, periodDays, onChangePe
   );
 
   return (
-    <section className="mb-6 rounded-2xl border border-white/10 bg-white/70 dark:bg-white/5 p-5 shadow-sm">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="text-xs font-semibold uppercase tracking-[0.22em] text-gray-500">
-            {t('profile.leaderboardEyebrow', { defaultValue: 'Leaderboard' })}
-          </div>
-          <h3 className="mt-2 text-xl font-bold text-gray-900 dark:text-white">
-            {t('profile.leaderboardTitle', { defaultValue: 'Top memes' })}
-          </h3>
-          <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
-            {t('profile.leaderboardHint', {
-              defaultValue: 'Based on viewer activations and coins spent.',
-            })}
-          </p>
+    <section className="mb-4 rounded-xl border border-white/10 bg-white/70 dark:bg-white/5 p-3 shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="text-sm font-semibold text-gray-900 dark:text-white">
+          {t('profile.leaderboardTitle', { defaultValue: 'Top memes' })}
         </div>
         <div
           className={cn(
@@ -75,8 +58,8 @@ export function StreamerProfileLeaderboard({ channelSlug, periodDays, onChangePe
           )}
         >
           {([
-            { value: 7 as const, label: t('profile.leaderboardPeriodWeek', { defaultValue: '7 days' }) },
-            { value: 30 as const, label: t('profile.leaderboardPeriodMonth', { defaultValue: '30 days' }) },
+            { value: 7 as const, label: t('profile.leaderboardPeriodWeek', { defaultValue: '7d' }) },
+            { value: 30 as const, label: t('profile.leaderboardPeriodMonth', { defaultValue: '30d' }) },
           ] as const).map((option) => {
             const isActive = periodDays === option.value;
             return (
@@ -85,9 +68,9 @@ export function StreamerProfileLeaderboard({ channelSlug, periodDays, onChangePe
                 type="button"
                 onClick={() => onChangePeriod(option.value)}
                 className={cn(
-                  'px-3 py-1.5 text-xs font-semibold rounded-full transition-colors',
+                  'px-2.5 py-1 text-[11px] font-semibold rounded-full transition-colors',
                   isActive
-                    ? 'bg-primary text-white shadow-[0_6px_14px_rgba(10,132,255,0.25)]'
+                    ? 'bg-primary text-white shadow-[0_6px_12px_rgba(10,132,255,0.2)]'
                     : 'text-gray-700 dark:text-gray-200 hover:bg-white/80 dark:hover:bg-white/10',
                 )}
               >
@@ -98,30 +81,30 @@ export function StreamerProfileLeaderboard({ channelSlug, periodDays, onChangePe
         </div>
       </div>
 
-      <div className="mt-4">
+      <div className="mt-2">
         {loading ? (
-          <div className="flex items-center gap-3 py-6 text-gray-600 dark:text-gray-300">
-            <Spinner className="h-5 w-5" />
+          <div className="flex items-center gap-2 py-3 text-gray-600 dark:text-gray-300 text-sm">
+            <Spinner className="h-4 w-4" />
             <span>{t('common.loading', { defaultValue: 'Loading...' })}</span>
           </div>
         ) : error ? (
-          <div className="rounded-xl border border-rose-200/60 bg-rose-50/70 dark:border-rose-500/30 dark:bg-rose-500/10 p-4 text-sm text-rose-700 dark:text-rose-200">
+          <div className="rounded-lg border border-rose-200/60 bg-rose-50/70 dark:border-rose-500/30 dark:bg-rose-500/10 p-3 text-xs text-rose-700 dark:text-rose-200">
             {t('profile.leaderboardError', { defaultValue: 'Failed to load leaderboard.' })}
           </div>
         ) : rows.length === 0 ? (
-          <div className="rounded-xl border border-black/5 dark:border-white/10 bg-white/60 dark:bg-white/5 p-4 text-sm text-gray-600 dark:text-gray-300">
+          <div className="rounded-lg border border-black/5 dark:border-white/10 bg-white/60 dark:bg-white/5 p-3 text-xs text-gray-600 dark:text-gray-300">
             {t('profile.leaderboardEmpty', { defaultValue: 'No leaderboard data yet.' })}
           </div>
         ) : (
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             {rows.map((row) => (
               <div
                 key={row.id}
-                className="flex items-center gap-3 rounded-xl border border-black/5 dark:border-white/10 bg-white/60 dark:bg-gray-900/40 p-3"
+                className="flex items-center gap-2 rounded-lg border border-black/5 dark:border-white/10 bg-white/60 dark:bg-gray-900/40 p-2"
               >
                 <span
                   className={cn(
-                    'flex h-9 w-9 items-center justify-center rounded-full text-sm font-bold shadow-sm',
+                    'flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold shadow-sm',
                     rankBadgeClass(row.index),
                   )}
                 >
@@ -129,15 +112,8 @@ export function StreamerProfileLeaderboard({ channelSlug, periodDays, onChangePe
                 </span>
                 <div className="min-w-0 flex-1">
                   <div className="text-sm font-semibold text-gray-900 dark:text-white truncate">{row.title}</div>
-                  {row.tags.length > 0 ? (
-                    <div className="mt-1 flex flex-wrap gap-1 text-xs text-gray-500 dark:text-gray-400">
-                      {row.tags.map((tag) => (
-                        <span key={tag}>#{tag}</span>
-                      ))}
-                    </div>
-                  ) : null}
                 </div>
-                <div className="text-right text-xs text-gray-600 dark:text-gray-300">
+                <div className="text-right text-[11px] text-gray-600 dark:text-gray-300">
                   <div className="font-semibold text-gray-900 dark:text-white">
                     {t('profile.leaderboardActivations', {
                       defaultValue: '{{count}} activations',

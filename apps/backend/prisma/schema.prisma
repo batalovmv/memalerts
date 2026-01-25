@@ -51,7 +51,7 @@ model Channel {
   secondaryColor                String? // Hex color for secondary theme
   accentColor                   String? // Hex color for accent
   defaultPriceCoins             Int?     @default(100) // Default price for memes in this channel
-  // Smart Pricing (dynamic meme pricing; opt-in per channel)
+  // Dynamic pricing (smart pricing) for viewer activations.
   dynamicPricingEnabled         Boolean  @default(false)
   dynamicPricingMinMult         Float    @default(0.5)
   dynamicPricingMaxMult         Float    @default(2.0)
@@ -1249,8 +1249,8 @@ model ChannelMeme {
   aiAutoTagNamesJson Json?
   aiAutoDescription  String? @db.VarChar(2000)
   priceCoins Int
-  // Smart cooldown (prevent rapid repeat activations)
-  cooldownMinutes Int?      @default(0)
+  // Smart cooldown (prevent rapid repeat activations).
+  cooldownMinutes Int @default(0)
   lastActivatedAt DateTime?
 
   addedByUserId    String?
@@ -1275,6 +1275,7 @@ model ChannelMeme {
   @@index([status])
   @@index([deletedAt])
   @@index([channelId, status, createdAt])
+  @@index([lastActivatedAt])
 }
 
 model MemeSubmission {

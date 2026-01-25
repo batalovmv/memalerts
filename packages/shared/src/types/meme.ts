@@ -44,21 +44,20 @@ export interface Meme {
   memeAssetId?: string | null;
   priceCoins: number;
   /**
-   * Dynamic pricing snapshot (optional).
-   * basePriceCoins = original price (channel-defined)
-   * dynamicPriceCoins = current price after dynamic pricing
+   * Dynamic pricing (optional; shown when channel enables smart pricing).
+   * basePriceCoins = streamer-set price; dynamicPriceCoins = current price.
    */
   basePriceCoins?: number;
   dynamicPriceCoins?: number;
   priceMultiplier?: number;
   priceTrend?: 'rising' | 'falling' | 'stable';
+  durationMs: number;
   /**
-   * Smart cooldown (optional)
+   * Smart cooldown (optional; channel-wide anti-spam).
    */
   cooldownMinutes?: number;
   cooldownSecondsRemaining?: number;
   cooldownUntil?: string | null;
-  durationMs: number;
   activationsCount?: number;
   _count?: { activations?: number };
   status?: MemeStatus;

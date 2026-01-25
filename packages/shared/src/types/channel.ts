@@ -75,6 +75,9 @@ export interface ChannelSettings {
   submissionsEnabled?: boolean;
   submissionsOnlyWhenLive?: boolean;
   autoApproveEnabled?: boolean;
+  dynamicPricingEnabled?: boolean;
+  dynamicPricingMinMult?: number;
+  dynamicPricingMaxMult?: number;
   primaryColor?: string | null;
   secondaryColor?: string | null;
   accentColor?: string | null;
@@ -114,6 +117,9 @@ export interface Channel {
   submissionRewardCoinsPool?: number;
   submissionRewardCoins?: number;
   autoApproveEnabled?: boolean;
+  dynamicPricingEnabled?: boolean;
+  dynamicPricingMinMult?: number;
+  dynamicPricingMaxMult?: number;
   overlayStyleJson?: string | null;
   creditsStyleJson?: string | null;
   botIntegrations?: BotIntegrationSettings[];

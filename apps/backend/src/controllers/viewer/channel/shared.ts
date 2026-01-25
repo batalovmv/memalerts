@@ -63,9 +63,9 @@ export type ChannelResponse = {
   submissionsEnabled: boolean;
   submissionsOnlyWhenLive: boolean;
   autoApproveEnabled: boolean;
-  dynamicPricingEnabled?: boolean;
-  dynamicPricingMinMult?: number;
-  dynamicPricingMaxMult?: number;
+  dynamicPricingEnabled: boolean;
+  dynamicPricingMinMult: number;
+  dynamicPricingMaxMult: number;
   coinIconUrl: string | null;
   primaryColor: string | null;
   secondaryColor: string | null;

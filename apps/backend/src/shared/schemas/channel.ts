@@ -45,10 +45,9 @@ export const updateChannelSettingsSchema = z
     // Allow submissions only while stream is online (uses best-effort stream status store).
     submissionsOnlyWhenLive: z.boolean().optional(),
     autoApproveEnabled: z.boolean().optional(),
-    // Smart pricing (dynamic meme pricing)
     dynamicPricingEnabled: z.boolean().optional(),
-    dynamicPricingMinMult: z.number().min(0.1).max(5).optional(),
-    dynamicPricingMaxMult: z.number().min(0.1).max(5).optional(),
+    dynamicPricingMinMult: z.number().min(0.5).max(2.0).optional(),
+    dynamicPricingMaxMult: z.number().min(0.5).max(2.0).optional(),
     primaryColor: z
       .string()
       .regex(/^#[0-9A-Fa-f]{6}$/)
@@ -108,6 +107,16 @@ export const updateChannelSettingsSchema = z
       .nullable(),
   })
   .superRefine((obj, ctx) => {
+    const rec = obj as Record<string, unknown>;
+    const minMult = rec.dynamicPricingMinMult;
+    const maxMult = rec.dynamicPricingMaxMult;
+    if (typeof minMult === 'number' && typeof maxMult === 'number' && minMult > maxMult) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['dynamicPricingMinMult'],
+        message: 'dynamicPricingMinMult must be <= dynamicPricingMaxMult',
+      });
+    }
     // Validate boostyTierCoins uniqueness
     const tierCoins = (obj as Record<string, unknown>)?.boostyTierCoins;
     if (Array.isArray(tierCoins)) {
@@ -124,16 +133,6 @@ export const updateChannelSettingsSchema = z
         }
         seen.add(tierKey);
       }
-    }
-
-    const dynamicMin = (obj as Record<string, unknown>)?.dynamicPricingMinMult;
-    const dynamicMax = (obj as Record<string, unknown>)?.dynamicPricingMaxMult;
-    if (typeof dynamicMin === 'number' && typeof dynamicMax === 'number' && dynamicMin > dynamicMax) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['dynamicPricingMinMult'],
-        message: 'Min multiplier must be <= max multiplier',
-      });
     }
 
     const items = (obj as Record<string, unknown>)?.boostyDiscordTierRoles;

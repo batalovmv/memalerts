@@ -93,10 +93,16 @@ function MemeCardViewBase({
     Number.isFinite(dynamicPrice) &&
     Number.isFinite(basePrice) &&
     dynamicPrice !== basePrice;
-  const trend =
-    meme.priceTrend ||
-    (hasDynamicDiff ? (dynamicPrice > basePrice ? 'rising' : 'falling') : 'stable');
-  const trendIcon = trend === 'rising' ? '^' : trend === 'falling' ? 'v' : '.';
+  const trendDirection =
+    meme.priceTrend && meme.priceTrend !== 'stable'
+      ? meme.priceTrend
+      : hasDynamicDiff
+        ? dynamicPrice > basePrice
+          ? 'rising'
+          : 'falling'
+        : null;
+  const showTrend = trendDirection === 'rising' || trendDirection === 'falling';
+  const trendIcon = trendDirection === 'rising' ? '↑' : trendDirection === 'falling' ? '↓' : null;
   const trendText =
     hasDynamicDiff && Number.isFinite(basePrice) && basePrice > 0
       ? Math.round(((dynamicPrice - basePrice) / basePrice) * 100)
@@ -260,10 +266,18 @@ function MemeCardViewBase({
                 ) : (
                   <span>{displayPrice}</span>
                 )}
-                <span className={cn('ml-1 text-[10px]', trend === 'rising' && 'text-rose-200', trend === 'falling' && 'text-emerald-200')}>
-                  {trendIcon}
-                  {typeof trendText === 'number' && trendText !== 0 ? `${trendText > 0 ? '+' : ''}${trendText}%` : ''}
-                </span>
+                {showTrend ? (
+                  <span
+                    className={cn(
+                      'ml-1 text-[10px]',
+                      trendDirection === 'rising' && 'text-rose-200',
+                      trendDirection === 'falling' && 'text-emerald-200',
+                    )}
+                  >
+                    {trendIcon}
+                    {typeof trendText === 'number' && trendText !== 0 ? `${trendText > 0 ? '+' : ''}${trendText}%` : ''}
+                  </span>
+                ) : null}
               </span>
             ) : null}
             {isCooldownActive && cooldownLabel ? (
