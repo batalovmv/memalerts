@@ -1465,6 +1465,11 @@
     "forYouHintLocked": "Make {{count}} more activations to unlock personalization.",
     "forYouFallback": "Showing fresh memes while we learn your taste.",
     "forYouEmpty": "No picks yet. Try activating a few memes.",
+    "filters": {
+      "forYou": "For you",
+      "all": "All",
+      "favorites": "Favorites"
+    },
     "availableMemes": "Available Memes",
     "aiProcessingNotice": "AI is processing new memes. They will appear automatically.",
     "noMemes": "No memes available",

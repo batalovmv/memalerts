@@ -1,4 +1,4 @@
-import { memo, useCallback, useMemo, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -12,7 +12,6 @@ import { useStreamerProfileMemes } from '@/features/streamer-profile/model/useSt
 import { useStreamerProfilePersonalizedMemes } from '@/features/streamer-profile/model/useStreamerProfilePersonalizedMemes';
 import { useStreamerProfileSubmissionsStatus } from '@/features/streamer-profile/model/useStreamerProfileSubmissionsStatus';
 import { useStreamerProfileWallet } from '@/features/streamer-profile/model/useStreamerProfileWallet';
-import { PersonalizedMemesSection } from '@/features/streamer-profile/ui/PersonalizedMemesSection';
 import { StreamerProfileErrorState } from '@/features/streamer-profile/ui/StreamerProfileErrorState';
 import { StreamerProfileHeader } from '@/features/streamer-profile/ui/StreamerProfileHeader';
 import { StreamerProfileMemesSection } from '@/features/streamer-profile/ui/StreamerProfileMemesSection';
@@ -37,8 +36,7 @@ const StreamerProfile = memo(function StreamerProfile() {
   const [isMemeModalOpen, setIsMemeModalOpen] = useState(false);
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
   const [authModalOpen, setAuthModalOpen] = useState(false);
-  const [personalizedLimit, setPersonalizedLimit] = useState(12);
-  const [personalizedExpanded, setPersonalizedExpanded] = useState(false);
+  const [listMode, setListMode] = useState<'all' | 'favorites' | 'forYou'>('all');
 
   const normalizedSlug = (slug || '').trim().toLowerCase();
   const isAuthed = !!user;
@@ -71,7 +69,6 @@ const StreamerProfile = memo(function StreamerProfile() {
     loadMoreRef,
     searchQuery,
     setSearchQuery,
-    myFavorites,
     setMyFavorites,
     searchResults,
     isSearching,
@@ -96,10 +93,23 @@ const StreamerProfile = memo(function StreamerProfile() {
     normalizedSlug,
     isAuthed,
     reloadNonce,
-    limit: personalizedLimit,
+    limit: 60,
   });
 
   const isOwner = !!(user && channelInfo && user.channelId === channelInfo.id);
+
+  useEffect(() => {
+    if (!isAuthed && listMode !== 'all') {
+      setListMode('all');
+      setMyFavorites(false);
+    }
+  }, [isAuthed, listMode, setMyFavorites]);
+
+  useEffect(() => {
+    if (listMode === 'forYou' && searchQuery.trim()) {
+      setListMode('all');
+    }
+  }, [listMode, searchQuery]);
 
   useStreamerProfileSubmissionsStatus({
     socket,
@@ -169,17 +179,35 @@ const StreamerProfile = memo(function StreamerProfile() {
     setIsMemeModalOpen(true);
   }, []);
   const handleClearSearchQuery = useCallback(() => setSearchQuery(''), [setSearchQuery]);
-  const handleToggleFavorites = useCallback(() => setMyFavorites((v) => !v), [setMyFavorites]);
-  const handleShowAllPersonalized = useCallback(() => {
-    setPersonalizedExpanded(true);
-    setPersonalizedLimit(60);
-  }, []);
-  const handleHideAllPersonalized = useCallback(() => {
-    setPersonalizedExpanded(false);
-    setPersonalizedLimit(12);
-  }, []);
+  const handleChangeListMode = useCallback(
+    (nextMode: 'all' | 'favorites' | 'forYou') => {
+      if (nextMode === 'forYou') {
+        if (!isAuthed) {
+          setAuthModalOpen(true);
+          return;
+        }
+        setListMode('forYou');
+        setMyFavorites(false);
+        if (searchQuery.trim()) setSearchQuery('');
+        return;
+      }
+      if (nextMode === 'favorites') {
+        if (!isAuthed) {
+          setAuthModalOpen(true);
+          return;
+        }
+        setListMode('favorites');
+        setMyFavorites(true);
+        return;
+      }
+      setListMode('all');
+      setMyFavorites(false);
+    },
+    [isAuthed, searchQuery, setMyFavorites, setSearchQuery],
+  );
   const handleTagSearch = useCallback(
     (tag: string) => {
+      setListMode('all');
       setMyFavorites(false);
       setSearchQuery(tag);
       setIsMemeModalOpen(false);
@@ -252,46 +280,33 @@ const StreamerProfile = memo(function StreamerProfile() {
           searchQuery={searchQuery}
           onChangeSearchQuery={setSearchQuery}
           onClearSearchQuery={handleClearSearchQuery}
-          myFavorites={myFavorites}
-          onToggleFavorites={handleToggleFavorites}
-          isAuthed={isAuthed}
-          onRequireAuth={handleOpenAuthModal}
           isSearching={isSearching}
           searchResultsCount={searchResults.length}
           mix={mix}
         />
-
-        {isAuthed && (personalizedLoading || personalizedMemes.length > 0) ? (
-          <PersonalizedMemesSection
-            memes={personalizedMemes}
-            loading={personalizedLoading}
-            profileReady={profileReady}
-            totalActivations={totalActivations}
-            mode={personalizedMode}
-            autoplayMemesEnabled={autoplayMemesEnabled}
-            onSelectMeme={handleSelectMeme}
-            showAll={personalizedExpanded}
-            onShowAll={handleShowAllPersonalized}
-            onHideAll={handleHideAllPersonalized}
-          />
-        ) : null}
-
-        {!personalizedExpanded && (
-          <StreamerProfileMemesSection
-            memes={memes}
-            searchResults={searchResults}
-            searchQuery={searchQuery}
-            myFavorites={myFavorites}
-            memesLoading={memesLoading}
-            loadingMore={loadingMore}
-            hasMore={hasMore}
-            loadMoreRef={loadMoreRef}
-            autoplayMemesEnabled={autoplayMemesEnabled}
-            isOwner={isOwner}
-            hasAiProcessing={hasAiProcessing}
-            onSelectMeme={handleSelectMeme}
-          />
-        )}
+        <StreamerProfileMemesSection
+          memes={memes}
+          searchResults={searchResults}
+          searchQuery={searchQuery}
+          listMode={listMode}
+          onChangeListMode={handleChangeListMode}
+          isAuthed={isAuthed}
+          onRequireAuth={handleOpenAuthModal}
+          isSearching={isSearching}
+          memesLoading={memesLoading}
+          loadingMore={loadingMore}
+          hasMore={hasMore}
+          loadMoreRef={loadMoreRef}
+          autoplayMemesEnabled={autoplayMemesEnabled}
+          isOwner={isOwner}
+          hasAiProcessing={hasAiProcessing}
+          personalizedMemes={personalizedMemes}
+          personalizedLoading={personalizedLoading}
+          personalizedProfileReady={profileReady}
+          personalizedTotalActivations={totalActivations}
+          personalizedMode={personalizedMode}
+          onSelectMeme={handleSelectMeme}
+        />
       </PageShell>
 
       <StreamerProfileModals
