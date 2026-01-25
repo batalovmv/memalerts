@@ -29,6 +29,30 @@ export function registerViewerRoutes(app: Router) {
 
   app.get('/channels/:slug/wallet', authenticate, requireBetaAccess, viewerController.getWalletForChannel);
   app.get('/channels/:slug/memes/personalized', authenticate, requireBetaAccess, viewerController.getPersonalizedMemes);
+  app.post(
+    '/channels/:slug/memes/:memeAssetId/favorite',
+    authenticate,
+    requireBetaAccess,
+    viewerController.addFavorite
+  );
+  app.delete(
+    '/channels/:slug/memes/:memeAssetId/favorite',
+    authenticate,
+    requireBetaAccess,
+    viewerController.removeFavorite
+  );
+  app.post(
+    '/channels/:slug/memes/:memeAssetId/hidden',
+    authenticate,
+    requireBetaAccess,
+    viewerController.addHidden
+  );
+  app.delete(
+    '/channels/:slug/memes/:memeAssetId/hidden',
+    authenticate,
+    requireBetaAccess,
+    viewerController.removeHidden
+  );
 
   app.get('/channels/:slug/memes', (req, res) => {
     if (isBetaDomain(req)) {

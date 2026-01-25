@@ -41,6 +41,17 @@ type MemeModalInfoProps = {
   isGuestViewer: boolean;
   walletBalance?: number;
   onActivate: () => void;
+  viewerCanInteract: boolean;
+  isFavorite: boolean;
+  isHidden: boolean;
+  isChannelBlocked: boolean;
+  onToggleFavorite: () => void;
+  onToggleHidden: () => void;
+  onToggleChannelBlock?: () => void;
+  favoriteLoading: boolean;
+  hiddenLoading: boolean;
+  channelBlockLoading: boolean;
+  canModerateChannel: boolean;
 };
 
 export function MemeModalInfo({
@@ -77,6 +88,17 @@ export function MemeModalInfo({
   isGuestViewer,
   walletBalance,
   onActivate,
+  viewerCanInteract,
+  isFavorite,
+  isHidden,
+  isChannelBlocked,
+  onToggleFavorite,
+  onToggleHidden,
+  onToggleChannelBlock,
+  favoriteLoading,
+  hiddenLoading,
+  channelBlockLoading,
+  canModerateChannel,
 }: MemeModalInfoProps) {
   const { t } = useTranslation();
 
@@ -233,6 +255,62 @@ export function MemeModalInfo({
                 </button>
               ))}
             </div>
+          </div>
+        )}
+
+        {mode === 'viewer' && (
+          <div>
+            <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+              {t('memeModal.actions', { defaultValue: 'Actions' })}
+            </div>
+            <div className="mt-2 flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant={isFavorite ? 'primary' : 'secondary'}
+                size="sm"
+                onClick={onToggleFavorite}
+                disabled={!viewerCanInteract || favoriteLoading}
+              >
+                {favoriteLoading
+                  ? t('common.loading', { defaultValue: 'Loading…' })
+                  : isFavorite
+                    ? t('memeModal.unfavorite', { defaultValue: 'Remove favorite' })
+                    : t('memeModal.favorite', { defaultValue: 'Add to favorites' })}
+              </Button>
+              <Button
+                type="button"
+                variant={isHidden ? 'secondary' : 'warning'}
+                size="sm"
+                onClick={onToggleHidden}
+                disabled={!viewerCanInteract || hiddenLoading}
+              >
+                {hiddenLoading
+                  ? t('common.loading', { defaultValue: 'Loading…' })
+                  : isHidden
+                    ? t('memeModal.unhide', { defaultValue: 'Unhide' })
+                    : t('memeModal.hide', { defaultValue: 'Hide' })}
+              </Button>
+              {canModerateChannel && onToggleChannelBlock ? (
+                <Button
+                  type="button"
+                  variant={isChannelBlocked ? 'secondary' : 'danger'}
+                  size="sm"
+                  onClick={onToggleChannelBlock}
+                  disabled={!viewerCanInteract || channelBlockLoading}
+                >
+                  {channelBlockLoading
+                    ? t('common.loading', { defaultValue: 'Loading…' })
+                    : isChannelBlocked
+                      ? t('memeModal.unblock', { defaultValue: 'Unblock for channel' })
+                      : t('memeModal.block', { defaultValue: 'Block for channel' })}
+                </Button>
+              ) : null}
+            </div>
+            {!viewerCanInteract ? (
+              <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                {t('memeModal.loginToManage', { defaultValue: 'Log in to manage favorites and hidden memes.' })}
+              </div>
+            ) : null}
           </div>
         )}
 

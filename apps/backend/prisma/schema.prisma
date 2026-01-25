@@ -125,6 +125,9 @@ model Channel {
   pendingCoinGrants            PendingCoinGrant[]
   memes                        Meme[]
   channelMemes                 ChannelMeme[]
+  memeFavorites                UserMemeFavorite[]
+  memeBlocklist                UserMemeBlocklist[]
+  channelBlocklist             ChannelMemeBlocklist[]
   submissions                  MemeSubmission[]
   redemptions                  Redemption[]
   activations                  MemeActivation[]
@@ -703,6 +706,9 @@ model User {
   tasteProfile                UserTasteProfile?
   tagActivities               UserTagActivity[]
   tagSuggestionsReviewed      TagSuggestion[]              @relation("TagSuggestionReviewedBy")
+  memeFavorites               UserMemeFavorite[]
+  memeBlocklist               UserMemeBlocklist[]
+  channelBlocklistCreated     ChannelMemeBlocklist[]       @relation("ChannelBlocklistCreatedBy")
 
   @@index([twitchUserId])
   @@index([channelId])
@@ -1149,6 +1155,9 @@ model MemeAsset {
   channelMemes ChannelMeme[]
   submissions  MemeSubmission[]
   tagSuggestions TagSuggestion[]
+  favoritedBy  UserMemeFavorite[]
+  blockedByUsers UserMemeBlocklist[]
+  blockedByChannels ChannelMemeBlocklist[]
   variants     MemeAssetVariant[]
 
   @@index([fileHash])
@@ -1357,6 +1366,62 @@ model MemeActivation {
   @@index([channelId, status, createdAt, memeId])
   // - favorites ranking: filter by channelId + userId + status, group by memeId
   @@index([channelId, userId, status, memeId])
+}
+
+model UserMemeFavorite {
+  id          String   @id @default(uuid())
+  userId      String
+  channelId   String
+  memeAssetId String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  channel   Channel   @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  memeAsset MemeAsset @relation(fields: [memeAssetId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, channelId, memeAssetId])
+  @@index([userId])
+  @@index([channelId])
+  @@index([memeAssetId])
+  @@index([channelId, userId])
+}
+
+model UserMemeBlocklist {
+  id          String   @id @default(uuid())
+  userId      String
+  channelId   String
+  memeAssetId String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  channel   Channel   @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  memeAsset MemeAsset @relation(fields: [memeAssetId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, channelId, memeAssetId])
+  @@index([userId])
+  @@index([channelId])
+  @@index([memeAssetId])
+  @@index([channelId, userId])
+}
+
+model ChannelMemeBlocklist {
+  id              String   @id @default(uuid())
+  channelId       String
+  memeAssetId     String
+  createdByUserId String?
+  reason          String?  @db.VarChar(500)
+  createdAt       DateTime @default(now())
+
+  channel   Channel   @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  memeAsset MemeAsset @relation(fields: [memeAssetId], references: [id], onDelete: Cascade)
+  createdBy User?     @relation("ChannelBlocklistCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([channelId, memeAssetId])
+  @@index([channelId])
+  @@index([memeAssetId])
+  @@index([createdByUserId])
 }
 
 model AuditLog {

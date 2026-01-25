@@ -8,6 +8,7 @@ import {
   toChannelMemeListItemDto,
   type ChannelMemeListItemDto,
 } from '../channelMemeListDto.js';
+import { applyViewerMemeState, buildChannelMemeVisibilityFilter, buildMemeAssetVisibilityFilter, loadViewerMemeState } from '../memeViewerState.js';
 import {
   PaginationError,
   buildCursorFilter,
@@ -89,6 +90,18 @@ export const getChannelMemesPublic = async (req: AuthRequest, res: Response) => 
   let items: ChannelMemeListItemDto[] | Array<Record<string, unknown>> = [];
   let hasMore = false;
 
+  const attachViewerState = async (items: Array<Record<string, unknown>>) => {
+    const memeAssetIds = items
+      .map((item) => (typeof item.memeAssetId === 'string' ? item.memeAssetId : typeof item.id === 'string' ? item.id : ''))
+      .filter((id) => id && id.length > 0);
+    const state = await loadViewerMemeState({
+      userId: req.userId ?? null,
+      channelId: channel.id,
+      memeAssetIds,
+    });
+    return applyViewerMemeState(items, state);
+  };
+
   if (isPoolMode) {
     const poolWhere: Prisma.MemeAssetWhereInput = {
       poolVisibility: 'visible',
@@ -103,6 +116,13 @@ export const getChannelMemesPublic = async (req: AuthRequest, res: Response) => 
         },
       },
     };
+
+    const visibility = buildMemeAssetVisibilityFilter({
+      channelId: channel.id,
+      userId: req.userId ?? null,
+      includeUserHidden: true,
+    });
+    if (visibility) Object.assign(poolWhere, visibility);
 
     const poolCursorFilter = cursor ? buildCursorFilter(cursorSchema, cursor) : null;
     const where = mergeCursorWhere(poolWhere, poolCursorFilter);
@@ -189,12 +209,24 @@ export const getChannelMemesPublic = async (req: AuthRequest, res: Response) => 
         ...(legacyTags && legacyTags.length > 0 ? { tags: legacyTags } : {}),
       };
     });
+    items = await attachViewerState(items as Array<Record<string, unknown>>);
   } else {
     const baseWhere = {
       channelId: channel.id,
       status: 'approved',
       deletedAt: null,
     };
+    const visibility = buildChannelMemeVisibilityFilter({
+      channelId: channel.id,
+      userId: req.userId ?? null,
+      includeUserHidden: true,
+    });
+    if (visibility) {
+      const current = baseWhere as Prisma.ChannelMemeWhereInput;
+      if (!current.AND) current.AND = [visibility];
+      else if (Array.isArray(current.AND)) current.AND.push(visibility);
+      else current.AND = [current.AND, visibility];
+    }
     const cursorFilter = cursor ? buildCursorFilter(cursorSchema, cursor) : null;
     const where = mergeCursorWhere(baseWhere, cursorFilter);
     const orderBy = priceSortEnabled
@@ -243,6 +275,7 @@ export const getChannelMemesPublic = async (req: AuthRequest, res: Response) => 
       const tags = legacyTagsById.get(r.legacyMemeId ?? '');
       return tags && tags.length > 0 ? { ...item, tags } : item;
     });
+    items = await attachViewerState(items as Array<Record<string, unknown>>);
   }
 
   const nextCursor = hasMore && items.length > 0 ? encodeCursorFromItem(items[items.length - 1], cursorSchema) : null;

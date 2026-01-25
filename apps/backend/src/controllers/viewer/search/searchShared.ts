@@ -6,6 +6,10 @@ import { nsKey, redisSetStringEx } from '../../../utils/redisCache.js';
 
 export type SearchRequest = AuthRequest & { __searchCacheKey?: string };
 
+export type SearchListMode = 'favorites' | 'frequent' | 'recent' | 'hidden' | 'trending' | 'blocked';
+export type TrendingScope = 'channel' | 'global';
+export type TrendingPeriod = 7 | 30;
+
 export type PoolAssetRow = {
   id: string;
   type: string;
@@ -70,6 +74,9 @@ export type SearchContext = {
   tagsStr: string;
   includeUploaderEnabled: boolean;
   favoritesEnabled: boolean;
+  listMode: SearchListMode | null;
+  trendingScope: TrendingScope;
+  trendingPeriod: TrendingPeriod;
   sortByStr: string;
   sortOrderStr: Prisma.SortOrder;
   parsedLimit: number;

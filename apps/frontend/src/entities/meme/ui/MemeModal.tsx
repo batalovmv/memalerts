@@ -26,6 +26,9 @@ interface MemeModalProps {
   onActivate?: (memeId: string) => Promise<void>;
   walletBalance?: number;
   onTagSearch?: (tag: string) => void;
+  channelSlug?: string;
+  channelId?: string;
+  listMode?: 'all' | 'favorites' | 'frequent' | 'recent' | 'hidden' | 'trending' | 'blocked' | 'forYou';
 }
 
 const MemeModal = memo(function MemeModal({
@@ -38,10 +41,14 @@ const MemeModal = memo(function MemeModal({
   onActivate,
   walletBalance,
   onTagSearch,
+  channelSlug,
+  channelId,
+  listMode,
 }: MemeModalProps) {
   const { t } = useTranslation();
   const { user } = useAppSelector((s) => s.auth);
   const userId = user?.id;
+  const isAuthed = Boolean(userId);
 
   const [isEditing, setIsEditing] = useState(false);
   const [currentMeme, setCurrentMeme] = useState<Meme | null>(meme);
@@ -53,6 +60,10 @@ const MemeModal = memo(function MemeModal({
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteReason, setDeleteReason] = useState('');
   const [previewDisabled, setPreviewDisabled] = useState(false);
+  const [favoriteLoading, setFavoriteLoading] = useState(false);
+  const [hiddenLoading, setHiddenLoading] = useState(false);
+  const [blockLoading, setBlockLoading] = useState(false);
+  const [channelBlocked, setChannelBlocked] = useState(false);
 
   // Update currentMeme when meme prop changes
   useEffect(() => {
@@ -64,8 +75,12 @@ const MemeModal = memo(function MemeModal({
       });
       setIsEditing(false);
       setPreviewDisabled(false);
+      setFavoriteLoading(false);
+      setHiddenLoading(false);
+      setBlockLoading(false);
+      setChannelBlocked(listMode === 'blocked');
     }
-  }, [meme]);
+  }, [listMode, meme]);
 
   const previewUrl = currentMeme?.previewUrl ? resolveMediaUrl(currentMeme.previewUrl) : '';
   const hasPreview = Boolean(previewUrl) && !previewDisabled;
@@ -238,6 +253,100 @@ const MemeModal = memo(function MemeModal({
     walletBalance !== undefined &&
     walletBalance >= currentMeme.priceCoins;
   const isGuestViewer = mode === 'viewer' && !!onActivate && walletBalance === undefined;
+  const memeAssetId =
+    (typeof currentMeme.memeAssetId === 'string' && currentMeme.memeAssetId) ||
+    (typeof currentMeme.id === 'string' && currentMeme.id) ||
+    '';
+  const channelMemeId =
+    (typeof currentMeme.channelMemeId === 'string' && currentMeme.channelMemeId) ||
+    (typeof currentMeme.id === 'string' && currentMeme.id) ||
+    '';
+  const canModerateChannel = mode === 'viewer' && (!!isOwner || user?.role === 'admin');
+  const viewerCanInteract = mode === 'viewer' && isAuthed;
+
+  const dispatchViewerState = (detail: {
+    isFavorite?: boolean;
+    isHidden?: boolean;
+    isChannelBlocked?: boolean;
+  }) => {
+    try {
+      window.dispatchEvent(
+        new CustomEvent('memalerts:memeViewerStateChanged', {
+          detail: {
+            memeAssetId,
+            channelMemeId,
+            ...detail,
+          },
+        }),
+      );
+    } catch {
+      // ignore
+    }
+  };
+
+  const handleToggleFavorite = async () => {
+    if (!viewerCanInteract || !channelSlug || !memeAssetId) return;
+    const next = !currentMeme.isFavorite;
+    setFavoriteLoading(true);
+    try {
+      if (next) {
+        await api.post(`/channels/${encodeURIComponent(channelSlug)}/memes/${encodeURIComponent(memeAssetId)}/favorite`);
+      } else {
+        await api.delete(`/channels/${encodeURIComponent(channelSlug)}/memes/${encodeURIComponent(memeAssetId)}/favorite`);
+      }
+      setCurrentMeme((prev) => (prev ? { ...prev, isFavorite: next } : prev));
+      dispatchViewerState({ isFavorite: next });
+    } catch (error: unknown) {
+      const apiError = error as { response?: { data?: { error?: string } }; message?: string };
+      toast.error(apiError.response?.data?.error || apiError.message || t('common.requestFailed', { defaultValue: 'Request failed' }));
+    } finally {
+      setFavoriteLoading(false);
+    }
+  };
+
+  const handleToggleHidden = async () => {
+    if (!viewerCanInteract || !channelSlug || !memeAssetId) return;
+    const next = !currentMeme.isHidden;
+    setHiddenLoading(true);
+    try {
+      if (next) {
+        await api.post(`/channels/${encodeURIComponent(channelSlug)}/memes/${encodeURIComponent(memeAssetId)}/hidden`);
+      } else {
+        await api.delete(`/channels/${encodeURIComponent(channelSlug)}/memes/${encodeURIComponent(memeAssetId)}/hidden`);
+      }
+      setCurrentMeme((prev) => (prev ? { ...prev, isHidden: next } : prev));
+      dispatchViewerState({ isHidden: next });
+    } catch (error: unknown) {
+      const apiError = error as { response?: { data?: { error?: string } }; message?: string };
+      toast.error(apiError.response?.data?.error || apiError.message || t('common.requestFailed', { defaultValue: 'Request failed' }));
+    } finally {
+      setHiddenLoading(false);
+    }
+  };
+
+  const handleToggleChannelBlock = async () => {
+    if (!canModerateChannel || !memeAssetId) return;
+    const next = !channelBlocked;
+    setBlockLoading(true);
+    try {
+      if (next) {
+        const payload: { memeAssetId: string; channelId?: string } = { memeAssetId };
+        if (user?.role === 'admin' && channelId) payload.channelId = channelId;
+        await api.post('/streamer/channel-blocklist', payload);
+      } else {
+        const query =
+          user?.role === 'admin' && channelId ? `?channelId=${encodeURIComponent(channelId)}` : '';
+        await api.delete(`/streamer/channel-blocklist/${encodeURIComponent(memeAssetId)}${query}`);
+      }
+      setChannelBlocked(next);
+      dispatchViewerState({ isChannelBlocked: next });
+    } catch (error: unknown) {
+      const apiError = error as { response?: { data?: { error?: string } }; message?: string };
+      toast.error(apiError.response?.data?.error || apiError.message || t('common.requestFailed', { defaultValue: 'Request failed' }));
+    } finally {
+      setBlockLoading(false);
+    }
+  };
 
   return (
     <Modal
@@ -306,6 +415,17 @@ const MemeModal = memo(function MemeModal({
         isGuestViewer={isGuestViewer}
         walletBalance={walletBalance}
         onActivate={handleActivate}
+        viewerCanInteract={viewerCanInteract}
+        isFavorite={!!currentMeme.isFavorite}
+        isHidden={!!currentMeme.isHidden}
+        isChannelBlocked={channelBlocked}
+        onToggleFavorite={handleToggleFavorite}
+        onToggleHidden={handleToggleHidden}
+        onToggleChannelBlock={canModerateChannel ? handleToggleChannelBlock : undefined}
+        favoriteLoading={favoriteLoading}
+        hiddenLoading={hiddenLoading}
+        channelBlockLoading={blockLoading}
+        canModerateChannel={canModerateChannel}
       />
 
       {/* Delete confirmation dialog */}

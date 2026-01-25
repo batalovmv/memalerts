@@ -18,6 +18,7 @@ type StreamerProfileModalsProps = {
   onCloseSubmitModal: () => void;
   channelSlug?: string | null;
   channelId?: string | null;
+  listMode?: 'all' | 'favorites' | 'frequent' | 'recent' | 'hidden' | 'trending' | 'blocked' | 'forYou';
   submissionBlocked: boolean;
   showCoinsInfo: boolean;
   rewardTitle?: string | null;
@@ -39,6 +40,7 @@ export function StreamerProfileModals({
   onCloseSubmitModal,
   channelSlug,
   channelId,
+  listMode,
   submissionBlocked,
   showCoinsInfo,
   rewardTitle,
@@ -59,6 +61,9 @@ export function StreamerProfileModals({
           mode="viewer"
           onActivate={(memeId) => Promise.resolve(onActivate(memeId))}
           walletBalance={walletBalance}
+          channelSlug={channelSlug ?? undefined}
+          channelId={channelId ?? undefined}
+          listMode={listMode}
         />
       )}
 

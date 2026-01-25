@@ -1468,7 +1468,20 @@
     "filters": {
       "forYou": "For you",
       "all": "All",
-      "favorites": "Favorites"
+      "favorites": "Favorites",
+      "recent": "Recent",
+      "frequent": "Frequent",
+      "hidden": "Hidden",
+      "trending": "Trending",
+      "blocked": "Blocked"
+    },
+    "trendingScope": {
+      "channel": "Channel",
+      "global": "Global"
+    },
+    "trendingPeriod": {
+      "week": "7 days",
+      "month": "30 days"
     },
     "availableMemes": "Available Memes",
     "aiProcessingNotice": "AI is processing new memes. They will appear automatically.",
@@ -1565,7 +1578,15 @@
     "deleteConfirm": "Are you sure you want to delete \"{{title}}\"?",
     "deleteReasonLabel": "Reason (optional)",
     "deleteReasonPlaceholder": "Write a short note… (optional)",
-    "deleteWarning": "This action cannot be undone."
+    "deleteWarning": "This action cannot be undone.",
+    "actions": "Actions",
+    "favorite": "Add to favorites",
+    "unfavorite": "Remove favorite",
+    "hide": "Hide",
+    "unhide": "Unhide",
+    "block": "Block for channel",
+    "unblock": "Unblock for channel",
+    "loginToManage": "Log in to manage favorites and hidden memes."
   },
   "memes": {
     "activationCountLabel_one": "{{count}} activation",

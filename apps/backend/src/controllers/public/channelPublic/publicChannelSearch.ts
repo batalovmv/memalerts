@@ -1,6 +1,6 @@
 import type { AuthRequest } from '../../../middleware/auth.js';
 import type { Response } from 'express';
-import type { Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import { prisma } from '../../../lib/prisma.js';
 import { toPublicChannelMemeListItemDto } from '../dto/publicChannelMemeListItemDto.js';
 import {
@@ -30,6 +30,7 @@ import { parseQueryBool } from '../../../shared/utils/queryParsers.js';
 import { buildSearchTerms } from '../../../shared/utils/searchTerms.js';
 import { loadLegacyTagsById } from '../../viewer/channelMemeListDto.js';
 import { parseTagNames } from '../../viewer/cache.js';
+import { applyViewerMemeState, buildChannelMemeVisibilityFilter, buildMemeAssetVisibilityFilter, loadViewerMemeState } from '../../viewer/memeViewerState.js';
 
 export const searchPublicChannelMemes = async (req: AuthRequest, res: Response) => {
   const query = req.query as PublicChannelSearchQuery;
@@ -57,6 +58,7 @@ export const searchPublicChannelMemes = async (req: AuthRequest, res: Response) 
     .toLowerCase();
   const sortBy = sortByRaw === 'priceCoins' ? 'priceCoins' : 'createdAt';
   const sortOrder: Prisma.SortOrder = sortOrderRaw === 'asc' ? 'asc' : 'desc';
+  const queryMode = Prisma.QueryMode.insensitive;
   const orderings = buildListOrderings(sortBy, sortOrder);
   const cursorSchema = buildCursorSchemaForSort(sortBy, sortOrder);
   const useCursorMode = shouldUseCursorMode(req);
@@ -77,7 +79,7 @@ export const searchPublicChannelMemes = async (req: AuthRequest, res: Response) 
     return res.status(400).json({ errorCode: 'BAD_REQUEST', error: 'Bad request', details: { field: 'slug' } });
 
   const channel = await prisma.channel.findFirst({
-    where: { slug: { equals: slug, mode: 'insensitive' } },
+    where: { slug: { equals: slug, mode: queryMode } },
     select: { id: true, memeCatalogMode: true, defaultPriceCoins: true },
   });
   if (!channel)
@@ -88,35 +90,66 @@ export const searchPublicChannelMemes = async (req: AuthRequest, res: Response) 
   const memeCatalogMode = channel.memeCatalogMode ?? 'channel';
   const defaultPriceCoins = Number.isFinite(channel.defaultPriceCoins ?? NaN) ? (channel.defaultPriceCoins ?? 0) : 100;
   const poolWhereBase = buildChannelPoolWhere(channel.id);
+  const poolVisibility = buildMemeAssetVisibilityFilter({
+    channelId: channel.id,
+    userId: req.userId ?? null,
+    includeUserHidden: true,
+  });
+  if (poolVisibility) Object.assign(poolWhereBase, poolVisibility);
   if (tagNames.length > 0) {
-    poolWhereBase.AND = tagNames.map((tag) => ({ aiSearchText: { contains: tag, mode: 'insensitive' } }));
+    poolWhereBase.AND = tagNames.map((tag) => ({ aiSearchText: { contains: tag, mode: queryMode } }));
   }
   if (q) {
     const terms = buildSearchTerms(q);
     const searchTerms = terms.length > 0 ? terms : [q];
     poolWhereBase.OR = searchTerms.flatMap((term) => [
-      { aiAutoTitle: { contains: term, mode: 'insensitive' } },
-      { aiSearchText: { contains: term, mode: 'insensitive' } },
-      { channelMemes: { some: { title: { contains: term, mode: 'insensitive' } } } },
+      { aiAutoTitle: { contains: term, mode: queryMode } },
+      { aiSearchText: { contains: term, mode: queryMode } },
+      { channelMemes: { some: { title: { contains: term, mode: queryMode } } } },
     ]);
-    poolWhereBase.OR.push({ createdBy: { displayName: { contains: q, mode: 'insensitive' } } });
+    poolWhereBase.OR.push({ createdBy: { displayName: { contains: q, mode: queryMode } } });
   }
 
   const channelWhereBase = buildChannelMemeWhere(channel.id);
+  const channelVisibility = buildChannelMemeVisibilityFilter({
+    channelId: channel.id,
+    userId: req.userId ?? null,
+    includeUserHidden: true,
+  });
+  if (channelVisibility) {
+    if (!channelWhereBase.AND) channelWhereBase.AND = [channelVisibility];
+    else if (Array.isArray(channelWhereBase.AND)) channelWhereBase.AND.push(channelVisibility);
+    else channelWhereBase.AND = [channelWhereBase.AND, channelVisibility];
+  }
   if (tagNames.length > 0) {
-    channelWhereBase.AND = tagNames.map((tag) => ({ searchText: { contains: tag, mode: 'insensitive' } }));
+    const tagFilters = tagNames.map((tag) => ({ searchText: { contains: tag, mode: queryMode } }));
+    if (!channelWhereBase.AND) channelWhereBase.AND = tagFilters;
+    else if (Array.isArray(channelWhereBase.AND)) channelWhereBase.AND.push(...tagFilters);
+    else channelWhereBase.AND = [channelWhereBase.AND, ...tagFilters];
   }
   if (q) {
     const terms = buildSearchTerms(q);
     const searchTerms = terms.length > 0 ? terms : [q];
     channelWhereBase.OR = searchTerms.flatMap((term) => [
-      { title: { contains: term, mode: 'insensitive' } },
-      { searchText: { contains: term, mode: 'insensitive' } },
+      { title: { contains: term, mode: queryMode } },
+      { searchText: { contains: term, mode: queryMode } },
     ]);
-    channelWhereBase.OR.push({ memeAsset: { createdBy: { displayName: { contains: q, mode: 'insensitive' } } } });
+    channelWhereBase.OR.push({ memeAsset: { createdBy: { displayName: { contains: q, mode: queryMode } } } });
   }
 
   if (!useCursorMode) {
+    const attachViewerState = async (items: PublicChannelMemeListItem[]) => {
+      const memeAssetIds = items
+        .map((item) => (typeof item.memeAssetId === 'string' ? item.memeAssetId : typeof item.id === 'string' ? item.id : ''))
+        .filter((id) => id && id.length > 0);
+      const state = await loadViewerMemeState({
+        userId: req.userId ?? null,
+        channelId: channel.id,
+        memeAssetIds,
+      });
+      return applyViewerMemeState(items, state) as PublicChannelMemeListItem[];
+    };
+
     let items: PublicChannelMemeListItem[] = [];
     if (memeCatalogMode === 'pool_all') {
       const rows = await prisma.memeAsset.findMany({
@@ -167,6 +200,7 @@ export const searchPublicChannelMemes = async (req: AuthRequest, res: Response) 
         const tags = legacyTagsById.get(legacyId);
         return tags && tags.length > 0 ? { ...item, tags } : item;
       });
+      items = await attachViewerState(items);
     } else {
       const rows = await prisma.channelMeme.findMany({
         where: channelWhereBase,
@@ -205,6 +239,7 @@ export const searchPublicChannelMemes = async (req: AuthRequest, res: Response) 
         const tags = legacyTagsById.get(row.legacyMemeId ?? '');
         return tags && tags.length > 0 ? { ...item, tags } : item;
       });
+      items = await attachViewerState(items);
     }
 
     try {
@@ -222,6 +257,18 @@ export const searchPublicChannelMemes = async (req: AuthRequest, res: Response) 
   let hasMore = false;
   let items: PublicChannelMemeListItem[] = [];
   let total: number | null = null;
+
+  const attachViewerState = async (items: PublicChannelMemeListItem[]) => {
+    const memeAssetIds = items
+      .map((item) => (typeof item.memeAssetId === 'string' ? item.memeAssetId : typeof item.id === 'string' ? item.id : ''))
+      .filter((id) => id && id.length > 0);
+    const state = await loadViewerMemeState({
+      userId: req.userId ?? null,
+      channelId: channel.id,
+      memeAssetIds,
+    });
+    return applyViewerMemeState(items, state) as PublicChannelMemeListItem[];
+  };
 
   if (memeCatalogMode === 'pool_all') {
     const cursorFilter = cursor ? buildCursorFilter(cursorSchema, cursor) : null;
@@ -277,6 +324,7 @@ export const searchPublicChannelMemes = async (req: AuthRequest, res: Response) 
       const tags = legacyTagsById.get(legacyId);
       return tags && tags.length > 0 ? { ...item, tags } : item;
     });
+    items = await attachViewerState(items);
     if (includeTotal) total = await prisma.memeAsset.count({ where: poolWhereBase });
   } else {
     const cursorFilter = cursor ? buildCursorFilter(cursorSchema, cursor) : null;
@@ -328,6 +376,7 @@ export const searchPublicChannelMemes = async (req: AuthRequest, res: Response) 
       const tags = legacyTagsById.get(row.legacyMemeId ?? '');
       return tags && tags.length > 0 ? { ...item, tags } : item;
     });
+    items = await attachViewerState(items);
     if (includeTotal) {
       total = await prisma.channelMeme.count({
         where: channelWhereBase,

@@ -13,8 +13,15 @@ type StreamerProfileMemesSectionProps = {
   searchResults: Meme[];
   searchQuery: string;
   tagFilter: string;
-  listMode: 'all' | 'favorites' | 'forYou';
-  onChangeListMode: (next: 'all' | 'favorites' | 'forYou') => void;
+  listMode: 'all' | 'favorites' | 'frequent' | 'recent' | 'hidden' | 'trending' | 'blocked' | 'forYou';
+  onChangeListMode: (
+    next: 'all' | 'favorites' | 'frequent' | 'recent' | 'hidden' | 'trending' | 'blocked' | 'forYou',
+  ) => void;
+  trendingScope: 'channel' | 'global';
+  trendingPeriod: 7 | 30;
+  onChangeTrendingScope: (next: 'channel' | 'global') => void;
+  onChangeTrendingPeriod: (next: 7 | 30) => void;
+  canViewBlocked: boolean;
   isAuthed: boolean;
   onRequireAuth: () => void;
   isSearching: boolean;
@@ -42,6 +49,11 @@ export function StreamerProfileMemesSection({
   tagFilter,
   listMode,
   onChangeListMode,
+  trendingScope,
+  trendingPeriod,
+  onChangeTrendingScope,
+  onChangeTrendingPeriod,
+  canViewBlocked,
   isAuthed,
   onRequireAuth,
   isSearching,
@@ -61,9 +73,9 @@ export function StreamerProfileMemesSection({
 }: StreamerProfileMemesSectionProps) {
   const { t } = useTranslation();
   const isForYou = listMode === 'forYou';
-  const isFavorites = listMode === 'favorites';
+  const isTrending = listMode === 'trending';
   const hasSearch = searchQuery.trim().length > 0 || tagFilter.trim().length > 0;
-  const showSearchResults = !isForYou && (isFavorites || hasSearch);
+  const showSearchResults = !isForYou && hasSearch;
   const memesToDisplay = isForYou ? personalizedMemes : showSearchResults ? searchResults : memes;
   const remaining = Math.max(0, MIN_ACTIVATIONS - personalizedTotalActivations);
   const forYouHint = personalizedProfileReady
@@ -81,27 +93,58 @@ export function StreamerProfileMemesSection({
           role="tablist"
           aria-label={t('profile.availableMemes', { defaultValue: 'Available memes' })}
           className={cn(
-            'inline-flex items-center gap-1 rounded-full border border-gray-200/70 dark:border-white/10',
+            'flex flex-wrap items-center gap-1 rounded-full border border-gray-200/70 dark:border-white/10',
             'bg-white/70 dark:bg-gray-900/50 p-1 shadow-sm',
           )}
         >
-          {([
-            {
-              value: 'forYou',
-              label: t('profile.filters.forYou', {
-                defaultValue: t('profile.forYouTitle', { defaultValue: 'For you' }),
-              }),
-              requiresAuth: true,
-            },
-            { value: 'all', label: t('profile.filters.all', { defaultValue: 'All' }), requiresAuth: false },
-            {
-              value: 'favorites',
-              label: t('profile.filters.favorites', {
-                defaultValue: t('search.myFavorites', { defaultValue: 'Favorites' }),
-              }),
-              requiresAuth: true,
-            },
-          ] as const).map((option) => {
+          {(
+            [
+              {
+                value: 'forYou',
+                label: t('profile.filters.forYou', {
+                  defaultValue: t('profile.forYouTitle', { defaultValue: 'For you' }),
+                }),
+                requiresAuth: true,
+              },
+              { value: 'all', label: t('profile.filters.all', { defaultValue: 'All' }), requiresAuth: false },
+              {
+                value: 'favorites',
+                label: t('profile.filters.favorites', {
+                  defaultValue: t('search.myFavorites', { defaultValue: 'Favorites' }),
+                }),
+                requiresAuth: true,
+              },
+              {
+                value: 'frequent',
+                label: t('profile.filters.frequent', { defaultValue: 'Frequent' }),
+                requiresAuth: true,
+              },
+              {
+                value: 'recent',
+                label: t('profile.filters.recent', { defaultValue: 'Recent' }),
+                requiresAuth: true,
+              },
+              {
+                value: 'hidden',
+                label: t('profile.filters.hidden', { defaultValue: 'Hidden' }),
+                requiresAuth: true,
+              },
+              {
+                value: 'trending',
+                label: t('profile.filters.trending', { defaultValue: 'Trending' }),
+                requiresAuth: false,
+              },
+              ...(canViewBlocked
+                ? [
+                    {
+                      value: 'blocked',
+                      label: t('profile.filters.blocked', { defaultValue: 'Blocked' }),
+                      requiresAuth: true,
+                    },
+                  ]
+                : []),
+            ] as Array<{ value: StreamerProfileMemesSectionProps['listMode']; label: string; requiresAuth: boolean }>
+          ).map((option) => {
             const isActive = listMode === option.value;
             const isDisabled = option.requiresAuth && !isAuthed;
             return (
@@ -133,6 +176,67 @@ export function StreamerProfileMemesSection({
         </div>
       </div>
 
+      {isTrending ? (
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          <div
+            className={cn(
+              'inline-flex items-center gap-1 rounded-full border border-gray-200/70 dark:border-white/10',
+              'bg-white/70 dark:bg-gray-900/50 p-1 shadow-sm',
+            )}
+          >
+            {([
+              { value: 'channel', label: t('profile.trendingScope.channel', { defaultValue: 'Channel' }) },
+              { value: 'global', label: t('profile.trendingScope.global', { defaultValue: 'Global' }) },
+            ] as const).map((option) => {
+              const isActive = trendingScope === option.value;
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => onChangeTrendingScope(option.value)}
+                  className={cn(
+                    'px-3 py-1.5 text-xs font-semibold rounded-full transition-colors',
+                    isActive
+                      ? 'bg-primary text-white shadow-[0_6px_14px_rgba(10,132,255,0.25)]'
+                      : 'text-gray-700 dark:text-gray-200 hover:bg-white/80 dark:hover:bg-white/10',
+                  )}
+                >
+                  {option.label}
+                </button>
+              );
+            })}
+          </div>
+          <div
+            className={cn(
+              'inline-flex items-center gap-1 rounded-full border border-gray-200/70 dark:border-white/10',
+              'bg-white/70 dark:bg-gray-900/50 p-1 shadow-sm',
+            )}
+          >
+            {([
+              { value: 7, label: t('profile.trendingPeriod.week', { defaultValue: '7 days' }) },
+              { value: 30, label: t('profile.trendingPeriod.month', { defaultValue: '30 days' }) },
+            ] as const).map((option) => {
+              const isActive = trendingPeriod === option.value;
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => onChangeTrendingPeriod(option.value)}
+                  className={cn(
+                    'px-3 py-1.5 text-xs font-semibold rounded-full transition-colors',
+                    isActive
+                      ? 'bg-primary text-white shadow-[0_6px_14px_rgba(10,132,255,0.25)]'
+                      : 'text-gray-700 dark:text-gray-200 hover:bg-white/80 dark:hover:bg-white/10',
+                  )}
+                >
+                  {option.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
+
       {isForYou ? (
         <div className="mb-4 rounded-xl border border-white/10 bg-white/60 dark:bg-white/5 p-3 flex flex-wrap items-center justify-between gap-2">
           <div className="text-sm text-gray-600 dark:text-gray-300">{forYouHint}</div>
@@ -144,7 +248,7 @@ export function StreamerProfileMemesSection({
         </div>
       ) : null}
 
-      {!isForYou && isOwner && hasAiProcessing ? (
+      {listMode === 'all' && isOwner && hasAiProcessing ? (
         <div className="mb-4 rounded-xl bg-amber-50/80 dark:bg-amber-400/10 border border-amber-200/70 dark:border-amber-400/30 p-3 flex items-center gap-3">
           <Spinner className="h-4 w-4 border-amber-300/70 border-t-amber-500" />
           <div className="text-sm text-amber-900 dark:text-amber-200">
@@ -176,7 +280,7 @@ export function StreamerProfileMemesSection({
               </div>
             );
           }
-        } else if (memesLoading && !hasSearch && !isFavorites) {
+        } else if (memesLoading && !hasSearch && !isForYou) {
           return (
             <div className="columns-2 md:columns-3 lg:columns-4 xl:columns-5 gap-0" style={{ columnGap: 0 }}>
               {[...Array(6)].map((_, i) => (
@@ -224,7 +328,7 @@ export function StreamerProfileMemesSection({
               ))}
             </div>
             {/* Infinite scroll trigger and loading indicator */}
-            {!isForYou && !isFavorites && !hasSearch && (
+            {!isForYou && !hasSearch && (
               <div ref={loadMoreRef} className="mt-4">
                 {loadingMore && (
                   <div className="flex items-center justify-center gap-3 py-4 text-gray-600 dark:text-gray-300">

@@ -87,6 +87,7 @@ export async function fetchMemesPool(opts: {
   offset: number;
   q?: string;
   tags?: string;
+  channelSlug?: string;
   timeoutMs?: number;
 }): Promise<Meme[]> {
   const params = new URLSearchParams();
@@ -94,6 +95,9 @@ export async function fetchMemesPool(opts: {
   params.set('offset', String(opts.offset));
   if (typeof opts.q === 'string' && opts.q.trim()) params.set('q', opts.q.trim());
   if (typeof opts.tags === 'string' && opts.tags.trim()) params.set('tags', opts.tags.trim());
+  if (typeof opts.channelSlug === 'string' && opts.channelSlug.trim()) {
+    params.set('channelSlug', opts.channelSlug.trim().toLowerCase());
+  }
   // Avoid stale cache after recent toggles (proxy/CDN/browser).
   params.set('_ts', String(Date.now()));
 
