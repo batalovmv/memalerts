@@ -142,6 +142,8 @@ export function toChannelMemeListItemDto(
       };
     });
 
+  const aiAutoTagNames = Array.isArray(row.aiAutoTagNamesJson) ? (row.aiAutoTagNamesJson as string[]) : null;
+
   return {
     id: row.legacyMemeId ?? row.id,
     channelId,
@@ -161,10 +163,11 @@ export function toChannelMemeListItemDto(
       ? { id: row.memeAsset.createdBy.id, displayName: row.memeAsset.createdBy.displayName }
       : null,
     fileHash: exposeHash ? (row.memeAsset.fileHash ?? null) : null,
+    ...(aiAutoTagNames && aiAutoTagNames.length > 0 ? { aiAutoTagNames } : {}),
     ...(exposeAi
       ? {
           aiAutoDescription: row.aiAutoDescription ?? null,
-          aiAutoTagNames: Array.isArray(row.aiAutoTagNamesJson) ? (row.aiAutoTagNamesJson as string[]) : null,
+          aiAutoTagNames,
           aiStatus: row.memeAsset.aiStatus ?? null,
           aiAutoTitle: row.memeAsset.aiAutoTitle ?? null,
         }

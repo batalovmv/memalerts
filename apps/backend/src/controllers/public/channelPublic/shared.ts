@@ -48,6 +48,7 @@ export type MemeAssetPoolRow = Prisma.MemeAssetGetPayload<{
     };
     createdAt: true;
     aiAutoTitle: true;
+    aiAutoTagNamesJson: true;
     createdBy: { select: { id: true; displayName: true } };
     channelMemes: {
       where: { channelId: string; status: 'approved'; deletedAt: null };
@@ -56,6 +57,7 @@ export type MemeAssetPoolRow = Prisma.MemeAssetGetPayload<{
       select: {
         title: true;
         priceCoins: true;
+        legacyMemeId: true;
         _count: {
           select: {
             activations: {
@@ -229,6 +231,11 @@ export function mapPoolAssetsToDtos(
           fileSizeBytes: typeof v.fileSizeBytes === 'bigint' ? Number(v.fileSizeBytes) : null,
         };
       });
+    const aiAutoTagNames = Array.isArray(r.aiAutoTagNamesJson)
+      ? (r.aiAutoTagNamesJson as unknown[])
+          .filter((tag): tag is string => typeof tag === 'string' && tag.trim().length > 0)
+          .map((tag) => tag.trim())
+      : null;
     return {
       id: r.id,
       channelId,
@@ -244,6 +251,7 @@ export function mapPoolAssetsToDtos(
       activationsCount,
       createdAt: r.createdAt,
       createdBy: r.createdBy ? { id: r.createdBy.id, displayName: r.createdBy.displayName } : null,
+      ...(aiAutoTagNames && aiAutoTagNames.length > 0 ? { aiAutoTagNames } : {}),
     };
   });
 }
