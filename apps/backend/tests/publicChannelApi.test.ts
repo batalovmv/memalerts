@@ -214,6 +214,7 @@ describe('public channel API', () => {
         'id',
         'memeAssetId',
         'priceCoins',
+        'qualityScore',
         'previewUrl',
         'title',
         'type',
