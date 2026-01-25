@@ -62,6 +62,7 @@ export type ChannelResponse = {
   submissionRewardOnlyWhenLive: boolean;
   submissionsEnabled: boolean;
   submissionsOnlyWhenLive: boolean;
+  autoApproveEnabled: boolean;
   coinIconUrl: string | null;
   primaryColor: string | null;
   secondaryColor: string | null;
