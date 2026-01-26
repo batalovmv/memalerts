@@ -568,6 +568,12 @@ jobs:
             if echo "$MIGRATE_OUTPUT" | grep -q "P3005"; then
               echo "Detected P3005; baselining production migrations."
               for migration_path in "$BACKEND_DIR"/prisma/migrations/*; do
+                if [ ! -d "$migration_path" ]; then
+                  continue
+                fi
+                if [ ! -f "$migration_path/migration.sql" ]; then
+                  continue
+                fi
                 migration_name="$(basename "$migration_path")"
                 pnpm --filter @memalerts/backend exec prisma migrate resolve --applied "$migration_name"
               done
