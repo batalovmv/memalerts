@@ -559,7 +559,23 @@ jobs:
           pnpm install --frozen-lockfile
           pnpm --filter @memalerts/api-contracts build
           pnpm --filter @memalerts/backend build
-          DATABASE_URL="$DATABASE_URL_RESOLVED" pnpm --filter @memalerts/backend exec prisma migrate deploy
+          set +e
+          MIGRATE_OUTPUT="$(DATABASE_URL="$DATABASE_URL_RESOLVED" pnpm --filter @memalerts/backend exec prisma migrate deploy 2>&1)"
+          MIGRATE_STATUS=$?
+          set -e
+          if [ "$MIGRATE_STATUS" -ne 0 ]; then
+            echo "$MIGRATE_OUTPUT"
+            if echo "$MIGRATE_OUTPUT" | grep -q "P3005"; then
+              echo "Detected P3005; baselining production migrations."
+              for migration_path in "$BACKEND_DIR"/prisma/migrations/*; do
+                migration_name="$(basename "$migration_path")"
+                pnpm --filter @memalerts/backend exec prisma migrate resolve --applied "$migration_name"
+              done
+              DATABASE_URL="$DATABASE_URL_RESOLVED" pnpm --filter @memalerts/backend exec prisma migrate deploy
+            else
+              exit "$MIGRATE_STATUS"
+            fi
+          fi
           DATABASE_URL="$DATABASE_URL_RESOLVED" apply_ai_lock_migration
           verify_ai_lock_columns "production"
 
