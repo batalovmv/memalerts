@@ -17,6 +17,28 @@ export type PublicChannelDto = {
   stats: ChannelStats;
 };
 
+export type PublicMemeDto = {
+  id: string;
+  title: string;
+  type: string;
+  fileUrl: string;
+  durationMs: number;
+  priceCoins: number;
+  createdAt: Date;
+  createdBy?: { displayName: string } | null;
+};
+
+type PublicMemeInput = {
+  id: string;
+  title: string;
+  type: string;
+  fileUrl: string;
+  durationMs: number;
+  priceCoins: number;
+  createdAt: Date;
+  createdBy?: { displayName: string } | null;
+};
+
 
 export function toPublicChannelDto(channel: Channel, stats: ChannelStats): PublicChannelDto {
   return {
@@ -32,5 +54,18 @@ export function toPublicChannelDto(channel: Channel, stats: ChannelStats): Publi
     secondaryColor: channel.secondaryColor ?? null,
     accentColor: channel.accentColor ?? null,
     stats,
+  };
+}
+
+export function toPublicMemeDto(meme: PublicMemeInput): PublicMemeDto {
+  return {
+    id: meme.id,
+    title: meme.title,
+    type: meme.type,
+    fileUrl: meme.fileUrl,
+    durationMs: meme.durationMs,
+    priceCoins: meme.priceCoins,
+    createdAt: meme.createdAt,
+    createdBy: meme.createdBy ? { displayName: meme.createdBy.displayName } : null,
   };
 }
