@@ -1,12 +1,10 @@
 import type { Response } from 'express';
-import type { Meme, Prisma } from '@prisma/client';
 import type { AuthRequest } from '../../middleware/auth.js';
 import type { Server } from 'socket.io';
 import { prisma } from '../../lib/prisma.js';
 import { createPoolSubmissionSchema } from '../../shared/schemas.js';
 import { emitSubmissionEvent, relaySubmissionEventToPeer } from '../../realtime/submissionBridge.js';
 import { logger } from '../../utils/logger.js';
-import { maybeFailDualWrite } from '../../utils/dualWriteTestHooks.js';
 import { ZodError } from 'zod';
 import { evaluateAndApplySpamBan, getActiveSpamBan } from '../../services/spamBan.js';
 
@@ -103,22 +101,21 @@ export const createPoolSubmission = async (req: AuthRequest, res: Response) => {
         aiStatus: true,
         aiAutoTitle: true,
         aiAutoDescription: true,
-        aiAutoTagNamesJson: true,
+        aiAutoTagNames: true,
         aiSearchText: true,
-        poolVisibility: true,
-        purgeRequestedAt: true,
-        purgedAt: true,
+        status: true,
+        deletedAt: true,
       },
     });
     stageLog('submission.pool.after_asset_lookup', {
       requestId,
       userId,
       found: !!asset,
-      purged: !!asset?.purgedAt,
+      purged: !!asset?.deletedAt,
       durationMs: Date.now() - startedAt,
     });
     // Safety: prevent adopting hidden/quarantined/purged assets even if caller knows the id.
-    if (!asset || asset.purgedAt || asset.purgeRequestedAt || asset.poolVisibility !== 'visible') {
+    if (!asset || asset.status !== 'active' || asset.deletedAt) {
       return res.status(404).json({ errorCode: 'MEME_ASSET_NOT_FOUND', error: 'Meme asset not found', requestId });
     }
     const assetFileUrl = asset.fileUrl;
@@ -180,18 +177,7 @@ export const createPoolSubmission = async (req: AuthRequest, res: Response) => {
     }
     if (isOwner) {
       const defaultPrice = channel.defaultPriceCoins ?? 100;
-      const now = new Date();
-
-      const aiDescription = asset.aiStatus === 'done' ? (asset.aiAutoDescription ?? null) : null;
-      const aiTagsJson =
-        asset.aiStatus === 'done' && Array.isArray(asset.aiAutoTagNamesJson) ? asset.aiAutoTagNamesJson : null;
-      const aiSearchText =
-        asset.aiStatus === 'done'
-          ? (asset.aiSearchText ?? (aiDescription ? String(aiDescription).slice(0, 4000) : null))
-          : null;
-      // ChannelMeme.title is channel-scoped and editable. Use user title when provided; otherwise prefer AI title for convenience.
-
-      const { cm, legacy } = await prisma.$transaction(async (tx) => {
+      const cm = await prisma.$transaction(async (tx) => {
         const cm = await tx.channelMeme.upsert({
           where: { channelId_memeAssetId: { channelId: body.channelId, memeAssetId: asset.id } },
           create: {
@@ -199,77 +185,19 @@ export const createPoolSubmission = async (req: AuthRequest, res: Response) => {
             memeAssetId: asset.id,
             status: 'approved',
             title: finalTitle,
-            searchText: aiSearchText,
-            aiAutoDescription: aiDescription,
-            aiAutoTagNamesJson: aiTagsJson ?? undefined,
             priceCoins: defaultPrice,
-            addedByUserId: userId,
-            approvedByUserId: userId,
-            approvedAt: now,
           },
           update: {
             status: 'approved',
             deletedAt: null,
             title: finalTitle,
-            searchText: aiSearchText,
-            aiAutoDescription: aiDescription,
-            aiAutoTagNamesJson: aiTagsJson ?? undefined,
             priceCoins: defaultPrice,
-            approvedByUserId: userId,
-            approvedAt: now,
           },
         });
-
-        // Back-compat: keep legacy Meme row in sync.
-        // Bugfix: if we restored ChannelMeme but legacy Meme was previously soft-deleted, the response must NOT return deletedAt/status=deleted.
-        const legacyData: Prisma.MemeUncheckedCreateInput = {
-          channelId: body.channelId,
-          title: finalTitle,
-          type: asset.type,
-          fileUrl: assetFileUrl,
-          fileHash: asset.fileHash,
-          durationMs: asset.durationMs,
-          priceCoins: defaultPrice,
-          status: 'approved',
-          deletedAt: null,
-          createdByUserId: userId,
-          approvedByUserId: userId,
-        };
-
-        let legacy: Meme | null = null;
-        if (cm.legacyMemeId) {
-          try {
-            legacy = await tx.meme.update({
-              where: { id: cm.legacyMemeId },
-              data: legacyData,
-            });
-          } catch (error: unknown) {
-            const errorCode = typeof error === 'object' && error !== null ? (error as { code?: string }).code : null;
-            if (errorCode === 'P2025') {
-              legacy = await tx.meme.create({ data: legacyData });
-              await tx.channelMeme.update({
-                where: { id: cm.id },
-                data: { legacyMemeId: legacy.id },
-              });
-            } else {
-              throw error;
-            }
-          }
-        } else {
-          legacy = await tx.meme.create({ data: legacyData });
-          await tx.channelMeme.update({
-            where: { id: cm.id },
-            data: { legacyMemeId: legacy.id },
-          });
-        }
-
-        maybeFailDualWrite('createPoolSubmission:afterLegacy');
-
-        return { cm, legacy };
+        return cm;
       });
 
       return res.status(201).json({
-        ...(legacy ? legacy : {}),
         isDirectApproval: true,
         channelMemeId: cm.id,
         memeAssetId: asset.id,

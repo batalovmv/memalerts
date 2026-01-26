@@ -123,13 +123,12 @@ describe('integration user journeys', () => {
     const app = makeApp();
     const channel = await createChannel({ slug: 'journey-viewer', name: 'Journey Viewer', defaultPriceCoins: 100 });
     const asset = await createMemeAsset({ fileUrl: '/uploads/memes/journey.webm', durationMs: 1000 });
-    const legacyMeme = await createMeme({ channelId: channel.id, priceCoins: 100, status: 'approved' });
     const channelMeme = await createChannelMeme({
       channelId: channel.id,
       memeAssetId: asset.id,
-      legacyMemeId: legacyMeme.id,
       title: 'Journey Meme',
       priceCoins: 100,
+      status: 'approved',
     });
 
     const viewerLogin = await login(app, 'viewer');
@@ -142,10 +141,10 @@ describe('integration user journeys', () => {
     expect(browseRes.body.memes.some((m: { channelMemeId: string }) => m.channelMemeId === channelMeme.id)).toBe(true);
 
     const activateRes = await request(app)
-      .post(`/memes/${legacyMeme.id}/activate`)
+      .post(`/memes/${channelMeme.id}/activate`)
       .set('Cookie', [viewerLogin.cookie])
       .set('Host', 'example.com')
-      .send({});
+      .send({ channelId: channel.id });
     expect(activateRes.status).toBe(200);
     expect(activateRes.body?.activation?.status).toBe('queued');
 

@@ -2,13 +2,13 @@ import { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 
-import type { Meme } from '@/types';
+import type { MemeDetail } from '@memalerts/api-contracts';
 import type { RefObject } from 'react';
 
 import { resolveMediaUrl } from '@/lib/urls';
 
 type MemeModalVideoProps = {
-  meme: Meme;
+  meme: MemeDetail;
   variants: Array<{
     format: string;
     fileUrl: string;
@@ -220,3 +220,5 @@ export function MemeModalVideo({
     </section>
   );
 }
+
+

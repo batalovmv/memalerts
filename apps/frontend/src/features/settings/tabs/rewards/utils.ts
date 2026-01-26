@@ -1,4 +1,4 @@
-import type { TwitchAutoRewardsV1 } from '@/types';
+import type { TwitchAutoRewardsV1 } from '@memalerts/api-contracts';
 
 import { parseIntSafe, toRecord } from '@/shared/lib/parsing';
 
@@ -68,3 +68,4 @@ export function normalizeBoostyAccess(raw: unknown): BoostyAccessResponse | null
     matchedRoleId,
   };
 }
+

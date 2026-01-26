@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 
 import type { BulkActionKind } from '@/features/dashboard/types';
 import type { NeedsChangesPreset } from '@/features/dashboard/ui/modals/NeedsChangesModal';
-import type { Submission } from '@/types';
+import type { Submission } from '@memalerts/api-contracts';
 
 import { useAppDispatch } from '@/store/hooks';
 import {
@@ -330,3 +330,4 @@ export function useDashboardModeration({ submissions, refreshPending }: UseDashb
     handleBulkConfirm,
   };
 }
+

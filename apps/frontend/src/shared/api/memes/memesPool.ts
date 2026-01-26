@@ -1,4 +1,4 @@
-import type { MemeType, MemeVariant } from '@/types';
+import type { MemeType, MemeVariant } from '@memalerts/api-contracts';
 
 import { api } from '@/lib/api';
 
@@ -48,4 +48,5 @@ export async function getMemesPool(query: MemesPoolQuery = {}): Promise<MemePool
   const qs = params.toString();
   return await api.get<MemePoolItem[]>(`/memes/pool${qs ? `?${qs}` : ''}`);
 }
+
 

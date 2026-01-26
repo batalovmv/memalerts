@@ -57,7 +57,8 @@ async function resetUploadsDir(dir: string): Promise<void> {
   await fs.mkdir(dir, { recursive: true });
 }
 
-describe('dual-write consistency', () => {
+// Legacy dual-write paths removed in the simplified schema.
+describe.skip('dual-write consistency', () => {
   const originalEnv = { ...process.env };
   let uploadRoot = '';
 

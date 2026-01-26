@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next';
 
-import type { Meme } from '@/types';
+import type { MemeDetail } from '@memalerts/api-contracts';
 
 import { getMemePrimaryId } from '@/shared/lib/memeIds';
 import { Button, HelpTooltip, Spinner } from '@/shared/ui';
@@ -9,14 +9,14 @@ import MemeCard from '@/widgets/meme-card/MemeCard';
 const skeletonAspectRatios = [1, 4 / 5, 16 / 9, 3 / 4, 1.2, 9 / 16, 5 / 4, 2 / 3] as const;
 
 export type AllMemesGridProps = {
-  memes: Meme[];
+  memes: MemeDetail[];
   loading: boolean;
   loadingMore: boolean;
   error?: string | null;
   onRetry?: () => void;
   loadMoreRef: React.RefObject<HTMLDivElement>;
   autoplayPreview: 'autoplayMuted' | 'hoverWithSound';
-  onSelectMeme: (meme: Meme) => void;
+  onSelectMeme: (meme: MemeDetail) => void;
   showEmptyState?: boolean;
 };
 
@@ -102,7 +102,6 @@ export function AllMemesGrid({
           <MemeCard
             meme={meme}
             onClick={() => onSelectMeme(meme)}
-            isOwner={true}
             previewMode={autoplayPreview}
           />
         </HelpTooltip>
@@ -117,5 +116,7 @@ export function AllMemesGrid({
     </div>
   );
 }
+
+
 
 

@@ -2,7 +2,7 @@ import { Suspense, lazy } from 'react';
 
 import type { BulkActionKind } from '@/features/dashboard/types';
 import type { NeedsChangesPreset } from '@/features/dashboard/ui/modals/NeedsChangesModal';
-import type { Meme, Submission } from '@/types';
+import type { MemeDetail, Submission } from '@memalerts/api-contracts';
 
 import { DashboardBulkConfirmDialog } from '@/features/dashboard/ui/DashboardBulkConfirmDialog';
 import { ApproveSubmissionModal } from '@/features/dashboard/ui/modals/ApproveSubmissionModal';
@@ -18,7 +18,7 @@ type DashboardModalsProps = {
   isSubmitModalOpen: boolean;
   onCloseSubmitModal: () => void;
   isMemeModalOpen: boolean;
-  selectedMeme: Meme | null;
+  selectedMeme: MemeDetail | null;
   onCloseMemeModal: () => void;
   approveModalOpen: boolean;
   approveSubmission: Submission | null;
@@ -179,3 +179,5 @@ export function DashboardModals({
     </>
   );
 }
+
+

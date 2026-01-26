@@ -70,6 +70,7 @@ jobs:
           cache: 'pnpm'
           cache-dependency-path: pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @memalerts/api-contracts build
       - run: pnpm --filter @memalerts/${{ matrix.app }} lint
       - run: pnpm --filter @memalerts/${{ matrix.app }} build
       - run: pnpm --filter @memalerts/${{ matrix.app }} test
@@ -215,12 +216,20 @@ jobs:
 
           apply_ai_lock_migration() {
             local migration_file="$BACKEND_DIR/prisma/migrations/20260117000000_add_ai_lock_fields_to_submission/migration.sql"
+            local workspace_file=""
+            if [ -n "${GITHUB_WORKSPACE:-}" ]; then
+              workspace_file="$GITHUB_WORKSPACE/apps/backend/prisma/migrations/20260117000000_add_ai_lock_fields_to_submission/migration.sql"
+            fi
             if [ -f "$migration_file" ]; then
               pnpm --filter @memalerts/backend exec prisma db execute --file "$migration_file"
               return 0
             fi
+            if [ -n "$workspace_file" ] && [ -f "$workspace_file" ]; then
+              pnpm --filter @memalerts/backend exec prisma db execute --file "$workspace_file"
+              return 0
+            fi
 
-            echo "WARN: ${migration_file} not found; applying inline SQL."
+            echo "INFO: ${migration_file} not found; applying inline SQL."
             cat <<'SQL' | pnpm --filter @memalerts/backend exec prisma db execute --stdin
             -- AI moderation lock fields for MemeSubmission (expand-only, safe for shared DB).
             -- Use IF NOT EXISTS to be resilient across environments.
@@ -888,12 +897,20 @@ jobs:
 
           apply_ai_lock_migration() {
             local migration_file="$BACKEND_DIR/prisma/migrations/20260117000000_add_ai_lock_fields_to_submission/migration.sql"
+            local workspace_file=""
+            if [ -n "${GITHUB_WORKSPACE:-}" ]; then
+              workspace_file="$GITHUB_WORKSPACE/apps/backend/prisma/migrations/20260117000000_add_ai_lock_fields_to_submission/migration.sql"
+            fi
             if [ -f "$migration_file" ]; then
               pnpm --filter @memalerts/backend exec prisma db execute --file "$migration_file"
               return 0
             fi
+            if [ -n "$workspace_file" ] && [ -f "$workspace_file" ]; then
+              pnpm --filter @memalerts/backend exec prisma db execute --file "$workspace_file"
+              return 0
+            fi
 
-            echo "WARN: ${migration_file} not found; applying inline SQL."
+            echo "INFO: ${migration_file} not found; applying inline SQL."
             cat <<'SQL' | pnpm --filter @memalerts/backend exec prisma db execute --stdin
             -- AI moderation lock fields for MemeSubmission (expand-only, safe for shared DB).
             -- Use IF NOT EXISTS to be resilient across environments.

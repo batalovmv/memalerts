@@ -1,3 +1,5 @@
+import type { ErrorCode as ApiContractErrorCode } from '@memalerts/api-contracts';
+
 export const ERROR_CODES = {
   BAD_REQUEST: 'BAD_REQUEST',
   INVALID_LIMIT: 'INVALID_LIMIT',
@@ -244,4 +246,44 @@ export function defaultErrorCodeForStatus(status: number): ErrorCode {
   if (status === 502) return ERROR_CODES.UPLOAD_FAILED;
   if (status === 503) return ERROR_CODES.RELAY_UNAVAILABLE;
   return ERROR_CODES.INTERNAL_ERROR;
+}
+
+function defaultStatusForApiCode(code: ApiContractErrorCode): number {
+  switch (code) {
+    case 'UNAUTHORIZED':
+      return 401;
+    case 'FORBIDDEN':
+      return 403;
+    case 'NOT_FOUND':
+      return 404;
+    case 'CONFLICT':
+      return 409;
+    case 'RATE_LIMITED':
+      return 429;
+    case 'INTERNAL_ERROR':
+      return 500;
+    case 'INSUFFICIENT_BALANCE':
+    case 'MEME_ON_COOLDOWN':
+      return 409;
+    default:
+      return 400;
+  }
+}
+
+export class AppError extends Error {
+  public readonly status: number;
+  public readonly code: ApiContractErrorCode;
+  public readonly details?: Record<string, unknown>;
+
+  constructor(
+    code: ApiContractErrorCode,
+    message: string,
+    options: { status?: number; details?: Record<string, unknown> } = {}
+  ) {
+    super(message);
+    this.name = 'AppError';
+    this.code = code;
+    this.status = options.status ?? defaultStatusForApiCode(code);
+    this.details = options.details;
+  }
 }

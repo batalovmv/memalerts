@@ -79,7 +79,7 @@ export async function resolveApprovalInputs(opts: {
       const blocked = await txRepos.memes.asset.findFirst({
         where: {
           fileHash: existingHash,
-          OR: [{ purgeRequestedAt: { not: null } }, { purgedAt: { not: null } }],
+          status: { not: 'active' },
         },
         select: { id: true },
       });
@@ -130,7 +130,7 @@ export async function resolveApprovalInputs(opts: {
       const blocked = await txRepos.memes.asset.findFirst({
         where: {
           fileHash: existingHash,
-          OR: [{ purgeRequestedAt: { not: null } }, { purgedAt: { not: null } }],
+          status: { not: 'active' },
         },
         select: { id: true },
       });
@@ -167,7 +167,7 @@ export async function resolveApprovalInputs(opts: {
 
   if (fileHash) {
     const blocked = await txRepos.memes.asset.findFirst({
-      where: { fileHash, OR: [{ purgeRequestedAt: { not: null } }, { purgedAt: { not: null } }] },
+      where: { fileHash, status: { not: 'active' } },
       select: { id: true },
     });
     if (blocked) {

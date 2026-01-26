@@ -1,4 +1,4 @@
-import type { Meme, Prisma } from '@prisma/client';
+import type { Prisma } from '@prisma/client';
 import type { AuthRequest } from '../../middleware/auth.js';
 import type { Response } from 'express';
 import { prisma } from '../../lib/prisma.js';
@@ -17,7 +17,6 @@ export async function createOwnerImportMeme(params: {
   tagIds: string[];
   finalFilePath: string;
   fileHash: string | null;
-  contentHash: string | null;
   detectedDurationMs: number | null;
   userProvidedTitle: boolean;
 }): Promise<Response> {
@@ -30,7 +29,6 @@ export async function createOwnerImportMeme(params: {
     tagIds,
     finalFilePath,
     fileHash,
-    contentHash,
     detectedDurationMs,
     userProvidedTitle,
   } = params;
@@ -38,129 +36,68 @@ export async function createOwnerImportMeme(params: {
   const defaultPrice = channel.defaultPriceCoins ?? 100;
   const durationMsSafe = Math.max(0, Math.min(detectedDurationMs ?? 0, 15000));
 
-  const memeCreateBase: Prisma.MemeUncheckedCreateInput = {
-    channelId,
-    title: finalTitle,
-    type: 'video',
-    fileUrl: finalFilePath,
-    fileHash,
-    durationMs: durationMsSafe,
-    priceCoins: defaultPrice,
-    status: 'approved',
-    createdByUserId: req.userId!,
-    approvedByUserId: req.userId!,
-  };
+  if (!fileHash) {
+    return res.status(422).json({
+      errorCode: 'FILE_HASH_REQUIRED',
+      error: 'File hash is required for direct approval',
+      requestId: req.requestId,
+    });
+  }
 
-  const runOwnerCreateTx = async (useTags: boolean) =>
+  const runOwnerCreateTx = async () =>
     prisma.$transaction(async (tx) => {
-      const meme = await tx.meme.create({
-        data: {
-          ...memeCreateBase,
-          ...(useTags && tagIds.length > 0
-            ? {
-                tags: {
-                  create: tagIds.map((tagId) => ({ tagId })),
-                },
-              }
-            : {}),
-        },
-        include:
-          useTags && tagIds.length > 0
-            ? {
-                tags: {
-                  include: {
-                    tag: true,
-                  },
-                },
-              }
-            : undefined,
+      const existingAsset = await tx.memeAsset.findFirst({
+        where: { fileHash },
+        select: { id: true },
       });
-
-      const existingAsset = contentHash
-        ? await tx.memeAsset.findFirst({ where: { contentHash }, select: { id: true } })
-        : fileHash
-          ? await tx.memeAsset.findFirst({ where: { fileHash }, select: { id: true } })
-          : await tx.memeAsset.findFirst({
-              where: { fileHash: null, fileUrl: finalFilePath, type: 'video', durationMs: durationMsSafe },
-              select: { id: true },
-            });
 
       let memeAssetId = existingAsset?.id ?? null;
       if (!memeAssetId) {
-        try {
-          memeAssetId = (
-            await tx.memeAsset.create({
-              data: {
-                type: 'video',
-                fileUrl: finalFilePath,
-                fileHash,
-                contentHash: contentHash ?? undefined,
-                durationMs: durationMsSafe,
-                createdByUserId: req.userId!,
-              },
-              select: { id: true },
-            })
-          ).id;
-        } catch (error) {
-          const errCode = typeof error === 'object' && error !== null ? (error as { code?: string }).code : null;
-          if (errCode === 'P2002' && contentHash) {
-            const existing = await tx.memeAsset.findFirst({ where: { contentHash }, select: { id: true } });
-            memeAssetId = existing?.id ?? null;
-          } else {
-            throw error;
-          }
-        }
+        memeAssetId = (
+          await tx.memeAsset.create({
+            data: {
+              type: 'video',
+              fileUrl: finalFilePath,
+              fileHash,
+              durationMs: durationMsSafe,
+              createdById: req.userId!,
+            },
+            select: { id: true },
+          })
+        ).id;
       }
-      if (!memeAssetId) {
-        throw new Error('MEME_ASSET_CREATE_FAILED');
-      }
+      if (!memeAssetId) throw new Error('MEME_ASSET_CREATE_FAILED');
 
       const cm = await tx.channelMeme.upsert({
         where: { channelId_memeAssetId: { channelId: String(channelId), memeAssetId } },
         create: {
           channelId: String(channelId),
           memeAssetId,
-          legacyMemeId: meme?.id || null,
           status: 'approved',
           title: finalTitle,
           priceCoins: defaultPrice,
-          addedByUserId: req.userId!,
-          approvedByUserId: req.userId!,
-          approvedAt: new Date(),
         },
         update: {
-          legacyMemeId: meme?.id || null,
           status: 'approved',
           title: finalTitle,
           priceCoins: defaultPrice,
-          approvedByUserId: req.userId!,
-          approvedAt: new Date(),
           deletedAt: null,
         },
         select: { id: true },
       });
 
-      return { meme, memeAssetId, channelMemeId: cm.id };
+      return { memeAssetId, channelMemeId: cm.id };
     });
 
-  let meme: Meme | null = null;
   let memeAssetId: string | null = null;
   let channelMemeId: string | null = null;
   try {
-    const resTx = await runOwnerCreateTx(tagIds.length > 0);
-    meme = resTx.meme;
+    const resTx = await runOwnerCreateTx();
     memeAssetId = resTx.memeAssetId;
     channelMemeId = resTx.channelMemeId;
   } catch (error) {
     const errorCode = typeof error === 'object' && error !== null ? (error as { code?: string }).code : null;
-    const errorMeta =
-      typeof error === 'object' && error !== null ? (error as { meta?: { table?: string } }).meta : null;
-    if (errorCode === 'P2021' && errorMeta?.table === 'public.MemeTag' && tagIds.length > 0) {
-      const resTx = await runOwnerCreateTx(false);
-      meme = resTx.meme;
-      memeAssetId = resTx.memeAssetId;
-      channelMemeId = resTx.channelMemeId;
-    } else if (errorCode === 'P2002') {
+    if (errorCode === 'P2002') {
       return res.status(409).json({
         errorCode: 'ALREADY_IN_CHANNEL',
         error: 'This meme is already in your channel',
@@ -171,24 +108,30 @@ export async function createOwnerImportMeme(params: {
     }
   }
 
-  const fallbackDesc = userProvidedTitle
-    ? makeAutoDescription({ title: finalTitle, transcript: null, labels: [] })
-    : null;
-  const fallbackTags = userProvidedTitle
-    ? generateTagNames({ title: finalTitle, transcript: null, labels: [] }).tagNames
-    : [];
-  const fallbackSearchText = fallbackDesc ? String(fallbackDesc).slice(0, 4000) : null;
-
   try {
-    const fallbackUpdate: Prisma.ChannelMemeUpdateArgs['data'] = {
-      aiAutoDescription: fallbackDesc ? String(fallbackDesc).slice(0, 2000) : null,
-      aiAutoTagNamesJson: fallbackTags,
-      searchText: fallbackSearchText,
-    };
-    await prisma.channelMeme.updateMany({
-      where: { id: channelMemeId! },
-      data: fallbackUpdate,
-    });
+    if (userProvidedTitle && memeAssetId) {
+      const fallbackDesc = makeAutoDescription({ title: finalTitle, transcript: null, labels: [] });
+      const fallbackTags = generateTagNames({ title: finalTitle, transcript: null, labels: [] }).tagNames;
+      const fallbackSearchText = [finalTitle, fallbackTags.join(' '), fallbackDesc || '']
+        .map((s) => String(s || '').trim())
+        .filter(Boolean)
+        .join('\n')
+        .slice(0, 4000);
+
+      const asset = await prisma.memeAsset.findUnique({
+        where: { id: memeAssetId },
+        select: { aiAutoDescription: true, aiAutoTagNames: true, aiSearchText: true },
+      });
+      const existingTags = Array.isArray(asset?.aiAutoTagNames) ? asset.aiAutoTagNames : [];
+      const updateData: Prisma.MemeAssetUpdateInput = {};
+      if (!asset?.aiAutoDescription && fallbackDesc) updateData.aiAutoDescription = String(fallbackDesc).slice(0, 2000);
+      if (existingTags.length === 0 && fallbackTags.length > 0) updateData.aiAutoTagNames = fallbackTags;
+      if (!asset?.aiSearchText && fallbackSearchText) updateData.aiSearchText = fallbackSearchText;
+
+      if (Object.keys(updateData).length > 0) {
+        await prisma.memeAsset.update({ where: { id: memeAssetId }, data: updateData });
+      }
+    }
   } catch {
     // ignore
   }
@@ -239,7 +182,6 @@ export async function createOwnerImportMeme(params: {
   }
 
   return res.status(201).json({
-    ...meme,
     isDirectApproval: true,
     channelMemeId,
     memeAssetId,

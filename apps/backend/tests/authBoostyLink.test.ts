@@ -58,8 +58,9 @@ describe('auth boosty link', () => {
   it('returns 410 and does not link a boosty account', async () => {
     const user = await createUser({ role: 'viewer', hasBetaAccess: true });
     mockBoostyUserId(`boosty-user-${user.id}`);
+    const app = makeApp();
 
-    const res = await request(makeApp())
+    const res = await request(app)
       .post('/auth/boosty/link')
       .set('Host', 'example.com')
       .set('Cookie', buildAuthCookie(user.id))
@@ -80,8 +81,9 @@ describe('auth boosty link', () => {
     );
 
     const user = await createUser({ role: 'viewer', hasBetaAccess: true });
+    const app = makeApp();
 
-    const res = await request(makeApp())
+    const res = await request(app)
       .post('/auth/boosty/link')
       .set('Host', 'example.com')
       .set('Cookie', buildAuthCookie(user.id))
@@ -98,8 +100,9 @@ describe('auth boosty link', () => {
     const user = await createUser({ role: 'viewer', hasBetaAccess: true });
     const boostyUserId = `boosty-user-${user.id}`;
     mockBoostyUserId(boostyUserId);
+    const app = makeApp();
 
-    const first = await request(makeApp())
+    const first = await request(app)
       .post('/auth/boosty/link')
       .set('Host', 'example.com')
       .set('Cookie', buildAuthCookie(user.id))
@@ -107,7 +110,7 @@ describe('auth boosty link', () => {
 
     expect(first.status).toBe(410);
 
-    const second = await request(makeApp())
+    const second = await request(app)
       .post('/auth/boosty/link')
       .set('Host', 'example.com')
       .set('Cookie', buildAuthCookie(user.id))

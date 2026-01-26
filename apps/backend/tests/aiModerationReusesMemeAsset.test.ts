@@ -45,10 +45,10 @@ describe('AI moderation dedup via MemeAsset (fileHash)', () => {
       fileUrl: `/uploads/memes/${rand()}.webm`,
       fileHash,
       durationMs: 1234,
-      poolVisibility: 'visible',
+      status: 'active',
       aiStatus: 'done',
       aiAutoDescription: 'GLOBAL_AI_DESC',
-      aiAutoTagNamesJson: ['global_tag_1'],
+      aiAutoTagNames: ['global_tag_1'],
       aiSearchText: 'GLOBAL_AI_SEARCH',
       aiCompletedAt: new Date(),
     } satisfies Prisma.MemeAssetCreateInput;
@@ -89,13 +89,13 @@ describe('AI moderation dedup via MemeAsset (fileHash)', () => {
     expect(updatedSubmission?.aiAutoDescription).toBe('GLOBAL_AI_DESC');
     expect(Array.isArray(updatedSubmission?.aiAutoTagNamesJson)).toBe(true);
 
-    const updatedChannelMeme = await prisma.channelMeme.findUnique({
-      where: { channelId_memeAssetId: { channelId: channel.id, memeAssetId: asset.id } },
-      select: { aiAutoDescription: true, aiAutoTagNamesJson: true, searchText: true },
+    const updatedAsset = await prisma.memeAsset.findUnique({
+      where: { id: asset.id },
+      select: { aiAutoDescription: true, aiAutoTagNames: true, aiSearchText: true },
     });
 
-    expect(updatedChannelMeme?.aiAutoDescription).toBe('GLOBAL_AI_DESC');
-    expect(updatedChannelMeme?.searchText).toBe('GLOBAL_AI_SEARCH');
-    expect(Array.isArray(updatedChannelMeme?.aiAutoTagNamesJson)).toBe(true);
+    expect(updatedAsset?.aiAutoDescription).toBe('GLOBAL_AI_DESC');
+    expect(updatedAsset?.aiSearchText).toBe('GLOBAL_AI_SEARCH');
+    expect(Array.isArray(updatedAsset?.aiAutoTagNames)).toBe(true);
   });
 });

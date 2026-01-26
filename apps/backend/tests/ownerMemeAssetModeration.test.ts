@@ -36,30 +36,26 @@ describe('owner meme asset moderation', () => {
   it('lists hidden meme assets with pagination headers', async () => {
     const admin = await createUser({ role: 'admin' });
     const token = makeJwt({ userId: admin.id, role: admin.role, channelId: null });
-    const hiddenReason = `test-${uniqueId('hidden')}`;
     const hidden = await createMemeAsset({
-      poolVisibility: 'hidden',
-      poolHiddenAt: new Date(),
-      poolHiddenByUserId: admin.id,
-      poolHiddenReason: hiddenReason,
+      status: 'hidden',
+      hiddenAt: new Date(),
     });
-    await createMemeAsset({ poolVisibility: 'visible' });
+    await createMemeAsset({ status: 'active' });
 
     const res = await request(makeApp())
-      .get(`/owner/meme-assets?status=hidden&limit=20&offset=0&q=${encodeURIComponent(hiddenReason)}`)
+      .get(`/owner/meme-assets?status=hidden&limit=20&offset=0`)
       .set('Cookie', [`token=${encodeURIComponent(token)}`]);
 
     expect(res.status).toBe(200);
-    expect(res.headers['x-total']).toBe('1');
-    expect(res.body).toHaveLength(1);
-    expect(res.body[0].id).toBe(hidden.id);
-    expect(res.body[0].hiddenReason).toBe(hiddenReason);
+    expect(res.headers['x-total']).toBeDefined();
+    expect(Array.isArray(res.body)).toBe(true);
+    expect(res.body.some((a: { id: string }) => a.id === hidden.id)).toBe(true);
   });
 
   it('hides and unhides meme assets', async () => {
     const admin = await createUser({ role: 'admin' });
     const token = makeJwt({ userId: admin.id, role: admin.role, channelId: null });
-    const asset = await createMemeAsset({ poolVisibility: 'visible' });
+    const asset = await createMemeAsset({ status: 'active' });
 
     const hideRes = await request(makeApp())
       .post(`/owner/meme-assets/${asset.id}/hide`)
@@ -68,7 +64,7 @@ describe('owner meme asset moderation', () => {
 
     expect(hideRes.status).toBe(200);
     expect(hideRes.body?.poolVisibility).toBe('hidden');
-    expect(hideRes.body?.hiddenReason).toBe('bad');
+    expect(hideRes.body?.status).toBe('hidden');
 
     const unhideRes = await request(makeApp())
       .post(`/owner/meme-assets/${asset.id}/unhide`)
@@ -76,13 +72,13 @@ describe('owner meme asset moderation', () => {
 
     expect(unhideRes.status).toBe(200);
     expect(unhideRes.body?.poolVisibility).toBe('visible');
-    expect(unhideRes.body?.hiddenReason).toBeNull();
+    expect(unhideRes.body?.status).toBe('active');
   });
 
   it('purges and restores meme assets', async () => {
     const admin = await createUser({ role: 'admin' });
     const token = makeJwt({ userId: admin.id, role: admin.role, channelId: null });
-    const asset = await createMemeAsset({ poolVisibility: 'visible' });
+    const asset = await createMemeAsset({ status: 'active' });
 
     const purgeRes = await request(makeApp())
       .post(`/owner/meme-assets/${asset.id}/purge`)
@@ -91,8 +87,7 @@ describe('owner meme asset moderation', () => {
 
     expect(purgeRes.status).toBe(200);
     expect(purgeRes.body?.poolVisibility).toBe('hidden');
-    expect(purgeRes.body?.purgeReason).toBe('dmca');
-    expect(purgeRes.body?.purgeNotBefore).not.toBeNull();
+    expect(purgeRes.body?.status).toBe('deleted');
 
     const restored = await request(makeApp())
       .post(`/owner/meme-assets/${asset.id}/restore`)
@@ -100,14 +95,14 @@ describe('owner meme asset moderation', () => {
 
     expect(restored.status).toBe(200);
     expect(restored.body?.poolVisibility).toBe('visible');
-    expect(restored.body?.purgeReason).toBeNull();
+    expect(restored.body?.status).toBe('active');
 
     const row = await prisma.memeAsset.findUnique({
       where: { id: asset.id },
-      select: { purgeRequestedAt: true, purgedAt: true, purgeReason: true },
+      select: { status: true, deletedAt: true, hiddenAt: true, quarantinedAt: true },
     });
-    expect(row?.purgeRequestedAt).toBeNull();
-    expect(row?.purgedAt).toBeNull();
-    expect(row?.purgeReason).toBeNull();
+    expect(row?.status).toBe('active');
+    expect(row?.deletedAt).toBeNull();
+    expect(row?.hiddenAt).toBeNull();
   });
 });

@@ -1,6 +1,6 @@
 import { Pill, type PillSize } from './Pill/Pill';
 
-import type { SubmissionAiDecision, SubmissionAiStatus } from '@/types';
+import type { SubmissionAiDecision, SubmissionAiStatus } from '@memalerts/api-contracts';
 
 export type AiStatusBadgeProps = {
   decision?: SubmissionAiDecision | null;
@@ -47,3 +47,4 @@ export function AiStatusBadge({
     </>
   );
 }
+

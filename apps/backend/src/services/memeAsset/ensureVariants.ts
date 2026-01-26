@@ -73,44 +73,23 @@ async function ensureFileHashReference(hash: string, fileUrl: string, localPath:
 async function ensureMp4Variant(params: {
   memeAssetId: string;
   fileUrl: string;
-  fileHash: string | null;
   fileSizeBytes: number | null;
-  durationMs: number | null;
-  width?: number;
-  height?: number;
 }): Promise<void> {
-  const now = new Date();
   await prisma.memeAssetVariant.upsert({
     where: { memeAssetId_format: { memeAssetId: params.memeAssetId, format: 'mp4' } },
     create: {
       memeAssetId: params.memeAssetId,
       format: 'mp4',
-      codec: VIDEO_FORMATS.mp4.codecString,
-      container: VIDEO_FORMATS.mp4.container,
-      mimeType: VIDEO_FORMATS.mp4.mimeType,
       fileUrl: params.fileUrl,
-      fileHash: params.fileHash ?? null,
       fileSizeBytes: params.fileSizeBytes !== null ? BigInt(params.fileSizeBytes) : null,
-      durationMs: params.durationMs ?? null,
-      width: params.width ?? null,
-      height: params.height ?? null,
       status: 'done',
       priority: VIDEO_FORMATS.mp4.priority,
-      completedAt: now,
     },
     update: {
       fileUrl: params.fileUrl,
-      fileHash: params.fileHash ?? null,
       fileSizeBytes: params.fileSizeBytes !== null ? BigInt(params.fileSizeBytes) : null,
-      durationMs: params.durationMs ?? null,
-      width: params.width ?? null,
-      height: params.height ?? null,
       status: 'done',
       priority: VIDEO_FORMATS.mp4.priority,
-      completedAt: now,
-      errorMessage: null,
-      retryCount: 0,
-      lastTriedAt: now,
     },
   });
 }
@@ -122,16 +101,12 @@ async function ensurePendingVariant(params: { memeAssetId: string; format: 'prev
     create: {
       memeAssetId: params.memeAssetId,
       format: params.format,
-      codec: config.codecString,
-      container: config.container,
-      mimeType: config.mimeType,
       fileUrl: '',
       status: 'pending',
       priority: config.priority,
     },
     update: {
       status: 'pending',
-      errorMessage: null,
       priority: config.priority,
       fileUrl: '',
     },
@@ -239,11 +214,7 @@ export async function ensureMemeAssetVariants(params: EnsureVariantsParams): Pro
         await ensureMp4Variant({
           memeAssetId,
           fileUrl: resolvedSourceUrl,
-          fileHash,
           fileSizeBytes: Number.isFinite(fileSizeBytes as number) ? Number(fileSizeBytes) : null,
-          durationMs,
-          width,
-          height,
         });
       } else {
         const queued = await enqueueTranscode({
@@ -262,15 +233,10 @@ export async function ensureMemeAssetVariants(params: EnsureVariantsParams): Pro
           await upsertMemeAssetVariant({
             memeAssetId,
             format: 'mp4',
-            codec: VIDEO_FORMATS.mp4.codecString,
-            container: VIDEO_FORMATS.mp4.container,
-            mimeType: VIDEO_FORMATS.mp4.mimeType,
+            mimeType: result.mimeType,
             outputPath: result.outputPath,
             fileHash: result.fileHash,
             fileSizeBytes: result.fileSizeBytes,
-            durationMs: result.durationMs,
-            width: result.width,
-            height: result.height,
             priority: VIDEO_FORMATS.mp4.priority,
           });
         }
@@ -280,7 +246,7 @@ export async function ensureMemeAssetVariants(params: EnsureVariantsParams): Pro
     const sourceFileUrlForUpdate = usedFallback ? resolvedSourceUrl : sourceFileUrl;
     if (sourceFileUrlForUpdate) {
       await prisma.memeAsset.updateMany({
-        where: { id: memeAssetId, OR: [{ fileUrl: null }, { fileHash: null }, { durationMs: 0 }] },
+        where: { id: memeAssetId, OR: [{ fileUrl: '' }, { fileHash: '' }, { durationMs: 0 }] },
         data: {
           fileUrl: sourceFileUrlForUpdate,
           fileHash: fileHash ?? undefined,
@@ -306,15 +272,10 @@ export async function ensureMemeAssetVariants(params: EnsureVariantsParams): Pro
         await upsertMemeAssetVariant({
           memeAssetId,
           format: 'preview',
-          codec: VIDEO_FORMATS.preview.codecString,
-          container: VIDEO_FORMATS.preview.container,
-          mimeType: VIDEO_FORMATS.preview.mimeType,
+          mimeType: result.mimeType,
           outputPath: result.outputPath,
           fileHash: result.fileHash,
           fileSizeBytes: result.fileSizeBytes,
-          durationMs: result.durationMs,
-          width: result.width,
-          height: result.height,
           priority: VIDEO_FORMATS.preview.priority,
         });
       }
@@ -337,15 +298,10 @@ export async function ensureMemeAssetVariants(params: EnsureVariantsParams): Pro
         await upsertMemeAssetVariant({
           memeAssetId,
           format: 'webm',
-          codec: VIDEO_FORMATS.webm.codecString,
-          container: VIDEO_FORMATS.webm.container,
-          mimeType: VIDEO_FORMATS.webm.mimeType,
+          mimeType: result.mimeType,
           outputPath: result.outputPath,
           fileHash: result.fileHash,
           fileSizeBytes: result.fileSizeBytes,
-          durationMs: result.durationMs,
-          width: result.width,
-          height: result.height,
           priority: VIDEO_FORMATS.webm.priority,
         });
       }

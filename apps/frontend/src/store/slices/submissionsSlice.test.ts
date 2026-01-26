@@ -12,7 +12,7 @@ import reducer, {
   submissionResubmitted,
 } from './submissionsSlice';
 
-import type { Submission } from '@/types';
+import type { Submission } from '@memalerts/api-contracts';
 
 function makeSubmission(id: string): Submission {
   return {
@@ -146,6 +146,7 @@ describe('submissionsSlice reducer', () => {
     expect(next.total).toBe(1);
   });
 });
+
 
 
 

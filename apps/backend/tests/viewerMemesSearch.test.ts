@@ -186,16 +186,16 @@ describe('viewer memes list and search', () => {
       fileUrl: '/uploads/memes/pool-visible.webm',
       durationMs: 1000,
       aiAutoTitle: 'Pool Visible',
-      createdByUserId: creator.id,
-    } satisfies Prisma.MemeAssetUncheckedCreateInput);
+      createdById: creator.id,
+    });
     const hidden = await createMemeAsset({
       type: 'video',
       fileUrl: '/uploads/memes/pool-hidden.webm',
       durationMs: 1000,
       aiAutoTitle: 'Pool Hidden',
-      poolVisibility: 'hidden',
-      createdByUserId: creator.id,
-    } satisfies Prisma.MemeAssetUncheckedCreateInput);
+      status: 'hidden',
+      createdById: creator.id,
+    });
 
     const res = await request(makeApp()).get(`/channels/${channel.slug}/memes?limit=10`).set('Host', 'example.com');
 

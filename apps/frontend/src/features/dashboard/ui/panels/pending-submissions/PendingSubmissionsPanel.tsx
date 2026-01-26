@@ -6,7 +6,7 @@ import { PanelHeader } from '../../PanelHeader';
 import { useLoadMoreOnIntersect } from './model/useLoadMoreOnIntersect';
 import { PendingSubmissionCard } from './PendingSubmissionCard';
 
-import type { Submission } from '@/types';
+import type { Submission } from '@memalerts/api-contracts';
 
 import { resolveMediaUrl } from '@/lib/urls';
 import { cn } from '@/shared/lib/cn';
@@ -124,5 +124,6 @@ export function PendingSubmissionsPanel({
     </section>
   );
 }
+
 
 

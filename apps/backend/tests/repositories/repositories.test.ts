@@ -27,6 +27,7 @@ describe('repositories', () => {
       data: {
         type: 'video',
         fileUrl: '/uploads/repo-asset.mp4',
+        fileHash: `repo-hash-${Date.now()}`,
         durationMs: 1200,
       },
     });
@@ -45,22 +46,11 @@ describe('repositories', () => {
     const foundChannelMeme = await repos.memes.channelMeme.findUnique({ where: { id: channelMeme.id } });
     expect(foundChannelMeme?.id).toBe(channelMeme.id);
 
-    const legacy = await repos.memes.meme.create({
-      data: {
-        channelId: channel.id,
-        title: 'Repo Legacy Meme',
-        type: 'video',
-        fileUrl: '/uploads/repo-legacy.mp4',
-        durationMs: 900,
-        priceCoins: 50,
-        status: 'approved',
-      },
+    const updatedChannelMeme = await repos.memes.channelMeme.update({
+      where: { id: channelMeme.id },
+      data: { title: 'Repo Channel Meme Updated' },
     });
-    const updatedLegacy = await repos.memes.meme.update({
-      where: { id: legacy.id },
-      data: { title: 'Repo Legacy Updated' },
-    });
-    expect(updatedLegacy.title).toBe('Repo Legacy Updated');
+    expect(updatedChannelMeme.title).toBe('Repo Channel Meme Updated');
   });
 
   it('SubmissionRepository creates, updates, and paginates submissions', async () => {

@@ -12,7 +12,6 @@ import type { AiModerationPipelineResult, AiModerationSubmission } from './aiMod
 type PersistArgs = {
   submission: AiModerationSubmission;
   fileHash: string;
-  contentHash?: string | null;
   fileUrl: string;
   durationMs: number | null;
   now: Date;
@@ -22,7 +21,7 @@ type PersistArgs = {
 export async function persistAiModerationResults(
   opts: PersistArgs
 ): Promise<{ canonicalTagNames: string[] }> {
-  const { submission, fileHash, contentHash, fileUrl, durationMs, now, pipeline } = opts;
+  const { submission, fileHash, fileUrl, durationMs, now, pipeline } = opts;
   const { decision, riskScore, labels, autoTags, transcript, aiTitle, metaDescription, modelVersions } = pipeline;
 
   if (decision !== 'low' && durationMs !== null) {
@@ -64,7 +63,7 @@ export async function persistAiModerationResults(
     submission.memeAssetId ??
     (
       await prisma.memeAsset.findFirst({
-        where: contentHash ? { contentHash } : { fileHash },
+        where: { fileHash },
         select: { id: true },
       })
     )?.id ??
@@ -121,7 +120,7 @@ export async function persistAiModerationResults(
         aiStatus: 'done',
         aiAutoTitle: aiTitle ? String(aiTitle).slice(0, 80) : null,
         aiAutoDescription: autoDescription ? String(autoDescription).slice(0, 2000) : null,
-        aiAutoTagNamesJson: canonicalTagNames,
+        aiAutoTagNames: canonicalTagNames,
         aiTranscript: transcriptText ? String(transcriptText).slice(0, 50000) : null,
         aiSearchText,
         aiCompletedAt: now,
@@ -130,22 +129,11 @@ export async function persistAiModerationResults(
   }
 
   const assetIdForChannelMeme = submission.memeAssetId ?? assetToUpdate;
-  if (assetIdForChannelMeme) {
+  if (assetIdForChannelMeme && aiTitle) {
     await prisma.channelMeme.updateMany({
-      where: { channelId: submission.channelId, memeAssetId: assetIdForChannelMeme },
-      data: {
-        aiAutoDescription: autoDescription ? String(autoDescription).slice(0, 2000) : null,
-        aiAutoTagNamesJson: canonicalTagNames,
-        searchText: aiSearchText,
-      },
+      where: { channelId: submission.channelId, memeAssetId: assetIdForChannelMeme, title: submission.title },
+      data: { title: String(aiTitle).slice(0, 80) },
     });
-
-    if (aiTitle) {
-      await prisma.channelMeme.updateMany({
-        where: { channelId: submission.channelId, memeAssetId: assetIdForChannelMeme, title: submission.title },
-        data: { title: String(aiTitle).slice(0, 80) },
-      });
-    }
   }
 
   return { canonicalTagNames };

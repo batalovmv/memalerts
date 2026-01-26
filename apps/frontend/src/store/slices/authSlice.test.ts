@@ -6,7 +6,7 @@ vi.mock('@/shared/lib/userPreferences', () => ({
 
 import reducer, { fetchUser, setUnauthenticated, updateChannelSettings, updateWalletBalance } from './authSlice';
 
-import type { ApiError, User } from '@/types';
+import type { ApiError, User } from '@memalerts/api-contracts';
 
 describe('authSlice reducer', () => {
   it('has expected initial state', () => {
@@ -83,7 +83,7 @@ describe('authSlice reducer', () => {
 
   it('fetchUser.rejected stores message from payload', () => {
     const prev = reducer(undefined, { type: 'init' });
-    const payload: ApiError = { message: 'Nope', statusCode: 500 };
+    const payload: ApiError = { code: 'INTERNAL_ERROR', message: 'Nope', statusCode: 500 };
     const next = reducer(
       prev,
       fetchUser.rejected(new Error('boom'), 'req1', undefined, payload),
@@ -93,6 +93,7 @@ describe('authSlice reducer', () => {
     expect(next.error).toBe('Nope');
   });
 });
+
 
 
 

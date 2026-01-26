@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type { MySubmission } from '@/features/submit/types';
-import type { User } from '@/types';
+import type { User } from '@memalerts/api-contracts';
 
 import { api } from '@/lib/api';
 import { toRecord } from '@/shared/lib/parsing';
@@ -107,3 +107,4 @@ export function useMySubmissions({ user, shouldAutoLoad }: UseMySubmissionsOptio
     loadMySubmissions,
   };
 }
+

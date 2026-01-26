@@ -1,5 +1,5 @@
 import type { CreditsState } from '@/shared/api/overlay';
-import type { CreditsEntry } from '@/types';
+import type { CreditsEntry } from '@memalerts/api-contracts';
 
 export function makeCreditsEntry(overrides: Partial<CreditsEntry> = {}): CreditsEntry {
   return {
@@ -25,3 +25,4 @@ export function makeCreditsToken(overrides: Partial<{ token: string; url: string
     ...overrides,
   };
 }
+

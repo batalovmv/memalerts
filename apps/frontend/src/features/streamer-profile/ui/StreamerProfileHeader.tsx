@@ -2,7 +2,7 @@ import { useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import type { ChannelInfo } from '@/features/streamer-profile/model/types';
-import type { User } from '@/types';
+import type { User } from '@memalerts/api-contracts';
 
 import { YouTubeLikeClaimButton } from '@/features/streamer-profile/ui/YouTubeLikeClaimButton';
 import { resolveMediaUrl } from '@/lib/urls';
@@ -157,3 +157,4 @@ export function StreamerProfileHeader({
     </div>
   );
 }
+

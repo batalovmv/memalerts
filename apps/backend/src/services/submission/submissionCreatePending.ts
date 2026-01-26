@@ -21,7 +21,6 @@ export async function handlePendingSubmission(opts: {
   bodyNotes: string | null;
   finalFilePath: string;
   fileHash: string | null;
-  contentHash: string | null;
   effectiveDurationMs: number | null;
   normalizedMimeType: string;
   normalizedSizeBytes: number;
@@ -38,12 +37,11 @@ export async function handlePendingSubmission(opts: {
     submissionIdempotencyKey,
     finalTitle,
     bodyNotes,
-    finalFilePath,
-    fileHash,
-    contentHash,
-    effectiveDurationMs,
-    normalizedMimeType,
-    normalizedSizeBytes,
+  finalFilePath,
+  fileHash,
+  effectiveDurationMs,
+  normalizedMimeType,
+  normalizedSizeBytes,
     tagIds,
     tempFileForCleanup,
     fileHashForCleanup,
@@ -68,10 +66,10 @@ export async function handlePendingSubmission(opts: {
   };
 
   try {
-    if (fileHash || contentHash) {
+    if (fileHash) {
       const aiAsset = await memes.asset.findFirst({
-        where: contentHash ? { contentHash, aiStatus: 'done' } : { fileHash, aiStatus: 'done' },
-        select: { aiAutoDescription: true, aiAutoTagNamesJson: true },
+        where: { fileHash, aiStatus: 'done' },
+        select: { aiAutoDescription: true, aiAutoTagNames: true },
       });
       const normalizeAiText = (s: string) =>
         String(s || '')
@@ -114,7 +112,7 @@ export async function handlePendingSubmission(opts: {
 
       const hasReusableDescription = !isEffectivelyEmptyAiDescription(aiAsset?.aiAutoDescription, finalTitle);
       const hasReusableTags = (() => {
-        const arr = aiAsset && Array.isArray(aiAsset.aiAutoTagNamesJson) ? aiAsset.aiAutoTagNamesJson : [];
+        const arr = aiAsset && Array.isArray(aiAsset.aiAutoTagNames) ? aiAsset.aiAutoTagNames : [];
         if (arr.length === 0) return false;
         const placeholders = new Set(['???', 'meme', '????', 'test', 'ai tags', 'ai tag', 'tags', '????']);
         const nonPlaceholder = arr
@@ -137,8 +135,8 @@ export async function handlePendingSubmission(opts: {
       if (aiAsset && (hasReusableDescription || hasReusableTags)) {
         submissionDataBase.aiStatus = 'done';
         submissionDataBase.aiAutoDescription = aiAsset.aiAutoDescription ?? null;
-        submissionDataBase.aiAutoTagNamesJson = Array.isArray(aiAsset.aiAutoTagNamesJson)
-          ? aiAsset.aiAutoTagNamesJson
+        submissionDataBase.aiAutoTagNamesJson = Array.isArray(aiAsset.aiAutoTagNames)
+          ? aiAsset.aiAutoTagNames
           : undefined;
         const now = new Date();
         submissionDataBase.aiLastTriedAt = now;

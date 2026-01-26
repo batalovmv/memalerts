@@ -260,7 +260,7 @@ export async function upsertQuarantineAsset(opts: {
   reason: string;
   quarantineDays: number;
 }): Promise<void> {
-  const { fileHash, fileUrl, durationMs, decision, reason, quarantineDays } = opts;
+  const { fileHash, fileUrl, durationMs, decision } = opts;
   const now = new Date();
 
   await prisma.$transaction(async (tx) => {
@@ -270,64 +270,36 @@ export async function upsertQuarantineAsset(opts: {
         id: true,
         fileUrl: true,
         durationMs: true,
-        poolVisibility: true,
-        poolHiddenAt: true,
-        poolHiddenByUserId: true,
-        poolHiddenReason: true,
-        purgeRequestedAt: true,
-        purgedAt: true,
-        purgeByUserId: true,
-        purgeReason: true,
+        status: true,
+        quarantinedAt: true,
+        deletedAt: true,
       },
     });
 
     if (!existing) {
+      if (!fileUrl) return;
       const data: Prisma.MemeAssetUncheckedCreateInput = {
         type: 'video',
         fileHash,
         fileUrl,
         durationMs,
-        poolVisibility: decision === 'low' ? 'visible' : 'hidden',
-        poolHiddenAt: decision === 'low' ? null : now,
-        poolHiddenReason: decision === 'low' ? null : reason,
+        status: decision === 'low' ? 'active' : 'quarantined',
+        quarantinedAt: decision === 'low' ? null : now,
       };
-      if (decision === 'high') {
-        data.purgeRequestedAt = now;
-        data.purgeNotBefore = new Date(now.getTime() + Math.max(0, quarantineDays) * 24 * 60 * 60 * 1000);
-        data.purgeReason = reason;
-      }
       await tx.memeAsset.create({ data });
       return;
     }
 
-    const aiOwnsHidden =
-      (!existing.poolHiddenReason || String(existing.poolHiddenReason).startsWith('ai:')) &&
-      !existing.poolHiddenByUserId;
-    const aiOwnsPurge =
-      (!existing.purgeReason || String(existing.purgeReason).startsWith('ai:')) && !existing.purgeByUserId;
-
-    if (!aiOwnsHidden && !aiOwnsPurge) return;
-
     const data: Prisma.MemeAssetUpdateInput = {};
     if (decision !== 'low') {
-      if (aiOwnsHidden) {
-        data.poolVisibility = 'hidden';
-        data.poolHiddenAt = existing.poolHiddenAt ?? now;
-        data.poolHiddenReason = reason;
-      }
-    }
-    if (decision === 'high') {
-      if (aiOwnsPurge && !existing.purgeRequestedAt && !existing.purgedAt) {
-        data.purgeRequestedAt = now;
-        data.purgeNotBefore = new Date(now.getTime() + Math.max(0, quarantineDays) * 24 * 60 * 60 * 1000);
-        data.purgeReason = reason;
+      if (existing.status === 'active') {
+        data.status = 'quarantined';
+        data.quarantinedAt = existing.quarantinedAt ?? now;
       }
     }
 
-    if (aiOwnsHidden || aiOwnsPurge) {
-      if (!existing.fileUrl && fileUrl) data.fileUrl = fileUrl;
-      if (!existing.durationMs && durationMs) data.durationMs = durationMs;
-    }
+    if (!existing.fileUrl && fileUrl) data.fileUrl = fileUrl;
+    if (!existing.durationMs && durationMs) data.durationMs = durationMs;
 
     if (Object.keys(data).length > 0) {
       await tx.memeAsset.update({ where: { id: existing.id }, data });

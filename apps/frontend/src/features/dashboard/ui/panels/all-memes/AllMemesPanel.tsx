@@ -8,7 +8,7 @@ import { AllMemesControls } from './ui/AllMemesControls';
 import { AllMemesGrid } from './ui/AllMemesGrid';
 import { StarterMemesPanel } from './ui/StarterMemesPanel';
 
-import type { Meme } from '@/types';
+import type { MemeDetail } from '@memalerts/api-contracts';
 
 import { cn } from '@/shared/lib/cn';
 import { Spinner } from '@/shared/ui';
@@ -18,7 +18,7 @@ export type AllMemesPanelProps = {
   channelId: string;
   autoplayPreview: 'autoplayMuted' | 'hoverWithSound';
   onClose: () => void;
-  onSelectMeme: (meme: Meme) => void;
+  onSelectMeme: (meme: MemeDetail) => void;
 };
 
 export function AllMemesPanel({ isOpen, channelId, autoplayPreview, onClose, onSelectMeme }: AllMemesPanelProps) {
@@ -115,4 +115,6 @@ export function AllMemesPanel({ isOpen, channelId, autoplayPreview, onClose, onS
     </section>
   );
 }
+
+
 

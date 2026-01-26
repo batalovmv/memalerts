@@ -2,7 +2,7 @@ import { useState } from 'react';
 
 import { resolveMediaUrl } from '../../lib/urls';
 
-import type { MemeVariant } from '@/types';
+import type { MemeVariant } from '@memalerts/api-contracts';
 
 interface VideoPreviewProps {
   src?: string;
@@ -97,3 +97,4 @@ export default function VideoPreview({ src, variants, title, className = '' }: V
     </div>
   );
 }
+

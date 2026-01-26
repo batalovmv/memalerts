@@ -1,4 +1,4 @@
-import type { CreditsEntry } from '@/types';
+import type { CreditsEntry } from '@memalerts/api-contracts';
 
 import { api } from '@/lib/api';
 
@@ -59,3 +59,4 @@ export async function setIgnoredChatters(chatters: string[]): Promise<void> {
 export async function saveCreditsSettings(settings: CreditsSettings): Promise<void> {
   await api.post('/streamer/credits/settings', settings);
 }
+

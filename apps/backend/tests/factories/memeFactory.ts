@@ -1,4 +1,4 @@
-import type { ChannelMeme, FileHash, Meme, MemeAsset, Prisma } from '@prisma/client';
+import type { ChannelMeme, FileHash, MemeAsset, Prisma } from '@prisma/client';
 import { prisma } from '../../src/lib/prisma.js';
 import { createChannel } from './channelFactory.js';
 import { uniqueId } from './utils.js';
@@ -16,15 +16,20 @@ export async function createFileHash(overrides: Partial<Prisma.FileHashUnchecked
   return prisma.fileHash.create({ data });
 }
 
-export async function createMemeAsset(
-  overrides: Partial<Prisma.MemeAssetUncheckedCreateInput> = {}
-): Promise<MemeAsset> {
+type MemeAssetOverrides = Partial<Prisma.MemeAssetUncheckedCreateInput> & {
+  createdByUserId?: string | null;
+};
+
+export async function createMemeAsset(overrides: MemeAssetOverrides = {}): Promise<MemeAsset> {
   const seed = uniqueId('asset');
+  const { createdByUserId, ...rest } = overrides;
   const data: Prisma.MemeAssetUncheckedCreateInput = {
     type: 'video',
     fileUrl: `/uploads/memes/${seed}.webm`,
     durationMs: 1000,
-    ...overrides,
+    ...rest,
+    createdById: createdByUserId ?? rest.createdById,
+    fileHash: rest.fileHash ?? `hash_${seed}`,
   };
   return prisma.memeAsset.create({ data });
 }
@@ -46,18 +51,57 @@ export async function createChannelMeme(
   return prisma.channelMeme.create({ data });
 }
 
-export async function createMeme(overrides: Partial<Prisma.MemeUncheckedCreateInput> = {}): Promise<Meme> {
+export type TestMeme = {
+  id: string;
+  channelId: string;
+  memeAssetId: string;
+  title: string;
+  type: string;
+  fileUrl: string;
+  durationMs: number;
+  priceCoins: number;
+  status: string;
+  createdAt: Date;
+  createdByUserId?: string | null;
+};
+
+type TestMemeOverrides = Partial<Prisma.ChannelMemeUncheckedCreateInput> & {
+  type?: string;
+  fileUrl?: string;
+  durationMs?: number;
+  fileHash?: string;
+  createdByUserId?: string | null;
+};
+
+export async function createMeme(overrides: TestMemeOverrides = {}): Promise<TestMeme> {
   const seed = uniqueId('meme');
   const channelId = overrides.channelId ?? (await createChannel()).id;
-  const data: Prisma.MemeUncheckedCreateInput = {
+  const asset = await createMemeAsset({
+    type: overrides.type ?? 'video',
+    fileUrl: overrides.fileUrl ?? `/uploads/memes/${seed}.webm`,
+    durationMs: overrides.durationMs ?? 1000,
+    fileHash: overrides.fileHash,
+    createdById: overrides.createdByUserId ?? undefined,
+  });
+  const channelMeme = await createChannelMeme({
     channelId,
-    title: `Meme ${seed}`,
-    type: 'video',
-    fileUrl: `/uploads/memes/${seed}.webm`,
-    durationMs: 1000,
-    priceCoins: 100,
-    status: 'approved',
-    ...overrides,
+    memeAssetId: asset.id,
+    title: overrides.title ?? `Meme ${seed}`,
+    priceCoins: overrides.priceCoins ?? 100,
+    status: overrides.status ?? 'approved',
+  });
+
+  return {
+    id: channelMeme.id,
+    channelId: channelMeme.channelId,
+    memeAssetId: channelMeme.memeAssetId,
+    title: channelMeme.title,
+    type: asset.type,
+    fileUrl: asset.fileUrl,
+    durationMs: asset.durationMs,
+    priceCoins: channelMeme.priceCoins,
+    status: channelMeme.status,
+    createdAt: channelMeme.createdAt,
+    createdByUserId: overrides.createdByUserId ?? null,
   };
-  return prisma.meme.create({ data });
 }

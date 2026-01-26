@@ -1,9 +1,9 @@
-import type { Meme } from '@/types';
+import type { MemeDetail } from '@memalerts/api-contracts';
 
 import { api } from '@/lib/api';
 
 export type PersonalizedMemesResponse = {
-  items: Meme[];
+  items: MemeDetail[];
   profileReady: boolean;
   totalActivations: number;
   mode: 'personalized' | 'fallback';
@@ -31,3 +31,5 @@ export async function getPersonalizedMemes(
     headers: { 'Cache-Control': 'no-store' },
   });
 }
+
+

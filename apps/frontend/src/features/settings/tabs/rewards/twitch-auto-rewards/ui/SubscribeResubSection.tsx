@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next';
 
 import type { AutoRewardsEnabledKey, KvRow } from '@/features/settings/tabs/rewards/twitch-auto-rewards/model/types';
-import type { TwitchAutoRewardsV1 } from '@/types';
+import type { TwitchAutoRewardsV1 } from '@memalerts/api-contracts';
 import type { Dispatch, SetStateAction } from 'react';
 
 import { bool, intOrEmpty, recordFromRows } from '@/features/settings/tabs/rewards/twitch-auto-rewards/model/utils';
@@ -287,3 +287,4 @@ export function SubscribeResubSection({
     </div>
   );
 }
+

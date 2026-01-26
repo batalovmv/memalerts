@@ -1,18 +1,22 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import type { Meme } from '@/types';
+import type { MemeDetail } from '@memalerts/api-contracts';
 
 import { renderWithProviders } from '@/test/test-utils';
 import MemeModal from './MemeModal';
 
-function makeMeme(overrides: Partial<Meme> = {}): Meme {
+function makeMeme(overrides: Partial<MemeDetail> = {}): MemeDetail {
   return {
     id: 'm1',
     title: 'Test meme',
     type: 'video',
     fileUrl: 'https://cdn.example.com/original.mp4',
+    previewUrl: null,
+    variants: [],
     priceCoins: 10,
     durationMs: 1200,
+    activationsCount: 0,
+    createdAt: '2024-01-01T00:00:00.000Z',
     ...overrides,
   };
 }
@@ -65,3 +69,5 @@ describe('MemeModal', () => {
     expect(full?.getAttribute('preload')).toBe('metadata');
   });
 });
+
+

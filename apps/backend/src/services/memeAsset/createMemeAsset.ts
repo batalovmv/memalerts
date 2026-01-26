@@ -1,11 +1,11 @@
 import type { MemeAsset, Prisma } from '@prisma/client';
 import { prisma } from '../../lib/prisma.js';
-import { computeContentHash } from '../../utils/media/contentHash.js';
+import { calculateFileHash } from '../../utils/fileHash.js';
 
 export type FindOrCreateMemeAssetResult = {
   memeAsset: MemeAsset;
   isExisting: boolean;
-  contentHash: string;
+  fileHash: string;
 };
 
 export async function findOrCreateMemeAsset(params: {
@@ -13,38 +13,37 @@ export async function findOrCreateMemeAsset(params: {
   type: string;
   createdByUserId?: string | null;
   durationMs?: number | null;
-  fileUrl?: string | null;
+  fileUrl: string;
   fileHash?: string | null;
 }): Promise<FindOrCreateMemeAssetResult> {
-  const contentHash = await computeContentHash(params.inputPath);
+  const resolvedFileHash = params.fileHash ?? (await calculateFileHash(params.inputPath));
 
   const existing = await prisma.memeAsset.findFirst({
-    where: { contentHash },
+    where: { fileHash: resolvedFileHash },
   });
   if (existing) {
-    return { memeAsset: existing, isExisting: true, contentHash };
+    return { memeAsset: existing, isExisting: true, fileHash: resolvedFileHash };
   }
 
   try {
     const memeAsset = await prisma.memeAsset.create({
       data: {
-        contentHash,
         type: params.type,
-        createdByUserId: params.createdByUserId ?? null,
+        createdById: params.createdByUserId ?? null,
         durationMs: params.durationMs ?? 0,
-        fileUrl: params.fileUrl ?? null,
-        fileHash: params.fileHash ?? null,
+        fileUrl: params.fileUrl,
+        fileHash: resolvedFileHash,
         aiStatus: 'pending',
       },
     });
-    return { memeAsset, isExisting: false, contentHash };
+    return { memeAsset, isExisting: false, fileHash: resolvedFileHash };
   } catch (error) {
     const err = error as Prisma.PrismaClientKnownRequestError | null;
     if (err?.code === 'P2002') {
       const existing = await prisma.memeAsset.findFirst({
-        where: { contentHash },
+        where: { fileHash: resolvedFileHash },
       });
-      if (existing) return { memeAsset: existing, isExisting: true, contentHash };
+      if (existing) return { memeAsset: existing, isExisting: true, fileHash: resolvedFileHash };
     }
     throw error;
   }

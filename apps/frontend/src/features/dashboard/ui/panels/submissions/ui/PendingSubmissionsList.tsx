@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next';
 
-import type { Submission } from '@/types';
+import type { Submission } from '@memalerts/api-contracts';
 import type { RefObject } from 'react';
 
 import { PendingSubmissionCard } from '@/features/dashboard/ui/panels/pending-submissions/PendingSubmissionCard';
@@ -97,3 +97,4 @@ export function PendingSubmissionsList({
     </>
   );
 }
+

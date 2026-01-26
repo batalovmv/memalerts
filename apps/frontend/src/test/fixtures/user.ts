@@ -1,4 +1,4 @@
-import type { User } from '@/types';
+import type { User } from '@memalerts/api-contracts';
 
 export function makeViewerUser(overrides: Partial<User> = {}): User {
   return {
@@ -29,6 +29,7 @@ export function makeGlobalModeratorUser(overrides: Partial<User> = {}): User {
     ...overrides,
   });
 }
+
 
 
 

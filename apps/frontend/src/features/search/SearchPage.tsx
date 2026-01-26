@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 
-import type { Meme, Tag } from '@/types';
+import type { MemeDetail, Tag } from '@memalerts/api-contracts';
 
 import Header from '@/components/Header';
 import { MemeCard } from '@/entities/meme/ui/MemeCard/MemeCard';
@@ -29,7 +29,7 @@ export default function Search() {
     searchParams.get('tags')?.split(',').filter(Boolean) || []
   );
   const [availableTags, setAvailableTags] = useState<Tag[]>([]);
-  const [memes, setMemes] = useState<Meme[]>([]);
+  const [memes, setMemes] = useState<MemeDetail[]>([]);
   const [loading, setLoading] = useState(false);
   const [filters, setFilters] = useState({
     minPrice: searchParams.get('minPrice') || '',
@@ -74,15 +74,15 @@ export default function Search() {
     setLoading(true);
     try {
       const params = buildSearchParams();
-      const memes = await api.get<Meme[]>(`/channels/memes/search?${params.toString()}`);
+      const memes = await api.get<MemeDetail[]>(`/channels/memes/search?${params.toString()}`);
       setMemes(memes);
 
       // Extract unique tags from results
       const allTags = new Map<string, Tag>();
       memes.forEach((meme) => {
         meme.tags?.forEach((tagItem) => {
-          if (!allTags.has(tagItem.tag.id)) {
-            allTags.set(tagItem.tag.id, tagItem.tag);
+          if (!allTags.has(tagItem.id)) {
+            allTags.set(tagItem.id, tagItem);
           }
         });
       });
@@ -250,4 +250,6 @@ export default function Search() {
     </PageShell>
   );
 }
+
+
 

@@ -9,6 +9,7 @@ import { getActivePromotion, calculatePriceWithDiscount } from '../../utils/prom
 import { WalletService } from '../WalletService.js';
 import { emitWalletUpdated, relayWalletUpdatedToPeer, type WalletUpdatedEvent } from '../../realtime/walletBridge.js';
 import { logger } from '../../utils/logger.js';
+import { withRetry } from '../../utils/retryTransaction.js';
 import { TasteProfileService } from '../taste/TasteProfileService.js';
 import { computeDynamicPricing, loadDynamicPricingSnapshot, normalizeDynamicPricingSettings } from './dynamicPricing.js';
 
@@ -26,30 +27,23 @@ type PoolAssetRow = {
   id: string;
   type: string;
   fileUrl: string | null;
-  fileHash: string | null;
   durationMs: number | null;
   aiAutoTitle: string | null;
 };
 
-type PoolExistingChannelMemeRow = {
+type ChannelMemeRow = {
   id: string;
+  title: string;
+  priceCoins: number;
   status: string;
   deletedAt: Date | null;
-  priceCoins: number | null;
-  title: string | null;
-  legacyMemeId: string | null;
-  cooldownMinutes?: number | null;
-  lastActivatedAt?: Date | null;
+  cooldownMinutes: number | null;
+  lastActivatedAt: Date | null;
 };
 
 type ChannelSlugContext = {
   id: string;
   slug: string;
-};
-
-type ResolvedChannelMemePointer = {
-  id: string;
-  legacyMemeId: string | null;
 };
 
 const DEFAULT_POOL_PRICE = 100;
@@ -69,17 +63,13 @@ const getCooldownState = (
   if (!minutes || !lastActivatedAt) return null;
   const cooldownUntil = new Date(lastActivatedAt.getTime() + minutes * 60_000);
   if (cooldownUntil <= now) return null;
-  const cooldownSecondsRemaining = Math.max(
-    0,
-    Math.ceil((cooldownUntil.getTime() - now.getTime()) / 1000)
-  );
+  const cooldownSecondsRemaining = Math.max(0, Math.ceil((cooldownUntil.getTime() - now.getTime()) / 1000));
   return { cooldownMinutes: minutes, cooldownSecondsRemaining, cooldownUntil };
 };
 
 export const activateMeme = async (req: AuthRequest, res: Response) => {
   const { id: memeId } = req.params;
   const io: Server = req.app.get('io');
-  const idempotencyKey = typeof req.idempotencyKey === 'string' ? req.idempotencyKey.trim() : null;
 
   try {
     const parsed = activateMemeSchema.parse({ memeId });
@@ -94,194 +84,113 @@ export const activateMeme = async (req: AuthRequest, res: Response) => {
       },
     });
 
-    const legacyMeme = !channelMeme
-      ? await prisma.meme.findUnique({
-          where: { id: parsed.memeId },
-          include: { channel: true },
-        })
-      : null;
+    let poolChannel: PoolChannelRow | null = null;
+    let poolAsset: PoolAssetRow | null = null;
 
-    const poolChannel: PoolChannelRow | null =
-      !channelMeme && !legacyMeme && (channelIdFromQuery || channelSlugFromQuery)
-        ? await prisma.channel.findFirst({
-            where: channelIdFromQuery
-              ? { id: channelIdFromQuery }
-              : { slug: { equals: channelSlugFromQuery, mode: 'insensitive' } },
-            select: {
-              id: true,
-              slug: true,
-              memeCatalogMode: true,
-              defaultPriceCoins: true,
-              dynamicPricingEnabled: true,
-              dynamicPricingMinMult: true,
-              dynamicPricingMaxMult: true,
-            },
-          })
-        : null;
-
-    const poolAsset: PoolAssetRow | null =
-      !channelMeme && !legacyMeme && poolChannel
-        ? await prisma.memeAsset.findFirst({
-            where: { id: parsed.memeId, poolVisibility: 'visible', purgedAt: null },
-            select: { id: true, type: true, fileUrl: true, fileHash: true, durationMs: true, aiAutoTitle: true },
-          })
-        : null;
-
-    const poolExistingChannelMeme: PoolExistingChannelMemeRow | null =
-      !channelMeme && !legacyMeme && poolChannel && poolAsset
-        ? await prisma.channelMeme.findUnique({
-            where: { channelId_memeAssetId: { channelId: poolChannel.id, memeAssetId: poolAsset.id } },
-            select: {
-              id: true,
-              status: true,
-              deletedAt: true,
-              priceCoins: true,
-              title: true,
-              legacyMemeId: true,
-              cooldownMinutes: true,
-              lastActivatedAt: true,
-            },
-          })
-        : null;
-
-    if (!channelMeme && !legacyMeme && poolChannel && poolAsset) {
-      const mode = String(poolChannel.memeCatalogMode ?? 'channel');
-      if (mode !== 'pool_all') throw new Error('Meme is not available');
+    if (!channelMeme && (channelIdFromQuery || channelSlugFromQuery)) {
+      poolChannel = await prisma.channel.findFirst({
+        where: channelIdFromQuery
+          ? { id: channelIdFromQuery }
+          : { slug: { equals: channelSlugFromQuery, mode: 'insensitive' } },
+        select: {
+          id: true,
+          slug: true,
+          memeCatalogMode: true,
+          defaultPriceCoins: true,
+          dynamicPricingEnabled: true,
+          dynamicPricingMinMult: true,
+          dynamicPricingMaxMult: true,
+        },
+      });
+      if (poolChannel && String(poolChannel.memeCatalogMode ?? 'channel') === 'pool_all') {
+        poolAsset = await prisma.memeAsset.findFirst({
+          where: { id: parsed.memeId, status: 'active', deletedAt: null, fileUrl: { not: '' } },
+          select: { id: true, type: true, fileUrl: true, durationMs: true, aiAutoTitle: true },
+        });
+      }
     }
 
-    if (!channelMeme && !legacyMeme && !(poolChannel && poolAsset)) throw new Error('Meme not found');
+    if (!channelMeme && poolChannel && String(poolChannel.memeCatalogMode ?? 'channel') !== 'pool_all') {
+      throw new Error('Meme is not available');
+    }
 
-    const channelId = channelMeme?.channelId ?? legacyMeme?.channelId ?? poolChannel?.id;
-    const channel = (channelMeme?.channel ?? legacyMeme?.channel ?? poolChannel) as ChannelSlugContext | null;
+    if (!channelMeme && !(poolChannel && poolAsset)) throw new Error('Meme not found');
+
+    const channelId = channelMeme?.channelId ?? poolChannel?.id;
+    const channel = (channelMeme?.channel ?? poolChannel) as ChannelSlugContext | null;
     if (!channelId || !channel?.slug) {
       throw new Error('Meme is not available');
     }
-    const effectiveLegacyMemeId = channelMeme?.legacyMemeId ?? legacyMeme?.id ?? null;
 
     if (channelMeme) {
       if (channelMeme.status !== 'approved' || channelMeme.deletedAt) throw new Error('Meme is not approved');
-      if (!effectiveLegacyMemeId) {
-        throw new Error('Meme is not available');
-      }
-    } else {
-      if (legacyMeme) {
-        if (legacyMeme.status !== 'approved' || legacyMeme.deletedAt) throw new Error('Meme is not approved');
-      }
     }
 
     const promotion = await getActivePromotion(channelId);
 
-    const result = await prisma.$transaction(
-      async (tx) => {
-        if (idempotencyKey) {
-          const existing = await tx.memeActivation.findFirst({
-            where: { channelId, userId: req.userId!, idempotencyKey },
-          });
-          if (existing) {
-            const wallet = await WalletService.getWalletOrDefault(tx, {
-              userId: req.userId!,
-              channelId,
-            });
-            const sender = await tx.user.findUnique({
-              where: { id: req.userId! },
-              select: { displayName: true },
-            });
-            return {
-              activation: existing,
-              wallet,
-              senderDisplayName: sender?.displayName ?? null,
-              resolvedChannelMemeId: existing.channelMemeId ?? null,
-              idempotencyHit: true,
-              originalPrice: existing.coinsSpent ?? 0,
-              finalPrice: existing.coinsSpent ?? 0,
-            };
-          }
-        }
-
-        let resolvedChannelMeme: ResolvedChannelMemePointer | null = channelMeme
-          ? { id: channelMeme.id, legacyMemeId: channelMeme.legacyMemeId ?? null }
+    const result = await withRetry(
+      () =>
+        prisma.$transaction(
+          async (tx) => {
+        let resolvedChannelMeme: ChannelMemeRow | null = channelMeme
+          ? {
+              id: channelMeme.id,
+              title: channelMeme.title,
+              priceCoins: channelMeme.priceCoins,
+              status: channelMeme.status,
+              deletedAt: channelMeme.deletedAt,
+              cooldownMinutes: channelMeme.cooldownMinutes ?? null,
+              lastActivatedAt: channelMeme.lastActivatedAt ?? null,
+            }
           : null;
-        let resolvedLegacyMemeId: string | null = effectiveLegacyMemeId;
 
-        if (!resolvedChannelMeme && !legacyMeme && poolChannel && poolAsset) {
+        if (!resolvedChannelMeme && poolChannel && poolAsset) {
           const existing = await tx.channelMeme.findUnique({
             where: { channelId_memeAssetId: { channelId: poolChannel.id, memeAssetId: poolAsset.id } },
-            select: { id: true, status: true, deletedAt: true, legacyMemeId: true, title: true, priceCoins: true },
+            select: {
+              id: true,
+              title: true,
+              priceCoins: true,
+              status: true,
+              deletedAt: true,
+              cooldownMinutes: true,
+              lastActivatedAt: true,
+            },
           });
 
           if (existing) {
             if (existing.status !== 'approved' || existing.deletedAt) throw new Error('Meme is not available');
             resolvedChannelMeme = existing;
-            resolvedLegacyMemeId = existing.legacyMemeId ?? null;
-          }
-
-          if (!resolvedChannelMeme || !resolvedLegacyMemeId) {
-            const hasHash = poolAsset.fileHash
-              ? await tx.fileHash.findUnique({ where: { hash: poolAsset.fileHash }, select: { hash: true } })
-              : null;
-
+          } else {
             const title = String(poolAsset.aiAutoTitle || 'Meme').slice(0, 80);
-            const priceCoins = normalizeDefaultPrice(poolChannel?.defaultPriceCoins);
-
-            const poolAssetDurationMs = Number.isFinite(poolAsset.durationMs ?? NaN)
-              ? (poolAsset.durationMs as number)
-              : 0;
-            const legacy = await tx.meme.create({
+            const priceCoins = normalizeDefaultPrice(poolChannel.defaultPriceCoins);
+            resolvedChannelMeme = await tx.channelMeme.create({
               data: {
                 channelId: poolChannel.id,
-                title,
-                type: poolAsset.type,
-                fileUrl: String(poolAsset.fileUrl || ''),
-                fileHash: hasHash ? poolAsset.fileHash : null,
-                durationMs: poolAssetDurationMs,
-                priceCoins,
-                status: 'approved',
-                createdByUserId: null,
-                approvedByUserId: null,
-              },
-              select: { id: true },
-            });
-
-            const cm = await tx.channelMeme.upsert({
-              where: { channelId_memeAssetId: { channelId: poolChannel.id, memeAssetId: poolAsset.id } },
-              create: {
-                channelId: poolChannel.id,
                 memeAssetId: poolAsset.id,
-                legacyMemeId: legacy.id,
                 status: 'approved',
                 title,
                 priceCoins,
-                addedByUserId: null,
-                approvedByUserId: null,
-                approvedAt: new Date(),
               },
-              update: {
-                legacyMemeId: legacy.id,
-                status: 'approved',
-                deletedAt: null,
+              select: {
+                id: true,
+                title: true,
+                priceCoins: true,
+                status: true,
+                deletedAt: true,
+                cooldownMinutes: true,
+                lastActivatedAt: true,
               },
-              select: { id: true, legacyMemeId: true },
             });
-
-            resolvedChannelMeme = { id: cm.id, legacyMemeId: cm.legacyMemeId ?? legacy.id };
-            resolvedLegacyMemeId = cm.legacyMemeId ?? legacy.id;
           }
         }
 
-        if (!resolvedLegacyMemeId) throw new Error('Meme is not available');
+        if (!resolvedChannelMeme) throw new Error('Meme is not available');
 
         const now = new Date();
-        const channelMemeIdForPricing = resolvedChannelMeme?.id ?? null;
-        const channelMemeRow = channelMemeIdForPricing
-          ? await tx.channelMeme.findUnique({
-              where: { id: channelMemeIdForPricing },
-              select: { priceCoins: true, cooldownMinutes: true, lastActivatedAt: true },
-            })
-          : null;
-
         const cooldownState = getCooldownState(
-          channelMemeRow?.cooldownMinutes ?? null,
-          channelMemeRow?.lastActivatedAt ?? null,
+          resolvedChannelMeme.cooldownMinutes ?? null,
+          resolvedChannelMeme.lastActivatedAt ?? null,
           now
         );
         if (cooldownState) {
@@ -295,31 +204,19 @@ export const activateMeme = async (req: AuthRequest, res: Response) => {
           throw err;
         }
 
-        const basePrice =
-          channelMemeRow?.priceCoins ??
-          (legacyMeme
-            ? legacyMeme.priceCoins
-            : poolExistingChannelMeme &&
-                poolExistingChannelMeme.status === 'approved' &&
-                !poolExistingChannelMeme.deletedAt &&
-                Number.isFinite(poolExistingChannelMeme.priceCoins)
-              ? (poolExistingChannelMeme.priceCoins as number)
-              : normalizeDefaultPrice(poolChannel?.defaultPriceCoins));
-
-        const pricingSettings = normalizeDynamicPricingSettings(
-          channelMeme?.channel ?? legacyMeme?.channel ?? poolChannel ?? null
-        );
+        const basePrice = resolvedChannelMeme.priceCoins;
+        const pricingSettings = normalizeDynamicPricingSettings(channelMeme?.channel ?? poolChannel ?? null);
         let priceBeforeDiscount = basePrice;
-        if (pricingSettings.enabled && channelMemeIdForPricing) {
+        if (pricingSettings.enabled) {
           const snapshot = await loadDynamicPricingSnapshot({
             channelId,
-            channelMemeIds: [channelMemeIdForPricing],
+            channelMemeIds: [resolvedChannelMeme.id],
             settings: pricingSettings,
             now,
             db: tx,
           });
           if (snapshot) {
-            const recent = snapshot.counts.get(channelMemeIdForPricing) ?? 0;
+            const recent = snapshot.counts.get(resolvedChannelMeme.id) ?? 0;
             const dynamic = computeDynamicPricing({
               basePriceCoins: basePrice,
               recent,
@@ -340,10 +237,9 @@ export const activateMeme = async (req: AuthRequest, res: Response) => {
         });
 
         const isChannelOwner = req.channelId === channelId;
+        const coinsSpent = isChannelOwner ? 0 : finalPrice;
 
         let updatedWallet = wallet;
-        let coinsSpent = 0;
-
         if (!isChannelOwner) {
           if (wallet.balance < finalPrice) {
             throw new Error('Insufficient balance');
@@ -352,27 +248,23 @@ export const activateMeme = async (req: AuthRequest, res: Response) => {
           updatedWallet = await WalletService.decrementBalance(tx, { userId: req.userId!, channelId }, finalPrice, {
             lockedWallet: wallet,
           });
-          coinsSpent = finalPrice;
         }
 
         const activation = await tx.memeActivation.create({
           data: {
             channelId,
+            channelMemeId: resolvedChannelMeme.id,
             userId: req.userId!,
-            memeId: resolvedLegacyMemeId!,
-            ...(resolvedChannelMeme ? { channelMemeId: resolvedChannelMeme.id } : {}),
-            ...(idempotencyKey ? { idempotencyKey } : {}),
-            coinsSpent,
+            priceCoins: coinsSpent,
+            volume: 1,
             status: 'queued',
           },
         });
 
-        if (channelMemeIdForPricing) {
-          await tx.channelMeme.update({
-            where: { id: channelMemeIdForPricing },
-            data: { lastActivatedAt: now },
-          });
-        }
+        await tx.channelMeme.update({
+          where: { id: resolvedChannelMeme.id },
+          data: { lastActivatedAt: now },
+        });
 
         const sender = await tx.user.findUnique({
           where: { id: req.userId! },
@@ -383,65 +275,73 @@ export const activateMeme = async (req: AuthRequest, res: Response) => {
           activation,
           wallet: updatedWallet,
           senderDisplayName: sender?.displayName ?? null,
-          resolvedChannelMemeId: resolvedChannelMeme?.id ?? null,
-          idempotencyHit: false,
           originalPrice: priceBeforeDiscount,
           finalPrice,
+          coinsSpent,
         };
-      },
-      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
+          },
+          { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
+        ),
+      { maxRetries: 5, baseDelayMs: 50 }
     );
 
-    if (!result.idempotencyHit) {
-      const channelSlug = String(channel.slug || '').toLowerCase();
-      const overlayType = channelMeme ? channelMeme.memeAsset.type : legacyMeme ? legacyMeme.type : poolAsset!.type;
-      const overlayFileUrl = channelMeme
-        ? channelMeme.memeAsset.fileUrl
-        : legacyMeme
-          ? legacyMeme.fileUrl
-          : String(poolAsset!.fileUrl || '');
-      const overlayDurationMs = channelMeme
-        ? channelMeme.memeAsset.durationMs
-        : legacyMeme
-          ? legacyMeme.durationMs
-          : (poolAsset!.durationMs ?? 0);
-      const overlayTitle = channelMeme
-        ? channelMeme.title
-        : legacyMeme
-          ? legacyMeme.title
-          : String(poolExistingChannelMeme?.title || poolAsset!.aiAutoTitle || 'Meme').slice(0, 80);
-      io.to(`channel:${channelSlug}`).emit('activation:new', {
-        id: result.activation.id,
-        memeId: result.activation.memeId,
-        type: overlayType,
-        fileUrl: overlayFileUrl,
-        durationMs: overlayDurationMs,
-        title: overlayTitle,
-        senderDisplayName: result.senderDisplayName,
-      });
+    const channelSlug = String(channel.slug || '').toLowerCase();
+    const overlayRow = await prisma.channelMeme.findUnique({
+      where: { id: result.activation.channelMemeId },
+      select: {
+        id: true,
+        title: true,
+        memeAsset: {
+          select: {
+            type: true,
+            fileUrl: true,
+            durationMs: true,
+          },
+        },
+      },
+    });
 
-      if (result.activation.coinsSpent && result.activation.coinsSpent > 0) {
-        const walletUpdateData: WalletUpdatedEvent = {
-          userId: result.activation.userId,
-          channelId: result.activation.channelId,
-          balance: result.wallet.balance,
-          delta: -result.activation.coinsSpent,
-          reason: 'meme_activation',
-          channelSlug: channel.slug,
-        };
-        emitWalletUpdated(io, walletUpdateData);
-        void relayWalletUpdatedToPeer(walletUpdateData);
-      }
+    const overlayType = overlayRow?.memeAsset?.type ?? channelMeme?.memeAsset.type ?? poolAsset?.type ?? 'video';
+    const overlayFileUrl =
+      overlayRow?.memeAsset?.fileUrl ?? channelMeme?.memeAsset.fileUrl ?? String(poolAsset?.fileUrl || '');
+    const overlayDurationMs =
+      overlayRow?.memeAsset?.durationMs ?? channelMeme?.memeAsset.durationMs ?? (poolAsset?.durationMs ?? 0);
+    const overlayTitle = overlayRow?.title ?? channelMeme?.title ?? String(poolAsset?.aiAutoTitle || 'Meme').slice(0, 80);
 
-      void TasteProfileService.recordActivation({
-        userId: req.userId!,
-        memeId: result.activation.memeId,
-        channelMemeId: result.resolvedChannelMemeId,
-      }).catch((error) => {
-        const errMsg = error instanceof Error ? error.message : String(error ?? 'unknown');
-        logger.warn('taste_profile.record_failed', { userId: req.userId, memeId: result.activation.memeId, error: errMsg });
-      });
+    io.to(`channel:${channelSlug}`).emit('activation:new', {
+      id: result.activation.id,
+      memeId: result.activation.channelMemeId,
+      type: overlayType,
+      fileUrl: overlayFileUrl,
+      durationMs: overlayDurationMs,
+      title: overlayTitle,
+      senderDisplayName: result.senderDisplayName,
+    });
+
+    if (result.coinsSpent && result.coinsSpent > 0) {
+      const walletUpdateData: WalletUpdatedEvent = {
+        userId: result.activation.userId,
+        channelId: result.activation.channelId,
+        balance: result.wallet.balance,
+        delta: -result.coinsSpent,
+        reason: 'meme_activation',
+        channelSlug: channel.slug,
+      };
+      emitWalletUpdated(io, walletUpdateData);
+      void relayWalletUpdatedToPeer(walletUpdateData);
     }
+
+    void TasteProfileService.recordActivation({
+      userId: req.userId!,
+      channelMemeId: result.activation.channelMemeId,
+    }).catch((error) => {
+      const errMsg = error instanceof Error ? error.message : String(error ?? 'unknown');
+      logger.warn('taste_profile.record_failed', {
+        userId: req.userId,
+        channelMemeId: result.activation.channelMemeId,
+        error: errMsg,
+      });
+    });
 
     res.json({
       activation: result.activation,
@@ -468,13 +368,10 @@ export const activateMeme = async (req: AuthRequest, res: Response) => {
     if (errorMessage === 'Wallet not found' || errorMessage === 'Meme not found') {
       return res.status(404).json({ error: errorMessage });
     }
-    if (
-      errorMessage === 'Insufficient balance' ||
-      errorMessage === 'Meme is not approved' ||
-      errorMessage === 'Meme is not available'
-    ) {
+    if (errorMessage === 'Insufficient balance' || errorMessage === 'Meme is not approved' || errorMessage === 'Meme is not available') {
       return res.status(400).json({ error: errorMessage });
     }
     throw error;
   }
 };
+

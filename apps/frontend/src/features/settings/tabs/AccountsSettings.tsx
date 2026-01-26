@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 
-import type { ExternalAccount } from '@/types';
+import type { ExternalAccount } from '@memalerts/api-contracts';
 
 import { api } from '@/lib/api';
 import { linkExternalAccount, linkTwitchAccount, login } from '@/lib/auth';
@@ -931,3 +931,4 @@ export function AccountsSettings() {
     </div>
   );
 }
+

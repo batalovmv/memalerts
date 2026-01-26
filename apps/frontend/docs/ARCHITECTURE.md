@@ -1,65 +1,66 @@
-# Architecture
+# Архитектура фронтенда (refactored)
 
-Цель: сделать кодовую базу **быстрой для поиска**, масштабируемой и удобной для поддержки, сохраняя предсказуемое поведение и хороший UX.
+Цель: сделать кодовую базу предсказуемой, легко поддерживаемой и безопасной для изменений, опираясь на контрактный API и строгие слои.
 
-## Стек
-- React + TypeScript
-- Vite
-- React Router
-- Redux Toolkit
-- i18n: `react-i18next`
-- API: `axios` (клиент в `src/lib/api.ts`, слой-реэкспорт в `src/shared/api/httpClient.ts`)
-- Real-time: `socket.io-client` (см. `src/contexts/SocketContext.tsx`)
-- UI стили: TailwindCSS + `cn()` (точечно допускаются CSS Modules, когда это реально удобнее)
+## Базовые принципы
+- **Contract-first**: все типы API берём из `@memalerts/api-contracts`, никаких локальных DTO.
+- **Runtime validation**: ответы API валидируются через `schema.parse()` в `shared/api/client.ts`.
+- **Explicit over implicit**: optional и nullable различаются, `as any/as unknown` запрещены без комментария.
+- **Layered architecture**: зависимости только вниз по слоям (см. ниже).
+- **Единый формат ответов**: `{ success: true, data: ... }` и `{ success: false, error: ... }`.
 
-## Структура
-Основная идея — **feature-based + слои**: доменная логика живёт в `features/*`, `entities/*` содержит сущности (доменные модели/UI), `shared/*` — нейтральная база. `pages/*` — тонкие обёртки для роутера.
-
+## Структура и слои
 ```
 src/
-  pages/                    # thin wrappers для роутов (ничего тяжёлого)
-  features/                 # доменные фичи (экраны/контейнеры/локальный UI)
-    dashboard/
-    settings/
-    streamer-profile/
-    submit/
-    search/
-    landing/
-    beta-access/
-    stats/
-    legal/
-  shared/                   # нейтральные переиспользуемые вещи (без доменной привязки)
+  App.tsx
+  main.tsx
+  pages/                    # thin wrappers для роутов
+  features/                 # сценарии/фичи, orchestration + state
+    meme-catalog/
+      api/
+      model/
+      ui/
+  entities/                 # доменные сущности (UI + model)
+    meme/
+  shared/                   # базовые, независимые от домена модули
+    api/                    # ApiClient + legacy helper'ы
+    config/                 # runtime config, urls
     lib/
     ui/
-    api/                    # thin entrypoints / helpers (например toApiError)
-    config/                 # runtimeConfig, urls (реэкспортятся из src/lib/* для back-compat)
-  entities/                 # доменные сущности (UI/модель рядом)
-    meme/
-  widgets/                  # крупные композиционные блоки (header/menu и т.п.)
-  components/               # совместимость: многие компоненты остаются как re-export в новые слои
+  widgets/                  # крупные композиции
+  components/               # legacy re-exports (миграция по мере необходимости)
   contexts/
   hooks/
   store/
-  lib/
 overlay/                    # отдельное Vite-приложение (OBS overlay)
 ```
 
-## Правила слоёв
-- **`src/pages/*`**: только `export { default } from '@/features/...';`
-- **`src/features/*`**: бизнес‑логика + страницы/контейнеры.
-- **`src/shared/*`**: общие утилиты/компоненты, не зависят от конкретной фичи.
+### Правила зависимостей
+- **pages** → только композиция роутов, без бизнес-логики.
+- **features** → могут использовать `entities`, `shared`, `widgets`.
+- **entities** → могут использовать только `shared`.
+- **shared** → не зависит от доменных слоёв.
+- **widgets** → композиция `features`/`entities`/`shared`.
 
-## Runtime config и окружения (beta/prod)
-Чтобы избежать “beta frontend ходит в prod API” (и наоборот), окружение не “вшивается” в сборку:
-- Web при старте грузит `GET /config.json` (`src/shared/config/runtimeConfig.ts`, реэкспорт: `src/lib/runtimeConfig.ts`) и применяет `apiBaseUrl` через `setApiBaseUrl()` до первого рендера (`src/main.tsx`).
-- Для статики `/uploads/*` используется `resolveMediaUrl()` (`src/shared/config/urls.ts`, реэкспорт: `src/lib/urls.ts`), который читает `uploadsBaseUrl` из runtime config.
-- Overlay использует тот же `GET /config.json` (см. `overlay/runtimeConfig.ts`) и резолвит медиа/сокет через `overlay/urls.ts`.
+## API слой
+- **Единый клиент**: `src/shared/api/client.ts` использует `@memalerts/api-contracts` и `zod` для парсинга.
+- **Hooks**: `features/*/api` (например `features/meme-catalog/api/useMemes.ts`) — единственное место сетевых запросов в фичах.
+- **Ошибки**: использовать `ApiError` и коды из контракта, без ad-hoc строк.
+- **Legacy**: старые хелперы (`shared/api/httpClient.ts`, `src/lib/api.ts`) допустимы только для не мигрированных модулей.
 
-Формат `config.json` описан в [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
+## Runtime config и окружения
+- `GET /config.json` загружается до первого рендера (`src/main.tsx`).
+- `shared/config/runtimeConfig.ts` хранит `apiBaseUrl` и `uploadsBaseUrl`.
+- `resolveMediaUrl()` читает `uploadsBaseUrl` для корректных ссылок на медиа.
+- Overlay использует такой же runtime config, но свой entrypoint.
 
-## Перфоманс‑заметки (high level)
-- **Code splitting по роутам**: `src/App.tsx` использует `React.lazy`/`Suspense`, чтобы не тянуть админку/профиль/поиск в initial bundle.
-- **Списки/превью**: `MemeCard` лениво грузит медиа через `IntersectionObserver`, чтобы не “плавить” браузер на больших каталогах.
-- **User interaction tracking**: единый `useHasUserInteracted()` (`src/lib/userInteraction.ts`), чтобы не плодить document‑listeners на каждую карточку.
+## Как добавлять новую фичу/endpoint
+1. Добавить Zod-схему в `packages/api-contracts`.
+2. Создать hook в `features/*/api` с `apiClient` + контрактной схемой.
+3. Использовать только типы из `@memalerts/api-contracts` в UI и модели.
+4. Добавить тесты контрактов при изменении схем.
 
-
+## Запрещено
+- Локальные типы для API ответов.
+- Прямые вызовы `axios` вне `apiClient`.
+- `as any` / `as unknown` без объясняющего комментария.

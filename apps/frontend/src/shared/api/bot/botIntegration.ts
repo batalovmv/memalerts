@@ -1,4 +1,4 @@
-import type { BotProvider } from '@/types';
+import type { BotProvider } from '@memalerts/api-contracts';
 
 import { api } from '@/lib/api';
 
@@ -37,3 +37,4 @@ export async function unlinkBot(provider: BotProvider): Promise<void> {
 export async function getVkVideoCandidates(): Promise<{ candidates: Array<{ id: string; name: string }> }> {
   return api.get<{ candidates: Array<{ id: string; name: string }> }>('/streamer/bots/vkvideo/candidates');
 }
+

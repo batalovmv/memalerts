@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 
 import { XIcon } from './icons';
 
-import type { Submission } from '@/types';
+import type { Submission } from '@memalerts/api-contracts';
 
 import { AiStatusBadge, Button, IconButton, Input, Modal } from '@/shared/ui';
 import TagInput from '@/shared/ui/TagInput/TagInput';
@@ -121,3 +121,4 @@ export function ApproveSubmissionModal({
     </Modal>
   );
 }
+

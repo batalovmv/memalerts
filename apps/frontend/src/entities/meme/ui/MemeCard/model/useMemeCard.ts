@@ -1,21 +1,22 @@
 import { useEffect, useRef, useState } from 'react';
 
-import type { Meme } from '@/types';
-
-import { getMemePrimaryId } from '@/shared/lib/memeIds';
 import { useHasUserInteracted } from '@/shared/lib/userInteraction';
+import type { MemeCardItem } from './types';
 
 export type MemeCardPreviewMode = 'hoverWithSound' | 'hoverMuted' | 'autoplayMuted';
 
-export function useMemeCard(params: { meme: Meme; mediaUrl: string; previewMode: MemeCardPreviewMode; onClick: () => void }) {
+export function useMemeCard(params: {
+  meme: MemeCardItem;
+  mediaUrl: string;
+  previewMode: MemeCardPreviewMode;
+  onClick: () => void;
+}) {
   const { meme, mediaUrl, previewMode, onClick } = params;
 
   const [isHovered, setIsHovered] = useState(false);
   const [aspectRatio, setAspectRatio] = useState<number>(16 / 9);
   const hasUserInteracted = useHasUserInteracted();
   const [shouldLoadMedia, setShouldLoadMedia] = useState(false);
-  const memePrimaryId = getMemePrimaryId(meme);
-
   const cardRef = useRef<HTMLElement | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
 
@@ -93,7 +94,7 @@ export function useMemeCard(params: { meme: Meme; mediaUrl: string; previewMode:
     return () => {
       cancelled = true;
     };
-  }, [memePrimaryId, meme.type, mediaUrl, shouldLoadMedia]);
+  }, [meme.id, meme.type, mediaUrl, shouldLoadMedia]);
 
   // Handle video playback on hover (unified logic)
   useEffect(() => {

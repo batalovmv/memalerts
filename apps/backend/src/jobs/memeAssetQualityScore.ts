@@ -71,15 +71,14 @@ type ActivationRow = { memeAssetId: string; activations: number };
 async function loadActivationCounts(since: Date): Promise<Map<string, number>> {
   const rows = await prisma.$queryRaw<ActivationRow[]>`
     SELECT
-      COALESCE(cm."memeAssetId", cm_legacy."memeAssetId") as "memeAssetId",
+      cm."memeAssetId" as "memeAssetId",
       COUNT(*)::int as "activations"
     FROM "MemeActivation" a
-    LEFT JOIN "ChannelMeme" cm ON cm.id = a."channelMemeId"
-    LEFT JOIN "ChannelMeme" cm_legacy ON cm_legacy."legacyMemeId" = a."memeId"
+    JOIN "ChannelMeme" cm ON cm.id = a."channelMemeId"
     WHERE a."createdAt" >= ${since}
       AND a.status IN ('done','completed')
-      AND COALESCE(cm."memeAssetId", cm_legacy."memeAssetId") IS NOT NULL
-    GROUP BY COALESCE(cm."memeAssetId", cm_legacy."memeAssetId")
+      AND cm."memeAssetId" IS NOT NULL
+    GROUP BY cm."memeAssetId"
   `;
 
   const map = new Map<string, number>();
@@ -97,7 +96,7 @@ export async function recomputeMemeAssetQualityScores(): Promise<{ scanned: numb
 
   const activationCounts = await loadActivationCounts(since);
   const assets = await prisma.memeAsset.findMany({
-    where: { purgedAt: null },
+    where: { deletedAt: null },
     select: { id: true, createdAt: true, qualityScore: true },
   });
 

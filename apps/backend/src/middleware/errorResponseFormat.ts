@@ -10,6 +10,14 @@ import {
 import type { AuthRequest } from './auth.js';
 import { getActiveTraceId } from '../tracing/traceContext.js';
 
+function isApiContractErrorResponse(body: unknown): boolean {
+  if (!body || typeof body !== 'object') return false;
+  const maybe = body as { success?: unknown; error?: unknown };
+  if (maybe.success !== false || !maybe.error || typeof maybe.error !== 'object') return false;
+  const error = maybe.error as { code?: unknown; message?: unknown };
+  return typeof error.code === 'string' && typeof error.message === 'string';
+}
+
 function pickErrorCode(status: number, body: unknown): ErrorCode {
   // Prefer explicit errorCode
   if (body && typeof body === 'object' && isErrorCode((body as { errorCode?: unknown }).errorCode)) {
@@ -122,6 +130,7 @@ export function errorResponseFormat(req: Request, res: Response, next: NextFunct
     // Only normalize error responses.
     const status = res.statusCode;
     if (status < 400) return originalJson(body);
+    if (isApiContractErrorResponse(body)) return originalJson(body);
 
     const code = pickErrorCode(status, body);
     const error = pickErrorMessage(code, body, pickPreferredLanguage(req));

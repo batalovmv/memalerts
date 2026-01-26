@@ -72,7 +72,7 @@ export function useKickRewards({
       const rid = getRequestIdFromError(error);
       setKickLastErrorRequestId(rid);
 
-      const msg = String(err.error || '').toLowerCase();
+      const msg = String(err.message || '').toLowerCase();
       if (msg.includes('kickrewardenabled') && msg.includes('does not exist')) {
         // Backend DB is not migrated yet; prevent repeated autosaves and keep UI consistent.
         setKickBackendUnsupported(true);
@@ -85,21 +85,21 @@ export function useKickRewards({
         return;
       }
 
-      if (err.errorCode === 'KICK_NOT_LINKED') {
+      if (err.code === 'KICK_NOT_LINKED') {
         toast.error(
           t('admin.kickNotLinked', {
             defaultValue: 'Kick account is not linked. Link Kick in Settings → Accounts.',
           }),
         );
         setRewardSettings((p) => ({ ...p, kickRewardEnabled: false }));
-      } else if (err.errorCode === 'KICK_SCOPE_MISSING_EVENTS_SUBSCRIBE') {
+      } else if (err.code === 'KICK_SCOPE_MISSING_EVENTS_SUBSCRIBE') {
         toast.error(
           t('admin.kickScopeMissingEventsSubscribe', {
             defaultValue: 'Kick permissions missing: events:subscribe. Re-link Kick with the correct scopes.',
           }),
         );
         setRewardSettings((p) => ({ ...p, kickRewardEnabled: false }));
-      } else if (err.errorCode === 'KICK_ACCESS_TOKEN_MISSING') {
+      } else if (err.code === 'KICK_ACCESS_TOKEN_MISSING') {
         toast.error(
           t('admin.kickAccessTokenMissing', {
             defaultValue: 'Kick access token is missing. Re-link Kick account.',
@@ -107,7 +107,7 @@ export function useKickRewards({
         );
         setRewardSettings((p) => ({ ...p, kickRewardEnabled: false }));
       } else {
-        toast.error(err.error || err.message);
+        toast.error(err.message);
       }
     } finally {
       await ensureMinDuration(startedAt, 650);

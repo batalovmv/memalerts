@@ -1,7 +1,7 @@
 import { memo, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import type { Meme } from '@/types';
+import type { MemeDetail } from '@memalerts/api-contracts';
 import type { MutableRefObject } from 'react';
 
 import { cn } from '@/shared/lib/cn';
@@ -10,8 +10,8 @@ import { Spinner } from '@/shared/ui';
 import MemeCard from '@/widgets/meme-card/MemeCard';
 
 type StreamerProfileMemesSectionProps = {
-  memes: Meme[];
-  searchResults: Meme[];
+  memes: MemeDetail[];
+  searchResults: MemeDetail[];
   searchQuery: string;
   tagFilter: string;
   listMode: 'all' | 'favorites' | 'frequent' | 'recent' | 'hidden' | 'trending' | 'blocked' | 'forYou';
@@ -32,41 +32,37 @@ type StreamerProfileMemesSectionProps = {
   autoplayMemesEnabled: boolean;
   isOwner: boolean;
   hasAiProcessing: boolean;
-  personalizedMemes: Meme[];
+  personalizedMemes: MemeDetail[];
   personalizedLoading: boolean;
   personalizedProfileReady: boolean;
   personalizedTotalActivations: number;
   personalizedMode: 'personalized' | 'fallback';
-  onSelectMeme: (meme: Meme) => void;
+  onSelectMeme: (meme: MemeDetail) => void;
 };
 
 const MIN_ACTIVATIONS = 5;
 
 type MemeCardItemProps = {
-  meme: Meme;
+  meme: MemeDetail;
   previewMode: 'hoverMuted' | 'autoplayMuted';
-  isOwner: boolean;
-  onSelectMeme: (meme: Meme) => void;
+  onSelectMeme: (meme: MemeDetail) => void;
 };
 
 const MemeCardItem = memo(
-  function MemeCardItem({ meme, previewMode, isOwner, onSelectMeme }: MemeCardItemProps) {
+  function MemeCardItem({ meme, previewMode, onSelectMeme }: MemeCardItemProps) {
     const handleClick = useCallback(() => onSelectMeme(meme), [meme, onSelectMeme]);
 
     return (
       <MemeCard
         meme={meme}
         onClick={handleClick}
-        isOwner={isOwner}
         previewMode={previewMode}
-        showAiBadges={false}
       />
     );
   },
   (prev, next) =>
     prev.meme === next.meme &&
     prev.previewMode === next.previewMode &&
-    prev.isOwner === next.isOwner &&
     prev.onSelectMeme === next.onSelectMeme,
 );
 
@@ -120,10 +116,9 @@ export function StreamerProfileMemesSection({
           meme={meme}
           onSelectMeme={onSelectMeme}
           previewMode={previewMode}
-          isOwner={isOwner}
         />
       )),
-    [isOwner, memesToDisplay, onSelectMeme, previewMode],
+    [memesToDisplay, onSelectMeme, previewMode],
   );
 
   return (
@@ -380,3 +375,5 @@ export function StreamerProfileMemesSection({
     </>
   );
 }
+
+

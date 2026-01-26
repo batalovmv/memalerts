@@ -39,10 +39,10 @@ describe('AI moderation recovers fileHash from fileUrlTemp when missing', () => 
       fileUrl: `/uploads/memes/${sha}.webm`,
       fileHash: sha,
       durationMs: 1234,
-      poolVisibility: 'visible',
+      status: 'active',
       aiStatus: 'done',
       aiAutoDescription: 'GLOBAL_AI_DESC',
-      aiAutoTagNamesJson: ['global_tag_1'],
+      aiAutoTagNames: ['global_tag_1'],
       aiSearchText: 'GLOBAL_AI_SEARCH',
       aiCompletedAt: new Date(),
     } satisfies Prisma.MemeAssetCreateInput;

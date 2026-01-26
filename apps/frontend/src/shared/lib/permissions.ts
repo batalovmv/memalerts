@@ -1,4 +1,4 @@
-import type { User } from '@/types';
+import type { User } from '@memalerts/api-contracts';
 
 /**
  * Global pool moderation permission.
@@ -25,5 +25,6 @@ export function canViewSubmissionAiDescription(user: User | null | undefined): b
   if (user.role === 'streamer') return true; // owner
   return user.isGlobalModerator === true;
 }
+
 
 

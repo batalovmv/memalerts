@@ -37,9 +37,9 @@ export async function recomputeChannelDailyStats(opts: RollupOptions): Promise<{
         a."channelId",
         date_trunc('day', a."createdAt") as day,
         COUNT(*)::int as "totalActivationsCount",
-        COALESCE(SUM(a."coinsSpent"), 0)::bigint as "totalCoinsSpentSum",
+        COALESCE(SUM(a."priceCoins"), 0)::bigint as "totalCoinsSpentSum",
         COUNT(*) FILTER (WHERE a.status IN ('done','completed'))::int as "completedActivationsCount",
-        COALESCE(SUM(a."coinsSpent") FILTER (WHERE a.status IN ('done','completed')), 0)::bigint as "completedCoinsSpentSum",
+        COALESCE(SUM(a."priceCoins") FILTER (WHERE a.status IN ('done','completed')), 0)::bigint as "completedCoinsSpentSum",
         COUNT(DISTINCT a."userId")::int as "uniqueUsersCountAll",
         COUNT(DISTINCT a."userId") FILTER (WHERE a.status IN ('done','completed'))::int as "uniqueUsersCountCompleted",
         CURRENT_TIMESTAMP as "updatedAt"

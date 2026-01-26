@@ -1,6 +1,6 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 
-import type { ApiError, Channel, User, Wallet } from '@/types';
+import type { ApiError, Channel, User, Wallet } from '@memalerts/api-contracts';
 
 import { api } from '@/lib/api';
 import { toApiError } from '@/shared/api/toApiError';
@@ -130,3 +130,4 @@ const authSlice = createSlice({
 
 export const { setUnauthenticated, clearError, updateWalletBalance, updateChannelSettings } = authSlice.actions;
 export default authSlice.reducer;
+

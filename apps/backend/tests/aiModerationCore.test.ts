@@ -86,14 +86,9 @@ describe('AI moderation core building blocks', () => {
 
     const cm = await prisma.channelMeme.findFirst({
       where: { channelId: channel.id },
-      select: { title: true, searchText: true, aiAutoDescription: true, aiAutoTagNamesJson: true, memeAssetId: true },
+      select: { title: true, memeAssetId: true },
     });
     expect(cm?.title).toBe('Some meme');
-    expect(typeof cm?.searchText).toBe('string');
-    expect(String(cm?.searchText || '')).toContain('Some meme');
-    expect(String(cm?.searchText || '')).toContain('cat');
-    expect(String(cm?.searchText || '')).toContain('funny');
-    expect(String(cm?.searchText || '')).toContain('A funny cat meme');
 
     const asset = cm?.memeAssetId ? await prisma.memeAsset.findUnique({ where: { id: cm.memeAssetId } }) : null;
     expect(typeof asset?.aiSearchText).toBe('string');

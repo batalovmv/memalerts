@@ -46,11 +46,11 @@ export async function createChannelMemeStats30d(
   overrides: Partial<Prisma.ChannelMemeStats30dUncheckedCreateInput> = {}
 ): Promise<ChannelMemeStats30d> {
   const channelId = overrides.channelId ?? (await createChannel()).id;
-  const memeId = overrides.memeId ?? (await createMeme({ channelId })).id;
+  const channelMemeId = overrides.channelMemeId ?? (await createMeme({ channelId })).id;
   const now = new Date();
   const data: Prisma.ChannelMemeStats30dUncheckedCreateInput = {
     channelId,
-    memeId,
+    channelMemeId,
     windowStart: new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000),
     windowEnd: now,
     totalActivationsCount: 0,

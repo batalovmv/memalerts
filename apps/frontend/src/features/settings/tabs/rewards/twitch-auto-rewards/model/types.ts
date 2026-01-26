@@ -1,4 +1,4 @@
-import type { TwitchAutoRewardsV1 } from '@/types';
+import type { TwitchAutoRewardsV1 } from '@memalerts/api-contracts';
 
 export type KvRow = { key: string; value: string };
 
@@ -24,3 +24,4 @@ export type AutoRewardsEditorProps = {
   disabled?: boolean;
   variant?: AutoRewardsEditorVariant;
 };
+

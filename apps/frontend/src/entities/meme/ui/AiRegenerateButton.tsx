@@ -3,7 +3,7 @@ import toast from 'react-hot-toast';
 
 import { getAiRegenerateCooldownUntilMs, setAiRegenerateCooldownUntilMs } from '../lib/aiRegenerateCooldown';
 
-import type { Meme } from '@/types';
+import type { MemeDetail } from '@memalerts/api-contracts';
 
 import { regenerateMemeAi, getErrorCodeFromError, getRetryAfterSecondsFromError } from '@/shared/api/channel';
 import { isEffectivelyEmptyAiDescription } from '@/shared/lib/aiText';
@@ -18,7 +18,7 @@ function formatCountdown(seconds: number): string {
   return `${mm}:${ss}`;
 }
 
-function getRegenerateKey(meme: Meme): string | null {
+function getRegenerateKey(meme: MemeDetail): string | null {
   const channelId = meme.channelId;
   if (!channelId) return null;
   const primaryId = getMemePrimaryId(meme);
@@ -27,7 +27,7 @@ function getRegenerateKey(meme: Meme): string | null {
 }
 
 export type AiRegenerateButtonProps = {
-  meme: Meme;
+  meme: MemeDetail;
   /**
    * Parent-level gating (streamer/admin-only context). When false, renders nothing.
    */
@@ -129,5 +129,7 @@ export function AiRegenerateButton({ meme, show = true }: AiRegenerateButtonProp
     </Button>
   );
 }
+
+
 
 

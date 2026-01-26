@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next';
 
 import type { SubmissionPreviewState } from '@/features/dashboard/ui/panels/submissions/model/types';
-import type { User } from '@/types';
+import type { User } from '@memalerts/api-contracts';
 
 import { canViewSubmissionAiDescription } from '@/shared/lib/permissions';
 import { IconButton, Modal, Pill } from '@/shared/ui';
@@ -115,3 +115,4 @@ export function SubmissionPreviewModal({ aiEnabled, previewModal, user, onClose 
     </Modal>
   );
 }
+

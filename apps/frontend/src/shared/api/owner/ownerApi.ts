@@ -1,4 +1,4 @@
-import type { BotProvider, Channel, ChannelEntitlement } from '@/types';
+import type { BotProvider, Channel, ChannelEntitlement } from '@memalerts/api-contracts';
 
 import { api } from '@/lib/api';
 
@@ -36,3 +36,4 @@ export async function revokeCustomBotEntitlement(channelId: string): Promise<voi
 export async function grantEntitlementByProvider(provider: string, externalId: string): Promise<ChannelEntitlement> {
   return api.post<ChannelEntitlement>('/owner/entitlements/custom-bot/grant-by-provider', { provider, externalId });
 }
+

@@ -1,6 +1,6 @@
 import type { ChannelInfo } from '@/features/streamer-profile/model/types';
 import type { MemePoolItem } from '@/shared/api/memes';
-import type { Meme } from '@/types';
+import type { MemeDetail } from '@memalerts/api-contracts';
 
 import { api } from '@/lib/api';
 import { getMemePrimaryId } from '@/shared/lib/memeIds';
@@ -15,17 +15,17 @@ export function looksLikeSpaHtml(data: unknown): boolean {
 }
 
 /**
- * Normalize API response to Meme[].
+ * Normalize API response to MemeDetail[].
  * Handles both array responses and { items: [...] } object responses.
  */
-export function extractMemesFromResponse(resp: unknown): Meme[] {
-  if (Array.isArray(resp)) return resp as Meme[];
+export function extractMemesFromResponse(resp: unknown): MemeDetail[] {
+  if (Array.isArray(resp)) return resp as MemeDetail[];
   const rec = toRecord(resp);
-  if (rec && Array.isArray(rec.items)) return rec.items as Meme[];
+  if (rec && Array.isArray(rec.items)) return rec.items as MemeDetail[];
   return [];
 }
 
-export function mergeMemesById(prev: Meme[], next: Meme[]): Meme[] {
+export function mergeMemesById(prev: MemeDetail[], next: MemeDetail[]): MemeDetail[] {
   if (next.length === 0) return prev;
   const nextById = new Map(next.map((m) => [getMemePrimaryId(m), m]));
   const seen = new Set(nextById.keys());
@@ -33,8 +33,8 @@ export function mergeMemesById(prev: Meme[], next: Meme[]): Meme[] {
   return [...next, ...tail];
 }
 
-export function toPoolCardMeme(m: MemePoolItem, fallbackTitle: string): Meme {
-  // Pool items represent MemeAsset (channel-independent). MemeCard expects Meme-like shape.
+export function toPoolCardMeme(m: MemePoolItem, fallbackTitle: string): MemeDetail {
+  // Pool items represent MemeAsset (channel-independent). MemeCard expects MemeDetail-like shape.
   const previewUrl =
     typeof (m as unknown as { previewUrl?: unknown }).previewUrl === 'string'
       ? ((m as unknown as { previewUrl: string }).previewUrl || '').trim() || null
@@ -45,20 +45,20 @@ export function toPoolCardMeme(m: MemePoolItem, fallbackTitle: string): Meme {
     previewUrl ||
     '';
   const variants = Array.isArray((m as unknown as { variants?: unknown }).variants)
-    ? ((m as unknown as { variants: Meme['variants'] }).variants ?? undefined)
+    ? ((m as unknown as { variants: MemeDetail['variants'] }).variants ?? undefined)
     : undefined;
   const tags = Array.isArray((m as unknown as { tags?: unknown }).tags)
-    ? ((m as unknown as { tags: Meme['tags'] }).tags ?? undefined)
+    ? ((m as unknown as { tags: MemeDetail['tags'] }).tags ?? undefined)
     : undefined;
   const aiAutoTagNames = Array.isArray((m as unknown as { aiAutoTagNames?: unknown }).aiAutoTagNames)
-    ? ((m as unknown as { aiAutoTagNames: Meme['aiAutoTagNames'] }).aiAutoTagNames ?? undefined)
+    ? ((m as unknown as { aiAutoTagNames: MemeDetail['aiAutoTagNames'] }).aiAutoTagNames ?? undefined)
     : undefined;
 
   const title =
     typeof m.sampleTitle === 'string' && m.sampleTitle.trim() ? m.sampleTitle.trim() : typeof fallbackTitle === 'string' ? fallbackTitle : '';
   const priceCoins = typeof m.samplePriceCoins === 'number' && Number.isFinite(m.samplePriceCoins) ? m.samplePriceCoins : 0;
   const durationMs = typeof m.durationMs === 'number' && Number.isFinite(m.durationMs) ? m.durationMs : 0;
-  const type = (m.type as Meme['type'] | undefined) || 'video';
+  const type = (m.type as MemeDetail['type'] | undefined) || 'video';
 
   // Prefer explicit memeAssetId, fallback to id.
   const memeAssetId =
@@ -73,10 +73,12 @@ export function toPoolCardMeme(m: MemePoolItem, fallbackTitle: string): Meme {
     title,
     type,
     previewUrl,
-    variants,
+    variants: variants ?? [],
     fileUrl,
     priceCoins,
     durationMs,
+    activationsCount: 0,
+    createdAt: new Date().toISOString(),
     tags,
     aiAutoTagNames,
   };
@@ -89,7 +91,7 @@ export async function fetchMemesPool(opts: {
   tags?: string;
   channelSlug?: string;
   timeoutMs?: number;
-}): Promise<Meme[]> {
+}): Promise<MemeDetail[]> {
   const params = new URLSearchParams();
   params.set('limit', String(opts.limit));
   params.set('offset', String(opts.offset));
@@ -216,3 +218,5 @@ export function normalizeChannelInfo(raw: unknown, fallbackSlug: string): Channe
     stats: { memesCount, usersCount },
   };
 }
+
+

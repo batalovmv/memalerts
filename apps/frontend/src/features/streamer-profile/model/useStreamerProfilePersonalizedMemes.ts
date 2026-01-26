@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 
 import type { ChannelInfo } from '@/features/streamer-profile/model/types';
-import type { Meme } from '@/types';
+import type { MemeDetail } from '@memalerts/api-contracts';
 
 import { getPersonalizedMemes, getTasteProfile, type TasteProfileTopTag } from '@/shared/api';
 
@@ -14,7 +14,7 @@ type UseStreamerProfilePersonalizedMemesParams = {
 };
 
 type UseStreamerProfilePersonalizedMemesState = {
-  memes: Meme[];
+  memes: MemeDetail[];
   loading: boolean;
   profileReady: boolean;
   totalActivations: number;
@@ -29,7 +29,7 @@ export function useStreamerProfilePersonalizedMemes({
   reloadNonce,
   limit,
 }: UseStreamerProfilePersonalizedMemesParams): UseStreamerProfilePersonalizedMemesState {
-  const [memes, setMemes] = useState<Meme[]>([]);
+  const [memes, setMemes] = useState<MemeDetail[]>([]);
   const [loading, setLoading] = useState(false);
   const [profileReady, setProfileReady] = useState(false);
   const [totalActivations, setTotalActivations] = useState(0);
@@ -91,3 +91,5 @@ export function useStreamerProfilePersonalizedMemes({
 
   return { memes, loading, profileReady, totalActivations, topTags, mode };
 }
+
+

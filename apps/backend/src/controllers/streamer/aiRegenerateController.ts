@@ -73,7 +73,6 @@ export const aiRegenerateController = {
         memeAssetId: true,
         title: true,
         createdAt: true,
-        aiAutoDescription: true,
         memeAsset: {
           select: {
             id: true,
@@ -81,6 +80,7 @@ export const aiRegenerateController = {
             fileUrl: true,
             fileHash: true,
             durationMs: true,
+            aiAutoDescription: true,
           },
         },
       },
@@ -94,7 +94,7 @@ export const aiRegenerateController = {
       });
     }
 
-    if (!isEffectivelyEmptyAiDescription(cm.aiAutoDescription, cm.title)) {
+    if (!isEffectivelyEmptyAiDescription(cm.memeAsset?.aiAutoDescription, cm.title)) {
       return res.status(400).json({
         errorCode: 'AI_REGENERATE_NOT_ALLOWED',
         error: 'AI regenerate is allowed only when aiAutoDescription is empty',

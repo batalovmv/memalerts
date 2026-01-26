@@ -49,42 +49,22 @@ function computeTopTags(map: WeightMap, limit = 20): TopTag[] {
 }
 
 async function resolveTagsForActivation(opts: {
-  memeId: string;
   channelMemeId?: string | null;
 }): Promise<Array<{ tagId: string; name: string; categorySlug: string | null }>> {
-  const { memeId, channelMemeId } = opts;
-
-  const tagged = await prisma.memeTag.findMany({
-    where: { memeId },
-    select: {
-      tagId: true,
-      tag: { select: { name: true, category: { select: { slug: true } } } },
-    },
-  });
-
-  if (tagged.length > 0) {
-    return tagged.map((row) => ({
-      tagId: row.tagId,
-      name: row.tag.name,
-      categorySlug: row.tag.category?.slug ?? null,
-    }));
-  }
+  const { channelMemeId } = opts;
 
   if (!channelMemeId) return [];
 
   const channelMeme = await prisma.channelMeme.findUnique({
     where: { id: channelMemeId },
     select: {
-      aiAutoTagNamesJson: true,
-      memeAsset: { select: { aiAutoTagNamesJson: true } },
+      memeAsset: { select: { aiAutoTagNames: true } },
     },
   });
 
-  const aiTagsRaw = Array.isArray(channelMeme?.aiAutoTagNamesJson)
-    ? (channelMeme?.aiAutoTagNamesJson as unknown[]).map((t) => String(t ?? '')).filter(Boolean)
-    : Array.isArray(channelMeme?.memeAsset?.aiAutoTagNamesJson)
-      ? (channelMeme?.memeAsset?.aiAutoTagNamesJson as unknown[]).map((t) => String(t ?? '')).filter(Boolean)
-      : [];
+  const aiTagsRaw = Array.isArray(channelMeme?.memeAsset?.aiAutoTagNames)
+    ? channelMeme.memeAsset.aiAutoTagNames.map((t) => String(t ?? '')).filter(Boolean)
+    : [];
 
   if (aiTagsRaw.length === 0) return [];
 
@@ -101,11 +81,11 @@ async function resolveTagsForActivation(opts: {
 }
 
 export const TasteProfileService = {
-  async recordActivation(opts: { userId: string; memeId: string; channelMemeId?: string | null }): Promise<void> {
-    const { userId, memeId, channelMemeId } = opts;
-    if (!userId || !memeId) return;
+  async recordActivation(opts: { userId: string; channelMemeId?: string | null }): Promise<void> {
+    const { userId, channelMemeId } = opts;
+    if (!userId || !channelMemeId) return;
 
-    const tags = await resolveTagsForActivation({ memeId, channelMemeId });
+    const tags = await resolveTagsForActivation({ channelMemeId });
     if (tags.length === 0) return;
 
     const uniqueTags = Array.from(

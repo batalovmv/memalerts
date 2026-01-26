@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import reducer, { activateMeme, clearError, clearMemes, fetchMemes } from './memesSlice';
 
-import type { Meme } from '@/types';
+import type { MemeDetail } from '@memalerts/api-contracts';
 import { api } from '@/lib/api';
 
 describe('memesSlice reducer', () => {
@@ -12,7 +12,7 @@ describe('memesSlice reducer', () => {
   });
 
   it('clearMemes empties memes list', () => {
-    const prev = { memes: [{ id: 'm1' } as Meme], loading: false, error: null };
+    const prev = { memes: [{ id: 'm1' } as MemeDetail], loading: false, error: null };
     const next = reducer(prev, clearMemes());
     expect(next.memes).toEqual([]);
   });
@@ -25,9 +25,31 @@ describe('memesSlice reducer', () => {
 
   it('fetchMemes.fulfilled stores payload', () => {
     const prev = reducer(undefined, { type: 'init' });
-    const payload: Meme[] = [
-      { id: 'm1', title: 'A', type: 'gif', fileUrl: '/x', priceCoins: 1, durationMs: 1000 },
-      { id: 'm2', title: 'B', type: 'image', fileUrl: '/y', priceCoins: 2, durationMs: 2000 },
+    const payload: MemeDetail[] = [
+      {
+        id: 'm1',
+        title: 'A',
+        type: 'gif',
+        fileUrl: '/x',
+        previewUrl: null,
+        variants: [],
+        priceCoins: 1,
+        durationMs: 1000,
+        activationsCount: 0,
+        createdAt: '2024-01-01T00:00:00.000Z',
+      },
+      {
+        id: 'm2',
+        title: 'B',
+        type: 'image',
+        fileUrl: '/y',
+        previewUrl: null,
+        variants: [],
+        priceCoins: 2,
+        durationMs: 2000,
+        activationsCount: 0,
+        createdAt: '2024-01-01T00:00:00.000Z',
+      },
     ];
     const next = reducer(prev, fetchMemes.fulfilled(payload, 'req1', { channelId: 'c1' }));
     expect(next.loading).toBe(false);
@@ -47,6 +69,8 @@ describe('memesSlice reducer', () => {
     postSpy.mockRestore();
   });
 });
+
+
 
 
 

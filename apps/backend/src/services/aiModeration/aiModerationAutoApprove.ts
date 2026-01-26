@@ -9,14 +9,13 @@ type AutoApproveArgs = {
   submission: AiModerationSubmission;
   fileUrl: string;
   fileHash: string;
-  contentHash?: string | null;
   durationMs: number | null;
   pipeline: AiModerationPipelineResult;
   canonicalTagNames?: string[];
 };
 
 export async function maybeAutoApproveSubmission(opts: AutoApproveArgs): Promise<void> {
-  const { submission, fileUrl, fileHash, contentHash, durationMs, pipeline, canonicalTagNames } = opts;
+  const { submission, fileUrl, fileHash, durationMs, pipeline, canonicalTagNames } = opts;
   const autoApproveEnabled =
     parseBool(process.env.AI_AUTO_APPROVE_ENABLED) || parseBool(process.env.AI_LOW_AUTOPROVE_ENABLED);
   if (!autoApproveEnabled) return;
@@ -31,23 +30,10 @@ export async function maybeAutoApproveSubmission(opts: AutoApproveArgs): Promise
   if (submitter?.role !== 'viewer') return;
 
   const existingAsset = await prisma.memeAsset.findFirst({
-    where: contentHash ? { contentHash } : { fileHash },
-    select: {
-      id: true,
-      poolVisibility: true,
-      poolHiddenByUserId: true,
-      poolHiddenReason: true,
-      purgeRequestedAt: true,
-      purgedAt: true,
-    },
+    where: { fileHash },
+    select: { id: true, status: true, deletedAt: true },
   });
-  const blocked =
-    !!existingAsset?.purgeRequestedAt ||
-    !!existingAsset?.purgedAt ||
-    (String(existingAsset?.poolVisibility || '') === 'hidden' &&
-      !(String(existingAsset?.poolHiddenReason || '').startsWith('ai:') && !existingAsset?.poolHiddenByUserId));
-
-  if (blocked) return;
+  if (existingAsset && existingAsset.status !== 'active') return;
 
   const channel = await prisma.channel.findUnique({
     where: { id: submission.channelId },
@@ -67,17 +53,16 @@ export async function maybeAutoApproveSubmission(opts: AutoApproveArgs): Promise
   const resolvedTagNames = Array.isArray(canonicalTagNames) && canonicalTagNames.length > 0 ? canonicalTagNames : pipeline.autoTags;
 
   await prisma.$transaction(async (tx) => {
-    const res = await approveSubmissionInternal({
-      tx,
-      submissionId: submission.id,
-      approvedByUserId: null,
-      resolved: {
-        finalFileUrl: fileUrl,
-        fileHash,
-        contentHash: contentHash ?? null,
-        durationMs,
-        priceCoins,
-        tagNames: resolvedTagNames,
+      const res = await approveSubmissionInternal({
+        tx,
+        submissionId: submission.id,
+        approvedByUserId: null,
+        resolved: {
+          finalFileUrl: fileUrl,
+          fileHash,
+          durationMs,
+          priceCoins,
+          tagNames: resolvedTagNames,
       },
     });
 

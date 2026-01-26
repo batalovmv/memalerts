@@ -1,13 +1,13 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 
-import type { ApiError, Meme } from '@/types';
+import type { ApiError, MemeDetail } from '@memalerts/api-contracts';
 
 import { api } from '@/lib/api';
 import { toApiError } from '@/shared/api/toApiError';
 import { createIdempotencyKey } from '@/shared/lib/idempotency';
 
 export interface MemesState {
-  memes: Meme[];
+  memes: MemeDetail[];
   loading: boolean;
   error: string | null;
 }
@@ -19,13 +19,13 @@ const initialState: MemesState = {
 };
 
 export const fetchMemes = createAsyncThunk<
-  Meme[],
+  MemeDetail[],
   { channelId?: string | null },
   { rejectValue: ApiError }
 >('memes/fetchMemes', async ({ channelId }, { rejectWithValue }) => {
   try {
     const params = channelId ? { channelId } : {};
-    const memes = await api.get<Meme[]>('/memes', { params });
+    const memes = await api.get<MemeDetail[]>('/memes', { params });
     return memes;
   } catch (error: unknown) {
     return rejectWithValue(toApiError(error, 'Failed to fetch memes'));
@@ -47,7 +47,7 @@ export const activateMeme = createAsyncThunk<
   { rejectValue: ApiError }
 >('memes/activateMeme', async ({ id, channelSlug, channelId }, { rejectWithValue }) => {
   try {
-    // Backend accepts both legacy Meme.id and ChannelMeme.id.
+    // Backend accepts both legacy Meme id and ChannelMeme id.
     const params = channelSlug ? { channelSlug } : channelId ? { channelId } : undefined;
     const idempotencyKey = createIdempotencyKey();
     await api.post(
@@ -94,3 +94,5 @@ const memesSlice = createSlice({
 
 export const { clearError, clearMemes } = memesSlice.actions;
 export default memesSlice.reducer;
+
+

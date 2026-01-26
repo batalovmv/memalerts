@@ -10,7 +10,7 @@ import { server } from '@/test/msw/server';
 import { mockAuthAccountDeleteOk, mockAuthAccounts } from '@/test/msw/handlers';
 import { makeViewerUser } from '@/test/fixtures/user';
 
-import type { User } from '@/types';
+import type { User } from '@memalerts/api-contracts';
 
 vi.mock('@/shared/auth/useAuthQueryErrorToast', () => ({
   useAuthQueryErrorToast: () => {},
@@ -80,6 +80,7 @@ describe('AccountsSettings (integration)', () => {
     confirmSpy.mockRestore();
   });
 });
+
 
 
 

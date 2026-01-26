@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import type { User } from '@/types';
+import type { User } from '@memalerts/api-contracts';
 
 import { useDebounce } from '@/shared/lib/hooks';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
@@ -152,3 +152,4 @@ export function useDashboardSubmissions({ user }: UseDashboardSubmissionsOptions
     refreshPending,
   };
 }
+

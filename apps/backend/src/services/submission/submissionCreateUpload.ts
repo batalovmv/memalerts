@@ -8,14 +8,12 @@ import { logSecurityEvent } from '../../utils/auditLogger.js';
 import { getVideoMetadata } from '../../utils/videoValidator.js';
 import { transcodeToFormat } from '../../utils/media/videoNormalization.js';
 import { VIDEO_FORMATS } from '../../utils/media/videoFormats.js';
-import { computeContentHash } from '../../utils/media/contentHash.js';
 import { logger } from '../../utils/logger.js';
 import { localPathToPublicUploadsPath, resolveUploadFilePath, safeUnlink } from './submissionShared.js';
 
 export type SubmissionUploadResult = {
   finalFilePath: string;
   fileHash: string | null;
-  contentHash: string | null;
   normalizedMimeType: string;
   normalizedSizeBytes: number;
   effectiveDurationMs: number | null;
@@ -124,9 +122,7 @@ export async function processSubmissionUpload(opts: {
   let normalizedDurationMs: number | null = null;
   let normalizedPublicPath: string | null = null;
   let normalizedFileHash: string | null = null;
-  let contentHash: string | null = null;
   try {
-    contentHash = await computeContentHash(filePath);
     const baseName = `upload-${Date.now()}-${Math.round(Math.random() * 1e9)}`;
     const outputDir = fs.realpathSync(path.dirname(filePath));
     const normalized = await transcodeToFormat(filePath, outputDir, 'mp4', baseName);
@@ -214,7 +210,6 @@ export async function processSubmissionUpload(opts: {
   return {
     finalFilePath,
     fileHash,
-    contentHash,
     normalizedMimeType,
     normalizedSizeBytes,
     effectiveDurationMs,

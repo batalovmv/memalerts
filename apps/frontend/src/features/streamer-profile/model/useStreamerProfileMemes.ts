@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import type { ChannelInfo } from '@/features/streamer-profile/model/types';
-import type { Meme, User } from '@/types';
+import type { MemeDetail, User } from '@memalerts/api-contracts';
 import type { MutableRefObject } from 'react';
 
 import {
@@ -23,7 +23,7 @@ const normalizeSearchQuery = (value: string): string =>
     .replace(/\s+/g, ' ')
     .trim();
 
-const extractTagNames = (meme: Meme): string[] => {
+const extractTagNames = (meme: MemeDetail): string[] => {
   const names = new Set<string>();
   if (Array.isArray(meme.aiAutoTagNames)) {
     meme.aiAutoTagNames.forEach((tag) => {
@@ -32,7 +32,7 @@ const extractTagNames = (meme: Meme): string[] => {
   }
   if (Array.isArray(meme.tags)) {
     meme.tags.forEach((item) => {
-      const name = item?.tag?.name;
+      const name = item?.name;
       if (typeof name === 'string' && name.trim()) names.add(name.trim().toLowerCase());
     });
   }
@@ -58,7 +58,7 @@ const scoreTextMatch = (text: string, term: string, tokens: string[]): number =>
   return best;
 };
 
-const scoreMemeMatch = (meme: Meme, term: string, tokens: string[]): number => {
+const scoreMemeMatch = (meme: MemeDetail, term: string, tokens: string[]): number => {
   const titleScore = scoreTextMatch(meme.title || '', term, tokens) * 2;
   const descScore =
     typeof meme.aiAutoDescription === 'string'
@@ -75,7 +75,7 @@ const scoreMemeMatch = (meme: Meme, term: string, tokens: string[]): number => {
   return tagScore * 3 + titleScore + descScore;
 };
 
-const rankSearchResults = (items: Meme[], query: string): Meme[] => {
+const rankSearchResults = (items: MemeDetail[], query: string): MemeDetail[] => {
   const normalized = normalizeSearchQuery(query);
   if (!normalized) return items;
   const tokens = normalized.split(' ').filter(Boolean);
@@ -103,7 +103,7 @@ type UseStreamerProfileMemesParams = {
 };
 
 type UseStreamerProfileMemesState = {
-  memes: Meme[];
+  memes: MemeDetail[];
   memesLoading: boolean;
   loadingMore: boolean;
   hasMore: boolean;
@@ -112,7 +112,7 @@ type UseStreamerProfileMemesState = {
   setSearchQuery: (next: string) => void;
   tagFilter: string;
   setTagFilter: (next: string) => void;
-  searchResults: Meme[];
+  searchResults: MemeDetail[];
   isSearching: boolean;
   hasAiProcessing: boolean;
 };
@@ -129,12 +129,12 @@ export function useStreamerProfileMemes({
   trendingScope,
   trendingPeriod,
 }: UseStreamerProfileMemesParams): UseStreamerProfileMemesState {
-  const [memes, setMemes] = useState<Meme[]>([]);
+  const [memes, setMemes] = useState<MemeDetail[]>([]);
   const [memesLoading, setMemesLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [memesOffset, setMemesOffset] = useState(0);
-  const [searchResults, setSearchResults] = useState<Meme[]>([]);
+  const [searchResults, setSearchResults] = useState<MemeDetail[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [tagFilter, setTagFilter] = useState('');
@@ -145,7 +145,7 @@ export function useStreamerProfileMemes({
     Map<
       string,
       {
-        items: Meme[];
+        items: MemeDetail[];
         offset: number;
         hasMore: boolean;
         timestamp: number;
@@ -213,7 +213,7 @@ export function useStreamerProfileMemes({
       const channelMemeId = ce.detail?.channelMemeId;
       if (!assetId && !channelMemeId) return;
 
-      const matches = (meme: Meme) => {
+      const matches = (meme: MemeDetail) => {
         const memeAssetId =
           typeof meme.memeAssetId === 'string' && meme.memeAssetId ? meme.memeAssetId : meme.id;
         const memeChannelId =
@@ -221,7 +221,7 @@ export function useStreamerProfileMemes({
         return (assetId && memeAssetId === assetId) || (channelMemeId && memeChannelId === channelMemeId);
       };
 
-      const applyUpdate = (items: Meme[]) =>
+      const applyUpdate = (items: MemeDetail[]) =>
         items.flatMap((meme) => {
           if (!matches(meme)) return [meme];
           const next = { ...meme };
@@ -429,7 +429,7 @@ export function useStreamerProfileMemes({
     setLoadingMore(true);
     try {
       const nextOffset = memesOffset + MEMES_PER_PAGE;
-      let newMemes: Meme[] = [];
+      let newMemes: MemeDetail[] = [];
       const channelSlug = String(channelInfo.slug || normalizedSlug).toLowerCase();
       if (isListMode) {
         const listParams = new URLSearchParams();
@@ -806,3 +806,5 @@ export function useStreamerProfileMemes({
     hasAiProcessing,
   };
 }
+
+

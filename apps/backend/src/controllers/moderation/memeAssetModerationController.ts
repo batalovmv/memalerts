@@ -35,23 +35,13 @@ function buildAiSearchText(args: {
 }
 
 type MemeAssetModerationRow = {
-  poolHiddenReason?: string | null;
-  poolHiddenByUserId?: string | null;
-  purgeByUserId?: string | null;
-  hiddenBy?: { id: string; displayName: string } | null;
-  purgedBy?: { id: string; displayName: string } | null;
+  status?: string | null;
 } & Record<string, unknown>;
 
 function toMemeAssetModerationDto(row: MemeAssetModerationRow) {
-  return {
-    ...row,
-    // Stable, UI-friendly aliases (keep existing poolHidden*/purge* fields for backward compatibility)
-    hiddenReason: row.poolHiddenReason ?? null,
-    hiddenByUserId: row.poolHiddenByUserId ?? null,
-    purgeRequestedByUserId: row.purgeByUserId ?? null,
-    hiddenBy: row.hiddenBy ?? null,
-    purgeRequestedBy: row.purgedBy ?? null,
-  };
+  const status = String(row.status || '');
+  const poolVisibility = status === 'hidden' ? 'hidden' : status === 'active' ? 'visible' : 'hidden';
+  return { ...row, poolVisibility };
 }
 
 export const moderationMemeAssetController = {
@@ -69,14 +59,11 @@ export const moderationMemeAssetController = {
 
     const where: Prisma.MemeAssetWhereInput = {};
     if (status === 'hidden') {
-      where.poolVisibility = 'hidden';
-      where.purgeRequestedAt = null;
-      where.purgedAt = null;
+      where.status = 'hidden';
     } else if (status === 'quarantine') {
-      where.purgeRequestedAt = { not: null };
-      where.purgedAt = null;
+      where.status = 'quarantined';
     } else if (status === 'purged') {
-      where.purgedAt = { not: null };
+      where.status = 'deleted';
     } else if (status === 'all') {
       // no additional filters
     } else {
@@ -89,8 +76,7 @@ export const moderationMemeAssetController = {
     if (q) {
       where.OR = [
         { fileHash: { equals: q } },
-        { poolHiddenReason: { contains: q, mode: 'insensitive' } },
-        { purgeReason: { contains: q, mode: 'insensitive' } },
+        { fileUrl: { contains: q, mode: 'insensitive' } },
       ];
     }
 
@@ -109,17 +95,10 @@ export const moderationMemeAssetController = {
           fileHash: true,
           durationMs: true,
           createdAt: true,
-          poolVisibility: true,
-          poolHiddenAt: true,
-          poolHiddenByUserId: true,
-          poolHiddenReason: true,
-          purgeRequestedAt: true,
-          purgeNotBefore: true,
-          purgedAt: true,
-          purgeReason: true,
-          purgeByUserId: true,
-          hiddenBy: { select: { id: true, displayName: true } },
-          purgedBy: { select: { id: true, displayName: true } },
+          status: true,
+          hiddenAt: true,
+          quarantinedAt: true,
+          deletedAt: true,
         },
       }),
     ]);
@@ -141,18 +120,15 @@ export const moderationMemeAssetController = {
       const updated = await prisma.memeAsset.update({
         where: { id },
         data: {
-          poolVisibility: 'hidden',
-          poolHiddenAt: new Date(),
-          poolHiddenByUserId: req.userId!,
-          poolHiddenReason: reason,
+          status: 'hidden',
+          hiddenAt: new Date(),
         },
         select: {
           id: true,
-          poolVisibility: true,
-          poolHiddenAt: true,
-          poolHiddenByUserId: true,
-          poolHiddenReason: true,
-          hiddenBy: { select: { id: true, displayName: true } },
+          status: true,
+          hiddenAt: true,
+          quarantinedAt: true,
+          deletedAt: true,
         },
       });
 
@@ -188,22 +164,15 @@ export const moderationMemeAssetController = {
       const updated = await prisma.memeAsset.update({
         where: { id },
         data: {
-          poolVisibility: 'visible',
-          poolHiddenAt: null,
-          poolHiddenByUserId: null,
-          poolHiddenReason: null,
+          status: 'active',
+          hiddenAt: null,
         },
         select: {
           id: true,
-          poolVisibility: true,
-          poolHiddenAt: true,
-          poolHiddenByUserId: true,
-          poolHiddenReason: true,
-          purgeRequestedAt: true,
-          purgeNotBefore: true,
-          purgedAt: true,
-          hiddenBy: { select: { id: true, displayName: true } },
-          purgedBy: { select: { id: true, displayName: true } },
+          status: true,
+          hiddenAt: true,
+          quarantinedAt: true,
+          deletedAt: true,
         },
       });
 
@@ -231,8 +200,7 @@ export const moderationMemeAssetController = {
   },
 
   // POST /moderation/meme-assets/:id/delete  body: { reason?: string, days?: number }
-  // "Delete" = quarantine (sets purgeRequestedAt/purgeNotBefore) + hide from pool immediately.
-  // Final purge is performed by background job after purgeNotBefore (and can be restored by admin before/after).
+  // Marks asset deleted and hides it immediately.
   del: async (req: AuthRequest, res: Response) => {
     const id = String(req.params.id || '');
     const body = (req.body ?? {}) as Record<string, unknown>;
@@ -248,42 +216,29 @@ export const moderationMemeAssetController = {
     const days = clampInt(daysNum, 3, 90, getDefaultQuarantineDays());
 
     const now = new Date();
-    const purgeNotBefore = new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
     const { ipAddress, userAgent } = getRequestMetadata(req);
 
     try {
       const updated = await prisma.memeAsset.update({
         where: { id },
         data: {
-          poolVisibility: 'hidden',
-          poolHiddenAt: now,
-          poolHiddenByUserId: req.userId!,
-          ...(reason ? { poolHiddenReason: reason } : {}),
-          purgeRequestedAt: now,
-          purgeNotBefore,
-          purgeReason: reason,
-          purgeByUserId: req.userId!,
+          status: 'deleted',
+          deletedAt: now,
+          hiddenAt: now,
         },
         select: {
           id: true,
-          poolVisibility: true,
-          poolHiddenAt: true,
-          poolHiddenByUserId: true,
-          poolHiddenReason: true,
-          purgeRequestedAt: true,
-          purgeNotBefore: true,
-          purgedAt: true,
-          purgeReason: true,
-          purgeByUserId: true,
-          hiddenBy: { select: { id: true, displayName: true } },
-          purgedBy: { select: { id: true, displayName: true } },
+          status: true,
+          hiddenAt: true,
+          quarantinedAt: true,
+          deletedAt: true,
         },
       });
 
       await auditLog({
         action: 'moderation.memeAsset.delete',
         actorId: req.userId!,
-        payload: { memeAssetId: id, days, purgeNotBefore, reason },
+        payload: { memeAssetId: id, days, reason },
         ipAddress,
         userAgent,
         success: true,
@@ -293,7 +248,7 @@ export const moderationMemeAssetController = {
       await auditLog({
         action: 'moderation.memeAsset.delete',
         actorId: req.userId || null,
-        payload: { memeAssetId: id, days, purgeNotBefore, reason },
+        payload: { memeAssetId: id, days, reason },
         ipAddress,
         userAgent,
         success: false,
@@ -320,7 +275,7 @@ export const moderationMemeAssetController = {
       const existing = await prisma.memeAsset.findUnique({
         where: { id },
         select: {
-          aiAutoTagNamesJson: true,
+          aiAutoTagNames: true,
           aiAutoDescription: true,
           aiTranscript: true,
         },
@@ -338,10 +293,8 @@ export const moderationMemeAssetController = {
         return res.status(404).json({ errorCode: 'NOT_FOUND', error: 'Not found', requestId: req.requestId });
       }
 
-      const tagNames = Array.isArray(existing.aiAutoTagNamesJson)
-        ? (existing.aiAutoTagNamesJson as unknown[])
-            .filter((tag): tag is string => typeof tag === 'string' && tag.trim().length > 0)
-            .map((tag) => tag.trim())
+      const tagNames = Array.isArray(existing.aiAutoTagNames)
+        ? existing.aiAutoTagNames.filter((tag) => typeof tag === 'string' && tag.trim().length > 0)
         : [];
       const aiSearchText = buildAiSearchText({
         title,

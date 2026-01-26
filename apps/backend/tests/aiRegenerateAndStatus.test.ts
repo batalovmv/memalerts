@@ -63,6 +63,8 @@ describe('AI regenerate + AI status', () => {
       durationMs: 1000,
       aiStatus: 'done',
       aiAutoTitle: 'AI title',
+      aiAutoDescription: 'desc',
+      aiAutoTagNames: ['x', 'y'],
     });
 
     const channelMemeData = {
@@ -72,8 +74,6 @@ describe('AI regenerate + AI status', () => {
       priceCoins: 100,
       status: 'approved',
       deletedAt: null,
-      aiAutoDescription: 'desc',
-      aiAutoTagNamesJson: ['x', 'y'],
     } satisfies Prisma.ChannelMemeCreateInput;
     await createChannelMeme(channelMemeData);
 
@@ -108,6 +108,7 @@ describe('AI regenerate + AI status', () => {
       fileUrl: '/uploads/memes/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.mp4',
       fileHash: 'b'.repeat(64),
       durationMs: 1200,
+      aiAutoDescription: null,
     });
 
     const tooSoonData = {
@@ -117,7 +118,6 @@ describe('AI regenerate + AI status', () => {
       priceCoins: 100,
       status: 'approved',
       deletedAt: null,
-      aiAutoDescription: null,
       createdAt: new Date(Date.now() - 60_000),
     } satisfies Prisma.ChannelMemeCreateInput;
     const tooSoon = await createChannelMeme(tooSoonData);
@@ -138,6 +138,7 @@ describe('AI regenerate + AI status', () => {
       fileUrl: '/uploads/memes/cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc.mp4',
       fileHash: 'c'.repeat(64),
       durationMs: 1200,
+      aiAutoDescription: null,
     });
 
     const okData = {
@@ -147,7 +148,6 @@ describe('AI regenerate + AI status', () => {
       priceCoins: 100,
       status: 'approved',
       deletedAt: null,
-      aiAutoDescription: null,
       createdAt: new Date(Date.now() - 6 * 60_000),
     } satisfies Prisma.ChannelMemeCreateInput;
     const ok = await createChannelMeme(okData);
@@ -179,9 +179,16 @@ describe('AI regenerate + AI status', () => {
     const streamer = await createUser({ displayName: 'S', role: 'streamer', channelId: channel.id });
     const token = makeJwt({ userId: streamer.id, role: streamer.role, channelId: channel.id });
 
+    const otherAsset = await createMemeAsset({
+      type: 'video',
+      fileUrl: `/uploads/memes/${Date.now()}-other.mp4`,
+      fileHash: `hash-${Date.now()}-other`,
+      durationMs: 1200,
+      aiAutoDescription: null,
+    });
     const otherMeme = await createChannelMeme({
       channelId: otherChannel.id,
-      aiAutoDescription: null,
+      memeAssetId: otherAsset.id,
       createdAt: new Date(Date.now() - 6 * 60_000),
     });
 
@@ -207,6 +214,7 @@ describe('AI regenerate + AI status', () => {
       fileUrl: '/uploads/memes/dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd.mp4',
       fileHash: 'd'.repeat(64),
       durationMs: 1200,
+      aiAutoDescription: 'Мем',
     });
 
     const placeholderData = {
@@ -216,7 +224,6 @@ describe('AI regenerate + AI status', () => {
       priceCoins: 100,
       status: 'approved',
       deletedAt: null,
-      aiAutoDescription: 'Мем',
       createdAt: new Date(Date.now() - 6 * 60_000),
     } satisfies Prisma.ChannelMemeCreateInput;
     const cm = await createChannelMeme(placeholderData);
@@ -243,6 +250,7 @@ describe('AI regenerate + AI status', () => {
       fileUrl: '/uploads/memes/eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee.mp4',
       fileHash: 'e'.repeat(64),
       durationMs: 1200,
+      aiAutoDescription: 'test',
     });
 
     const duplicateData = {
@@ -252,7 +260,6 @@ describe('AI regenerate + AI status', () => {
       priceCoins: 100,
       status: 'approved',
       deletedAt: null,
-      aiAutoDescription: 'test',
       createdAt: new Date(Date.now() - 6 * 60_000),
     } satisfies Prisma.ChannelMemeCreateInput;
     const cm = await createChannelMeme(duplicateData);
@@ -279,6 +286,7 @@ describe('AI regenerate + AI status', () => {
       fileUrl: '/uploads/memes/ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff.mp4',
       fileHash: 'f'.repeat(64),
       durationMs: 1200,
+      aiAutoDescription: 'This is a real description',
     });
 
     const realDescData = {
@@ -288,7 +296,6 @@ describe('AI regenerate + AI status', () => {
       priceCoins: 100,
       status: 'approved',
       deletedAt: null,
-      aiAutoDescription: 'This is a real description',
       createdAt: new Date(Date.now() - 6 * 60_000),
     } satisfies Prisma.ChannelMemeCreateInput;
     const cm = await createChannelMeme(realDescData);

@@ -6,7 +6,7 @@ import { MemeModalInfo } from './MemeModal/MemeModalInfo';
 import { MemeModalVideo } from './MemeModal/MemeModalVideo';
 import { useMemeModalPlayback } from './MemeModal/useMemeModalPlayback';
 
-import type { Meme } from '@/types';
+import type { MemeDetail } from '@memalerts/api-contracts';
 
 import { api } from '@/lib/api';
 import { resolveMediaUrl } from '@/lib/urls';
@@ -17,7 +17,7 @@ import { Modal } from '@/shared/ui/Modal/Modal';
 import ConfirmDialog from '@/shared/ui/modals/ConfirmDialog';
 import { useAppSelector } from '@/store/hooks';
 interface MemeModalProps {
-  meme: Meme | null;
+  meme: MemeDetail | null;
   isOpen: boolean;
   onClose: () => void;
   onUpdate: () => void;
@@ -51,7 +51,7 @@ const MemeModal = memo(function MemeModal({
   const isAuthed = Boolean(userId);
 
   const [isEditing, setIsEditing] = useState(false);
-  const [currentMeme, setCurrentMeme] = useState<Meme | null>(meme);
+  const [currentMeme, setCurrentMeme] = useState<MemeDetail | null>(meme);
   const [formData, setFormData] = useState({
     title: '',
     priceCoins: 0,
@@ -209,7 +209,7 @@ const MemeModal = memo(function MemeModal({
     e.preventDefault();
     setLoading(true);
     try {
-      const response = await api.patch<Meme>(`/streamer/memes/${currentMeme.id}`, formData);
+      const response = await api.patch<MemeDetail>(`/streamer/memes/${currentMeme.id}`, formData);
       setCurrentMeme(response);
       toast.success('Meme updated successfully!');
       setIsEditing(false);
@@ -257,7 +257,7 @@ const MemeModal = memo(function MemeModal({
               memeId: primaryId,
               // Prefer explicit legacy id from backend DTO; otherwise fall back to "id differs from primary".
               legacyMemeId:
-                (currentMeme as Meme).legacyMemeId ||
+                (currentMeme as MemeDetail).legacyMemeId ||
                 (currentMeme.id !== primaryId ? currentMeme.id : undefined),
               channelId: currentMeme.channelId,
             },
@@ -525,3 +525,5 @@ const MemeModal = memo(function MemeModal({
 });
 
 export default MemeModal;
+
+

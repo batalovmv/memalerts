@@ -164,7 +164,7 @@ describe('AI moderation service', () => {
       aiStatus: 'done',
       aiAutoTitle: 'Auto Title',
       aiAutoDescription: 'Auto description',
-      aiAutoTagNamesJson: ['funny'],
+      aiAutoTagNames: ['funny'],
       aiSearchText: 'auto search',
     });
     await createChannelMeme({
@@ -202,11 +202,14 @@ describe('AI moderation service', () => {
 
     const channelMeme = await prisma.channelMeme.findUnique({
       where: { channelId_memeAssetId: { channelId: channel.id, memeAssetId: asset.id } },
-      select: { title: true, aiAutoDescription: true, aiAutoTagNamesJson: true },
+      select: { title: true, memeAssetId: true },
     });
     expect(channelMeme?.title).toBe('Auto Title');
-    expect(channelMeme?.aiAutoDescription).toBe('Auto description');
-    expect(channelMeme?.aiAutoTagNamesJson).toEqual(['funny']);
+    const updatedAsset = channelMeme?.memeAssetId
+      ? await prisma.memeAsset.findUnique({ where: { id: channelMeme.memeAssetId } })
+      : null;
+    expect(updatedAsset?.aiAutoDescription).toBe('Auto description');
+    expect(updatedAsset?.aiAutoTagNames).toEqual(['funny']);
   });
 
   it('auto-approves low-risk submissions when enabled', async () => {

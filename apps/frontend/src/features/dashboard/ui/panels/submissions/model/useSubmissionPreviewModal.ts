@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react';
 
 import type { SubmissionPreviewState } from '@/features/dashboard/ui/panels/submissions/model/types';
-import type { Submission } from '@/types';
+import type { Submission } from '@memalerts/api-contracts';
 
 export function useSubmissionPreviewModal() {
   const [previewModal, setPreviewModal] = useState<SubmissionPreviewState>(() => ({
@@ -21,3 +21,4 @@ export function useSubmissionPreviewModal() {
 
   return { closePreview, openPreview, previewModal };
 }
+

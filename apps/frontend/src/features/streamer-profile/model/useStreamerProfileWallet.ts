@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type { ChannelInfo } from '@/features/streamer-profile/model/types';
 import type { AppDispatch } from '@/store';
-import type { User, Wallet } from '@/types';
+import type { User, Wallet } from '@memalerts/api-contracts';
 import type { MutableRefObject } from 'react';
 
 import { api } from '@/lib/api';
@@ -102,3 +102,4 @@ export function useStreamerProfileWallet({ user, channelInfo, dispatch }: UseStr
     syncWalletFromUser,
   };
 }
+

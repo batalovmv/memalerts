@@ -57,7 +57,7 @@ describe('viewer pool operations', () => {
       fileUrl: `/uploads/memes/${rand()}.webm`,
       durationMs: 1200,
       aiAutoTitle: 'AI Pool Title',
-      poolVisibility: 'visible',
+      status: 'active',
     } satisfies Prisma.MemeAssetUncheckedCreateInput);
 
     const token = makeJwt({ userId: viewer.id, role: viewer.role, channelId: null });
@@ -99,9 +99,9 @@ describe('viewer pool operations', () => {
       aiStatus: 'done',
       aiAutoTitle: 'AI Title',
       aiAutoDescription: 'AI Description',
-      aiAutoTagNamesJson: ['tag1', 'tag2'],
+      aiAutoTagNames: ['tag1', 'tag2'],
       aiSearchText: 'AI Description Search',
-      poolVisibility: 'visible',
+      status: 'active',
     } satisfies Prisma.MemeAssetUncheckedCreateInput);
 
     const token = makeJwt({ userId: streamer.id, role: streamer.role, channelId: channel.id });
@@ -119,11 +119,14 @@ describe('viewer pool operations', () => {
 
     const cm = await prisma.channelMeme.findUnique({
       where: { channelId_memeAssetId: { channelId: channel.id, memeAssetId: asset.id } },
-      select: { priceCoins: true, aiAutoDescription: true, aiAutoTagNamesJson: true, searchText: true },
+      select: { priceCoins: true, memeAssetId: true },
     });
     expect(cm?.priceCoins).toBe(333);
-    expect(cm?.aiAutoDescription).toBe('AI Description');
-    expect(Array.isArray(cm?.aiAutoTagNamesJson)).toBe(true);
-    expect(cm?.searchText).toBe('AI Description Search');
+    const updatedAsset = cm?.memeAssetId
+      ? await prisma.memeAsset.findUnique({ where: { id: cm.memeAssetId } })
+      : null;
+    expect(updatedAsset?.aiAutoDescription).toBe('AI Description');
+    expect(Array.isArray(updatedAsset?.aiAutoTagNames)).toBe(true);
+    expect(updatedAsset?.aiSearchText).toBe('AI Description Search');
   });
 });

@@ -9,11 +9,23 @@ export async function createChannel(
   opts: { prisma?: ChannelClient } = {}
 ): Promise<Channel> {
   const seed = uniqueId('channel');
+  const client = opts.prisma ?? prisma;
+  // Ensure twitchChannelId stays numeric (for resolve helpers) but avoid uniqueness collisions.
+  let twitchChannelId = overrides.twitchChannelId;
+  if (twitchChannelId) {
+    const existing = await client.channel.findUnique({
+      where: { twitchChannelId },
+      select: { id: true },
+    });
+    if (existing) {
+      twitchChannelId = `${twitchChannelId}_${seed}`;
+    }
+  }
   const data: Prisma.ChannelUncheckedCreateInput = {
     slug: `ch-${seed}`,
     name: `Channel ${seed}`,
     ...overrides,
+    ...(twitchChannelId ? { twitchChannelId } : {}),
   };
-  const client = opts.prisma ?? prisma;
   return client.channel.create({ data });
 }

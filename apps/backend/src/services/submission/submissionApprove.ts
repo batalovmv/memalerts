@@ -12,8 +12,6 @@ import { TransactionEventBuffer } from '../../utils/transactionEventBuffer.js';
 import { assertChannelOwner } from '../../utils/accessControl.js';
 import { asRecord, getErrorMessage } from './submissionShared.js';
 import { resolveApprovalInputs, type ApprovalSubmission } from './submissionApproveFileOps.js';
-import { computeContentHash } from '../../utils/media/contentHash.js';
-import { resolveLocalMediaPath } from '../../utils/media/resolveMediaPath.js';
 import { ensureMemeAssetVariants } from '../memeAsset/ensureVariants.js';
 import { enqueueSubmissionApprovedEvent, enqueueWalletRewardEvent } from './submissionNotifications.js';
 import { handleApproveSubmissionError } from './submissionApproveErrors.js';
@@ -160,9 +158,9 @@ export const approveSubmissionWithRepos = async (deps: AdminSubmissionDeps, req:
             if (sourceKind === 'pool' && submission?.memeAssetId) {
               const asset = await txRepos.memes.asset.findUnique({
                 where: { id: String(submission.memeAssetId) },
-                select: { id: true, type: true, fileUrl: true, fileHash: true, durationMs: true, purgedAt: true },
+                select: { id: true, type: true, fileUrl: true, fileHash: true, durationMs: true, status: true, deletedAt: true },
               });
-              if (!asset || asset.purgedAt) throw new Error('MEME_ASSET_NOT_FOUND');
+              if (!asset || asset.status !== 'active' || asset.deletedAt) throw new Error('MEME_ASSET_NOT_FOUND');
               if (!asset.fileUrl) throw new Error('MEDIA_NOT_AVAILABLE');
 
               // Upsert ChannelMeme
@@ -174,52 +172,21 @@ export const approveSubmissionWithRepos = async (deps: AdminSubmissionDeps, req:
                   status: 'approved',
                   title: submission.title,
                   priceCoins: body.priceCoins || defaultPrice,
-                  addedByUserId: submission.submitterUserId,
-                  approvedByUserId: req.userId!,
-                  approvedAt: new Date(),
                 },
                 update: {
                   status: 'approved',
                   deletedAt: null,
                   title: submission.title,
                   priceCoins: body.priceCoins || defaultPrice,
-                  approvedByUserId: req.userId!,
-                  approvedAt: new Date(),
                 },
               });
-
-              // Create legacy Meme if needed (for back-compat, rollups and existing overlay flows).
-              const legacy = cm.legacyMemeId
-                ? await txRepos.memes.meme.findUnique({ where: { id: cm.legacyMemeId } })
-                : await txRepos.memes.meme.create({
-                    data: {
-                      channelId: submission.channelId,
-                      title: submission.title,
-                      type: asset.type,
-                      fileUrl: asset.fileUrl,
-                      fileHash: asset.fileHash,
-                      durationMs: asset.durationMs,
-                      priceCoins: body.priceCoins || defaultPrice,
-                      status: 'approved',
-                      createdByUserId: submission.submitterUserId,
-                      approvedByUserId: req.userId!,
-                    },
-                  });
-
-              if (!cm.legacyMemeId && legacy?.id) {
-                await txRepos.memes.channelMeme.update({
-                  where: { id: cm.id },
-                  data: { legacyMemeId: legacy.id },
-                });
-              }
 
               // Mark submission approved
               await txRepos.submissions.update({ where: { id }, data: { status: 'approved' } });
 
               queueSubmissionApproved();
 
-              // Return legacy-shaped meme for current response compatibility
-              return legacy;
+              return { id: cm.id, memeAssetId: cm.memeAssetId };
             }
 
             const approvalInputs = await resolveApprovalInputs({
@@ -236,23 +203,8 @@ export const approveSubmissionWithRepos = async (deps: AdminSubmissionDeps, req:
             const { finalFileUrl, fileHash, durationMs, priceCoins, tagNames } = approvalInputs;
             fileHashForCleanup = approvalInputs.fileHashForCleanup;
             fileHashRefAdded = approvalInputs.fileHashRefAdded;
-            let contentHash: string | null = null;
-            try {
-              const fileUrlForHash = finalFileUrl || submission.fileUrlTemp;
-              if (fileUrlForHash) {
-                const resolved = await resolveLocalMediaPath(fileUrlForHash);
-                if (resolved) {
-                  contentHash = await computeContentHash(resolved.localPath);
-                  await resolved.cleanup();
-                }
-              }
-            } catch (hashError) {
-              const msg = hashError instanceof Error ? hashError.message : String(hashError);
-              logger.warn('submission.approve.contenthash_failed', { submissionId: id, errorMessage: msg });
-            }
-
             // Create approved meme + dual-write via shared internal helper (keeps AI auto-approve consistent).
-            let approved: Awaited<ReturnType<typeof approveSubmissionInternal>>['legacyMeme'];
+            let approved: { id: string; memeAssetId?: string | null } | null;
             try {
               const res = await approveSubmissionInternal({
                 tx,
@@ -261,13 +213,12 @@ export const approveSubmissionWithRepos = async (deps: AdminSubmissionDeps, req:
                 resolved: {
                   finalFileUrl,
                   fileHash,
-                  contentHash,
                   durationMs,
                   priceCoins,
                   tagNames,
                 },
               });
-              approved = res.legacyMeme;
+              approved = res.channelMemeId ? { id: res.channelMemeId, memeAssetId: res.memeAssetId } : null;
               if (res.memeAssetId && finalFileUrl) {
                 postApproveVariantInputRef.value = {
                   memeAssetId: res.memeAssetId,

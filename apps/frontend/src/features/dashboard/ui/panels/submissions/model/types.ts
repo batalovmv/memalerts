@@ -1,4 +1,4 @@
-import type { Submission } from '@/types';
+import type { Submission } from '@memalerts/api-contracts';
 
 export type SubmissionsPanelTab = 'pending' | 'mine';
 
@@ -15,3 +15,4 @@ export type SubmissionPreviewState = {
   title: string;
   submission?: Submission | null;
 };
+

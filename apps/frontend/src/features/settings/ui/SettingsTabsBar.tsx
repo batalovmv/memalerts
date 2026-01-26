@@ -2,7 +2,7 @@ import { Fragment } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import type { SettingsTab } from '@/features/settings/model/types';
-import type { User } from '@/types';
+import type { User } from '@memalerts/api-contracts';
 import type { KeyboardEvent } from 'react';
 
 import { getSettingsTabLabel } from '@/features/settings/model/tabLabels';
@@ -81,3 +81,4 @@ export function SettingsTabsBar({
     </div>
   );
 }
+

@@ -69,22 +69,17 @@ export function startTranscodeWorker(): TranscodeWorkerHandle | null {
         await upsertMemeAssetVariant({
           memeAssetId,
           format,
-          codec: config.codecString,
-          container: config.container,
-          mimeType: config.mimeType,
+          mimeType: result.mimeType,
           outputPath: result.outputPath,
           fileHash: result.fileHash,
           fileSizeBytes: result.fileSizeBytes,
-          durationMs: result.durationMs,
-          width: result.width,
-          height: result.height,
           priority: config.priority,
         });
 
         logger.info('transcode.queue.done', { memeAssetId, format, jobId: job.id });
       } catch (error) {
         const errMsg = error instanceof Error ? error.message : String(error);
-        await markVariantFailed({ memeAssetId, format, errorMessage: errMsg });
+        await markVariantFailed({ memeAssetId, format });
         logger.warn('transcode.queue.failed', { memeAssetId, format, jobId: job.id, errorMessage: errMsg });
         throw error;
       } finally {

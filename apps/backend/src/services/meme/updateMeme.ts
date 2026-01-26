@@ -5,7 +5,6 @@ import { updateMemeSchema } from '../../shared/schemas.js';
 import { ZodError } from 'zod';
 import { assertChannelOwner } from '../../utils/accessControl.js';
 import { ERROR_CODES } from '../../shared/errors.js';
-import { asRecord } from './memeShared.js';
 
 export const updateMeme = async (req: AuthRequest, res: Response) => {
   const { id } = req.params;
@@ -21,26 +20,11 @@ export const updateMeme = async (req: AuthRequest, res: Response) => {
     const cm = await prisma.channelMeme.findUnique({
       where: { id },
       include: {
-        memeAsset: {
-          include: { createdBy: { select: { id: true, displayName: true, channel: { select: { slug: true } } } } },
-        },
-        approvedBy: { select: { id: true, displayName: true } },
+        memeAsset: { include: { createdBy: { select: { id: true, displayName: true, channel: { select: { slug: true } } } } } },
       },
     });
 
-    const cmByLegacy = !cm
-      ? await prisma.channelMeme.findFirst({
-          where: { legacyMemeId: id, channelId },
-          include: {
-            memeAsset: {
-              include: { createdBy: { select: { id: true, displayName: true, channel: { select: { slug: true } } } } },
-            },
-            approvedBy: { select: { id: true, displayName: true } },
-          },
-        })
-      : null;
-
-    const target = cm ?? cmByLegacy;
+    const target = cm;
     if (!target) {
       return res
         .status(404)
@@ -55,71 +39,22 @@ export const updateMeme = async (req: AuthRequest, res: Response) => {
     });
     if (!ownsChannel) return;
 
-    const updated = await prisma.$transaction(async (tx) => {
-      const updated = await tx.channelMeme.update({
-        where: { id: target.id },
-        data: {
-          ...(body.title !== undefined ? { title: body.title } : {}),
-          ...(body.priceCoins !== undefined ? { priceCoins: body.priceCoins } : {}),
-          ...(body.cooldownMinutes !== undefined ? { cooldownMinutes: body.cooldownMinutes } : {}),
+    const updated = await prisma.channelMeme.update({
+      where: { id: target.id },
+      data: {
+        ...(body.title !== undefined ? { title: body.title } : {}),
+        ...(body.priceCoins !== undefined ? { priceCoins: body.priceCoins } : {}),
+        ...(body.cooldownMinutes !== undefined ? { cooldownMinutes: body.cooldownMinutes } : {}),
+      },
+      include: {
+        memeAsset: {
+          include: { createdBy: { select: { id: true, displayName: true, channel: { select: { slug: true } } } } },
         },
-        include: {
-          memeAsset: {
-            include: { createdBy: { select: { id: true, displayName: true, channel: { select: { slug: true } } } } },
-          },
-          approvedBy: { select: { id: true, displayName: true } },
-        },
-      });
-
-      const legacyData = {
-        channelId: updated.channelId,
-        title: updated.title,
-        type: updated.memeAsset.type,
-        fileUrl: updated.memeAsset.playFileUrl ?? updated.memeAsset.fileUrl ?? '',
-        fileHash: updated.memeAsset.fileHash,
-        durationMs: updated.memeAsset.durationMs,
-        priceCoins: updated.priceCoins,
-        status: updated.status === 'disabled' ? 'deleted' : updated.status,
-        deletedAt: updated.deletedAt,
-        createdByUserId: updated.memeAsset.createdBy?.id ?? null,
-        approvedByUserId: updated.approvedBy?.id ?? null,
-      };
-
-      if (updated.legacyMemeId) {
-        try {
-          await tx.meme.update({
-            where: { id: updated.legacyMemeId },
-            data: {
-              ...(body.title !== undefined ? { title: body.title } : {}),
-              ...(body.priceCoins !== undefined ? { priceCoins: body.priceCoins } : {}),
-            },
-          });
-        } catch (e: unknown) {
-          const errorRec = asRecord(e);
-          if (errorRec.code === 'P2025') {
-            const legacy = await tx.meme.create({ data: legacyData });
-            await tx.channelMeme.update({
-              where: { id: updated.id },
-              data: { legacyMemeId: legacy.id },
-            });
-          } else {
-            throw e;
-          }
-        }
-      } else {
-        const legacy = await tx.meme.create({ data: legacyData });
-        await tx.channelMeme.update({
-          where: { id: updated.id },
-          data: { legacyMemeId: legacy.id },
-        });
-      }
-
-      return updated;
+      },
     });
 
     res.json({
       id: updated.id,
-      legacyMemeId: updated.legacyMemeId,
       channelId: updated.channelId,
       title: updated.title,
       type: updated.memeAsset.type,
@@ -131,7 +66,6 @@ export const updateMeme = async (req: AuthRequest, res: Response) => {
       deletedAt: updated.deletedAt,
       createdAt: updated.createdAt,
       createdBy: updated.memeAsset.createdBy,
-      approvedBy: updated.approvedBy,
     });
   } catch (error) {
     if (error instanceof ZodError) {
