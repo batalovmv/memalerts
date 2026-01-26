@@ -352,6 +352,7 @@ jobs:
             echo "Rolling back to $PREV_SHA ..."
             git -C "$APP_DIR" checkout "$PREV_SHA"
             pnpm install --frozen-lockfile
+            pnpm --filter @memalerts/api-contracts build
             pnpm --filter @memalerts/backend build
             DATABASE_URL="$DATABASE_URL_RESOLVED" pnpm --filter @memalerts/backend exec prisma migrate deploy
             DATABASE_URL="$DATABASE_URL_RESOLVED" apply_ai_lock_migration
@@ -555,6 +556,7 @@ jobs:
           fi
 
           pnpm install --frozen-lockfile
+          pnpm --filter @memalerts/api-contracts build
           pnpm --filter @memalerts/backend build
           DATABASE_URL="$DATABASE_URL_RESOLVED" pnpm --filter @memalerts/backend exec prisma migrate deploy
           DATABASE_URL="$DATABASE_URL_RESOLVED" apply_ai_lock_migration
@@ -1031,6 +1033,7 @@ jobs:
             echo "Rolling back to $PREV_SHA ..."
             git -C "$APP_DIR" checkout "$PREV_SHA"
             pnpm install --frozen-lockfile
+            pnpm --filter @memalerts/api-contracts build
             pnpm --filter @memalerts/backend build
             DATABASE_URL="$DATABASE_URL_RESOLVED" pnpm --filter @memalerts/backend exec prisma migrate deploy
             DATABASE_URL="$DATABASE_URL_RESOLVED" apply_ai_lock_migration
@@ -1295,6 +1298,7 @@ jobs:
           fi
 
           pnpm install --frozen-lockfile
+          pnpm --filter @memalerts/api-contracts build
           pnpm --filter @memalerts/backend build
           DATABASE_URL="$DATABASE_URL_RESOLVED" pnpm --filter @memalerts/backend exec prisma migrate deploy
           DATABASE_URL="$DATABASE_URL_RESOLVED" apply_ai_lock_migration
@@ -1501,13 +1505,18 @@ jobs:
           APP_DIR="/opt/memalerts-frontend"
           FRONTEND_DIR="$APP_DIR/apps/frontend"
           SHARED_DIR="$APP_DIR/packages/shared"
+          CONTRACTS_DIR="$APP_DIR/packages/api-contracts"
 
           if [ ! -d "$APP_DIR" ]; then
             echo "❌ $APP_DIR not found. Create it on VPS first."
             exit 1
           fi
 
-          sudo mkdir -p "$FRONTEND_DIR" "$SHARED_DIR" "$APP_DIR/overlay"
+          sudo mkdir -p "$FRONTEND_DIR" "$SHARED_DIR" "$CONTRACTS_DIR" "$APP_DIR/overlay"
+
+          echo "Syncing workspace manifests -> $APP_DIR ..."
+          sudo rsync -a \
+            ../../package.json ../../pnpm-lock.yaml ../../pnpm-workspace.yaml "$APP_DIR/"
 
           echo "Syncing frontend -> $FRONTEND_DIR ..."
           sudo rsync -a --delete \
@@ -1525,6 +1534,13 @@ jobs:
             --exclude .env \
             ../../packages/shared/ "$SHARED_DIR/"
 
+          echo "Syncing api-contracts -> $CONTRACTS_DIR ..."
+          sudo rsync -a --delete \
+            --exclude node_modules \
+            --exclude dist \
+            --exclude .env \
+            ../../packages/api-contracts/ "$CONTRACTS_DIR/"
+
           cd "$FRONTEND_DIR"
 
           BUILD_DIR="$APP_DIR/dist-next"
@@ -1533,6 +1549,7 @@ jobs:
           sudo rm -rf "$BUILD_DIR" "$OVERLAY_BUILD_DIR" "$FRONTEND_DIR/dist" "$FRONTEND_DIR/overlay/dist"
 
           pnpm install --frozen-lockfile
+          pnpm --filter @memalerts/api-contracts build
           pnpm lint
           pnpm lint:overlay
           pnpm test:ci
@@ -1610,13 +1627,18 @@ jobs:
           APP_DIR="/opt/memalerts-frontend-beta"
           FRONTEND_DIR="$APP_DIR/apps/frontend"
           SHARED_DIR="$APP_DIR/packages/shared"
+          CONTRACTS_DIR="$APP_DIR/packages/api-contracts"
 
           if [ ! -d "$APP_DIR" ]; then
             echo "❌ $APP_DIR not found. Create it on VPS first."
             exit 1
           fi
 
-          sudo mkdir -p "$FRONTEND_DIR" "$SHARED_DIR" "$APP_DIR/overlay"
+          sudo mkdir -p "$FRONTEND_DIR" "$SHARED_DIR" "$CONTRACTS_DIR" "$APP_DIR/overlay"
+
+          echo "Syncing workspace manifests -> $APP_DIR ..."
+          sudo rsync -a \
+            ../../package.json ../../pnpm-lock.yaml ../../pnpm-workspace.yaml "$APP_DIR/"
 
           echo "Syncing frontend -> $FRONTEND_DIR ..."
           sudo rsync -a --delete \
@@ -1634,6 +1656,13 @@ jobs:
             --exclude .env \
             ../../packages/shared/ "$SHARED_DIR/"
 
+          echo "Syncing api-contracts -> $CONTRACTS_DIR ..."
+          sudo rsync -a --delete \
+            --exclude node_modules \
+            --exclude dist \
+            --exclude .env \
+            ../../packages/api-contracts/ "$CONTRACTS_DIR/"
+
           cd "$FRONTEND_DIR"
 
           BUILD_DIR="$APP_DIR/dist-next"
@@ -1642,6 +1671,7 @@ jobs:
           sudo rm -rf "$BUILD_DIR" "$OVERLAY_BUILD_DIR" "$FRONTEND_DIR/dist" "$FRONTEND_DIR/overlay/dist"
 
           pnpm install --frozen-lockfile
+          pnpm --filter @memalerts/api-contracts build
           pnpm lint
           pnpm lint:overlay
           pnpm test:ci
