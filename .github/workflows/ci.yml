@@ -70,6 +70,7 @@ jobs:
           cache: 'pnpm'
           cache-dependency-path: pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @memalerts/api-contracts build
       - run: pnpm --filter @memalerts/${{ matrix.app }} lint
       - run: pnpm --filter @memalerts/${{ matrix.app }} build
       - run: pnpm --filter @memalerts/${{ matrix.app }} test
