@@ -190,7 +190,7 @@ export const getPublicChannelBySlug = async (req: AuthRequest, res: Response) =>
           },
           createdAt: true,
           aiAutoTitle: true,
-          aiAutoTagNamesJson: true,
+          aiAutoTagNames: true,
           createdBy: { select: { id: true, displayName: true } },
           channelMemes: {
             where: { channelId: channel.id, status: 'approved', deletedAt: null },
@@ -200,7 +200,6 @@ export const getPublicChannelBySlug = async (req: AuthRequest, res: Response) =>
               id: true,
               title: true,
               priceCoins: true,
-              legacyMemeId: true,
               cooldownMinutes: true,
               lastActivatedAt: true,
               _count: {
@@ -215,10 +214,10 @@ export const getPublicChannelBySlug = async (req: AuthRequest, res: Response) =>
         },
       });
 
-      const legacyTagsById = await loadLegacyTagsById(rows.map((row) => row.channelMemes?.[0]?.legacyMemeId ?? null));
+      const legacyTagsById = await loadLegacyTagsById(rows.map((row) => row.channelMemes?.[0]?.id ?? null));
       response.memes = mapPoolAssetsToDtos(rows, channel.id, defaultPriceCoins).map((item, idx) => {
-        const legacyId = rows[idx]?.channelMemes?.[0]?.legacyMemeId ?? '';
-        const tags = legacyTagsById.get(legacyId);
+        const channelMemeId = rows[idx]?.channelMemes?.[0]?.id ?? '';
+        const tags = legacyTagsById.get(channelMemeId);
         return tags && tags.length > 0 ? { ...item, tags } : item;
       });
       if (response.memes.length > 0) {
@@ -247,13 +246,11 @@ export const getPublicChannelBySlug = async (req: AuthRequest, res: Response) =>
         skip: memesOffset,
         select: {
           id: true,
-          legacyMemeId: true,
           memeAssetId: true,
           title: true,
           priceCoins: true,
           cooldownMinutes: true,
           lastActivatedAt: true,
-          aiAutoTagNamesJson: true,
           status: true,
           createdAt: true,
           memeAsset: {
@@ -262,6 +259,7 @@ export const getPublicChannelBySlug = async (req: AuthRequest, res: Response) =>
               fileUrl: true,
               durationMs: true,
               qualityScore: true,
+              aiAutoTagNames: true,
               variants: {
                 select: {
                   format: true,
@@ -284,10 +282,10 @@ export const getPublicChannelBySlug = async (req: AuthRequest, res: Response) =>
         },
       });
 
-      const legacyTagsById = await loadLegacyTagsById(channelRows.map((row) => row.legacyMemeId));
+      const legacyTagsById = await loadLegacyTagsById(channelRows.map((row) => row.id));
       const mapped = channelRows.map((row) => {
         const item = toPublicChannelMemeListItemDto(channel.id, row);
-        const tags = legacyTagsById.get(row.legacyMemeId ?? '');
+        const tags = legacyTagsById.get(row.id);
         return tags && tags.length > 0 ? { ...item, tags } : item;
       });
       let items = mapped;

@@ -63,9 +63,9 @@ export type ChannelResponse = {
   submissionsEnabled: boolean;
   submissionsOnlyWhenLive: boolean;
   autoApproveEnabled: boolean;
-  dynamicPricingEnabled: boolean;
-  dynamicPricingMinMult: number;
-  dynamicPricingMaxMult: number;
+  dynamicPricingEnabled?: boolean;
+  dynamicPricingMinMult?: number;
+  dynamicPricingMaxMult?: number;
   coinIconUrl: string | null;
   primaryColor: string | null;
   secondaryColor: string | null;
@@ -98,14 +98,13 @@ export type PoolAssetRow = Prisma.MemeAssetGetPayload<{
     createdAt: true;
     aiAutoTitle: true;
     createdBy: { select: { id: true; displayName: true } };
-    channelMemes: { select: { id: true; title: true; priceCoins: true; legacyMemeId: true; cooldownMinutes: true; lastActivatedAt: true } };
+    channelMemes: { select: { id: true; title: true; priceCoins: true; cooldownMinutes: true; lastActivatedAt: true } };
   };
 }>;
 
 export type ChannelMemeRow = Prisma.ChannelMemeGetPayload<{
   select: {
     id: true;
-    legacyMemeId: true;
     memeAssetId: true;
     title: true;
     priceCoins: true;
@@ -131,6 +130,8 @@ export type ChannelMemeRow = Prisma.ChannelMemeGetPayload<{
         };
         aiStatus: true;
         aiAutoTitle: true;
+        aiAutoDescription: true;
+        aiAutoTagNames: true;
         createdBy: { select: { id: true; displayName: true } };
       };
     };

@@ -19,39 +19,39 @@ export async function recomputeTopStats30d(days: number): Promise<{ days: number
   // This keeps results correct while preserving MVCC consistency for readers.
   const sql = `
       WITH base AS (
-        SELECT "channelId", "userId", "memeId", "coinsSpent", "status"
+        SELECT "channelId", "userId", "channelMemeId", "priceCoins", "status"
         FROM "MemeActivation"
-        WHERE "createdAt" >= $1
+        WHERE a."createdAt" >= $1
       ),
       user_agg AS (
         SELECT
           b."channelId",
           b."userId",
           COUNT(*)::int AS total_count,
-          COALESCE(SUM(b."coinsSpent"), 0)::bigint AS total_coins,
+          COALESCE(SUM(b."priceCoins"), 0)::bigint AS total_coins,
           COUNT(*) FILTER (WHERE b.status IN ('done','completed'))::int AS completed_count,
-          COALESCE(SUM(b."coinsSpent") FILTER (WHERE b.status IN ('done','completed')), 0)::bigint AS completed_coins
+          COALESCE(SUM(b."priceCoins") FILTER (WHERE b.status IN ('done','completed')), 0)::bigint AS completed_coins
         FROM base b
         GROUP BY b."channelId", b."userId"
       ),
       meme_agg AS (
         SELECT
           b."channelId",
-          b."memeId",
+          b."channelMemeId",
           COUNT(*)::int AS total_count,
-          COALESCE(SUM(b."coinsSpent"), 0)::bigint AS total_coins,
+          COALESCE(SUM(b."priceCoins"), 0)::bigint AS total_coins,
           COUNT(*) FILTER (WHERE b.status IN ('done','completed'))::int AS completed_count,
-          COALESCE(SUM(b."coinsSpent") FILTER (WHERE b.status IN ('done','completed')), 0)::bigint AS completed_coins
+          COALESCE(SUM(b."priceCoins") FILTER (WHERE b.status IN ('done','completed')), 0)::bigint AS completed_coins
         FROM base b
-        GROUP BY b."channelId", b."memeId"
+        GROUP BY b."channelId", b."channelMemeId"
       ),
       global_meme_agg AS (
         SELECT
-          b."memeId",
+          b."channelMemeId",
           COUNT(*) FILTER (WHERE b.status IN ('done','completed'))::int AS completed_count,
-          COALESCE(SUM(b."coinsSpent") FILTER (WHERE b.status IN ('done','completed')), 0)::bigint AS completed_coins
+          COALESCE(SUM(b."priceCoins") FILTER (WHERE b.status IN ('done','completed')), 0)::bigint AS completed_coins
         FROM base b
-        GROUP BY b."memeId"
+        GROUP BY b."channelMemeId"
       )
       INSERT INTO "ChannelUserStats30d" (
         "channelId","userId","windowStart","windowEnd",
@@ -83,30 +83,30 @@ export async function recomputeTopStats30d(days: number): Promise<{ days: number
 
   const sql2 = `
       WITH base AS (
-        SELECT "channelId", "memeId", "coinsSpent", "status", "createdAt"
+        SELECT "channelId", "channelMemeId", "priceCoins", "status", "createdAt"
         FROM "MemeActivation"
         WHERE "createdAt" >= $1
       ),
       meme_agg AS (
         SELECT
           b."channelId",
-          b."memeId",
+          b."channelMemeId",
           COUNT(*)::int AS total_count,
-          COALESCE(SUM(b."coinsSpent"), 0)::bigint AS total_coins,
+          COALESCE(SUM(b."priceCoins"), 0)::bigint AS total_coins,
           COUNT(*) FILTER (WHERE b.status IN ('done','completed'))::int AS completed_count,
-          COALESCE(SUM(b."coinsSpent") FILTER (WHERE b.status IN ('done','completed')), 0)::bigint AS completed_coins
+          COALESCE(SUM(b."priceCoins") FILTER (WHERE b.status IN ('done','completed')), 0)::bigint AS completed_coins
         FROM base b
-        GROUP BY b."channelId", b."memeId"
+        GROUP BY b."channelId", b."channelMemeId"
       )
       INSERT INTO "ChannelMemeStats30d" (
-        "channelId","memeId","windowStart","windowEnd",
+        "channelId","channelMemeId","windowStart","windowEnd",
         "totalActivationsCount","totalCoinsSpentSum",
         "completedActivationsCount","completedCoinsSpentSum",
         "updatedAt"
       )
       SELECT
         m."channelId",
-        m."memeId",
+        m."channelMemeId",
         $1::timestamp,
         $2::timestamp,
         m.total_count,
@@ -115,7 +115,7 @@ export async function recomputeTopStats30d(days: number): Promise<{ days: number
         m.completed_coins,
         $3::timestamp
       FROM meme_agg m
-      ON CONFLICT ("channelId","memeId")
+      ON CONFLICT ("channelId","channelMemeId")
       DO UPDATE SET
         "windowStart" = EXCLUDED."windowStart",
         "windowEnd" = EXCLUDED."windowEnd",
@@ -128,32 +128,33 @@ export async function recomputeTopStats30d(days: number): Promise<{ days: number
 
   const sql3 = `
       WITH base AS (
-        SELECT "memeId", "coinsSpent", "status", "createdAt"
-        FROM "MemeActivation"
+        SELECT cm."memeAssetId", a."priceCoins", a."status", a."createdAt"
+        FROM "MemeActivation" a
+        JOIN "ChannelMeme" cm ON cm.id = a."channelMemeId"
         WHERE "createdAt" >= $1
       ),
       global_meme_agg AS (
         SELECT
-          b."memeId",
+          b."memeAssetId",
           COUNT(*) FILTER (WHERE b.status IN ('done','completed'))::int AS completed_count,
-          COALESCE(SUM(b."coinsSpent") FILTER (WHERE b.status IN ('done','completed')), 0)::bigint AS completed_coins
+          COALESCE(SUM(b."priceCoins") FILTER (WHERE b.status IN ('done','completed')), 0)::bigint AS completed_coins
         FROM base b
-        GROUP BY b."memeId"
+        GROUP BY b."memeAssetId"
       )
       INSERT INTO "GlobalMemeStats30d" (
-        "memeId","windowStart","windowEnd",
+        "memeAssetId","windowStart","windowEnd",
         "completedActivationsCount","completedCoinsSpentSum",
         "updatedAt"
       )
       SELECT
-        g."memeId",
+        g."memeAssetId",
         $1::timestamp,
         $2::timestamp,
         g.completed_count,
         g.completed_coins,
         $3::timestamp
       FROM global_meme_agg g
-      ON CONFLICT ("memeId")
+      ON CONFLICT ("memeAssetId")
       DO UPDATE SET
         "windowStart" = EXCLUDED."windowStart",
         "windowEnd" = EXCLUDED."windowEnd",

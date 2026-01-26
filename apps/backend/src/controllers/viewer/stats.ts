@@ -90,60 +90,94 @@ export const getMemeStats = async (req: MemeStatsRequest, res: Response) => {
     try {
       // Use raw SQL to aggregate over the daily table efficiently (top-N by summed count).
       const rows = targetChannelId
-        ? await prisma.$queryRaw<Array<{ memeId: string; cnt: bigint; coins: bigint }>>`
-            SELECT "memeId",
+        ? await prisma.$queryRaw<Array<{ channelMemeId: string; cnt: bigint; coins: bigint }>>`
+            SELECT "channelMemeId",
                    SUM("completedActivationsCount")::bigint AS cnt,
                    SUM("completedCoinsSpentSum")::bigint AS coins
             FROM "ChannelMemeDailyStats"
             WHERE "channelId" = ${targetChannelId}
               AND "day" >= ${start}
-            GROUP BY "memeId"
+            GROUP BY "channelMemeId"
             ORDER BY cnt DESC, coins DESC
             LIMIT ${parsedLimit}
           `
-        : await prisma.$queryRaw<Array<{ memeId: string; cnt: bigint; coins: bigint }>>`
-            SELECT "memeId",
+        : await prisma.$queryRaw<Array<{ memeAssetId: string; cnt: bigint; coins: bigint }>>`
+            SELECT "memeAssetId",
                    SUM("completedActivationsCount")::bigint AS cnt,
                    SUM("completedCoinsSpentSum")::bigint AS coins
             FROM "GlobalMemeDailyStats"
             WHERE "day" >= ${start}
-            GROUP BY "memeId"
+            GROUP BY "memeAssetId"
             ORDER BY cnt DESC, coins DESC
             LIMIT ${parsedLimit}
           `;
 
-      const memeIds = rows.map((r) => r.memeId);
-      const memes = memeIds.length
-        ? await prisma.meme.findMany({
-            where: { id: { in: memeIds } },
-            include: {
-              createdBy: { select: { id: true, displayName: true } },
-              tags: { include: { tag: true } },
-            },
-          })
-        : [];
-      const map = new Map(memes.map((m) => [m.id, m]));
-      const stats = rows.map((r) => {
-        const meme = map.get(r.memeId);
-        return {
-          meme: meme
-            ? {
-                id: meme.id,
-                title: meme.title,
-                priceCoins: meme.priceCoins,
-                tags: meme.tags,
-              }
-            : null,
-          activationsCount: Number(r.cnt || 0n),
-          totalCoinsSpent: Number(r.coins || 0n),
-        };
-      });
+      const stats = targetChannelId
+        ? (() => {
+            const channelRows = rows as Array<{ channelMemeId: string; cnt: bigint; coins: bigint }>;
+            const memeIds = channelRows.map((r) => r.channelMemeId);
+            return prisma.channelMeme
+              .findMany({
+                where: { id: { in: memeIds } },
+                select: {
+                  id: true,
+                  title: true,
+                  priceCoins: true,
+                  tags: { select: { tag: { select: { id: true, name: true } } } },
+                },
+              })
+              .then((memes) => {
+                const map = new Map(memes.map((m) => [m.id, m]));
+                return channelRows.map((r) => {
+                  const meme = map.get(r.channelMemeId);
+                  const tags = meme?.tags?.map((t) => t.tag) ?? [];
+                  return {
+                    meme: meme
+                      ? {
+                          id: meme.id,
+                          title: meme.title,
+                          priceCoins: meme.priceCoins,
+                          ...(tags.length > 0 ? { tags } : {}),
+                        }
+                      : null,
+                    activationsCount: Number(r.cnt || 0n),
+                    totalCoinsSpent: Number(r.coins || 0n),
+                  };
+                });
+              });
+          })()
+        : (() => {
+            const globalRows = rows as Array<{ memeAssetId: string; cnt: bigint; coins: bigint }>;
+            const assetIds = globalRows.map((r) => r.memeAssetId);
+            return prisma.memeAsset
+              .findMany({
+                where: { id: { in: assetIds } },
+                select: { id: true, aiAutoTitle: true },
+              })
+              .then((assets) => {
+                const map = new Map(assets.map((a) => [a.id, a]));
+                return globalRows.map((r) => {
+                  const asset = map.get(r.memeAssetId);
+                  return {
+                    meme: asset
+                      ? {
+                          id: asset.id,
+                          title: asset.aiAutoTitle ?? 'Meme',
+                          priceCoins: 0,
+                        }
+                      : null,
+                    activationsCount: Number(r.cnt || 0n),
+                    totalCoinsSpent: Number(r.coins || 0n),
+                  };
+                });
+              });
+          })();
 
       const payload = {
         period: effectivePeriod,
         startDate: startDate,
         endDate: now,
-        stats,
+        stats: await stats,
         rollup: {
           windowDays,
           source: targetChannelId ? 'ChannelMemeDailyStats' : 'GlobalMemeDailyStats',
@@ -180,47 +214,88 @@ export const getMemeStats = async (req: MemeStatsRequest, res: Response) => {
             where: { channelId: targetChannelId },
             orderBy: [{ completedActivationsCount: 'desc' }, { completedCoinsSpentSum: 'desc' }],
             take: parsedLimit,
-            select: { memeId: true, completedActivationsCount: true, completedCoinsSpentSum: true },
+            select: { channelMemeId: true, completedActivationsCount: true, completedCoinsSpentSum: true },
           })
         : await prisma.globalMemeStats30d.findMany({
             orderBy: [{ completedActivationsCount: 'desc' }, { completedCoinsSpentSum: 'desc' }],
             take: parsedLimit,
-            select: { memeId: true, completedActivationsCount: true, completedCoinsSpentSum: true },
+            select: { memeAssetId: true, completedActivationsCount: true, completedCoinsSpentSum: true },
           });
 
-      const memeIds = rows.map((r) => r.memeId);
-      const memes = memeIds.length
-        ? await prisma.meme.findMany({
-            where: { id: { in: memeIds } },
-            include: {
-              createdBy: { select: { id: true, displayName: true } },
-              tags: { include: { tag: true } },
-            },
-          })
-        : [];
-
-      const map = new Map(memes.map((m) => [m.id, m]));
-      const stats = rows.map((r) => {
-        const meme = map.get(r.memeId);
-        return {
-          meme: meme
-            ? {
-                id: meme.id,
-                title: meme.title,
-                priceCoins: meme.priceCoins,
-                tags: meme.tags,
-              }
-            : null,
-          activationsCount: Number(r.completedActivationsCount || 0),
-          totalCoinsSpent: Number(r.completedCoinsSpentSum || 0),
-        };
-      });
+      const stats = targetChannelId
+        ? (() => {
+            const channelRows = rows as Array<{
+              channelMemeId: string;
+              completedActivationsCount: number;
+              completedCoinsSpentSum: bigint;
+            }>;
+            const memeIds = channelRows.map((r) => r.channelMemeId);
+            return prisma.channelMeme
+              .findMany({
+                where: { id: { in: memeIds } },
+                select: {
+                  id: true,
+                  title: true,
+                  priceCoins: true,
+                  tags: { select: { tag: { select: { id: true, name: true } } } },
+                },
+              })
+              .then((memes) => {
+                const map = new Map(memes.map((m) => [m.id, m]));
+                return channelRows.map((r) => {
+                  const meme = map.get(r.channelMemeId);
+                  const tags = meme?.tags?.map((t) => t.tag) ?? [];
+                  return {
+                    meme: meme
+                      ? {
+                          id: meme.id,
+                          title: meme.title,
+                          priceCoins: meme.priceCoins,
+                          ...(tags.length > 0 ? { tags } : {}),
+                        }
+                      : null,
+                    activationsCount: Number(r.completedActivationsCount || 0),
+                    totalCoinsSpent: Number(r.completedCoinsSpentSum || 0),
+                  };
+                });
+              });
+          })()
+        : (() => {
+            const globalRows = rows as Array<{
+              memeAssetId: string;
+              completedActivationsCount: number;
+              completedCoinsSpentSum: bigint;
+            }>;
+            const assetIds = globalRows.map((r) => r.memeAssetId);
+            return prisma.memeAsset
+              .findMany({
+                where: { id: { in: assetIds } },
+                select: { id: true, aiAutoTitle: true },
+              })
+              .then((assets) => {
+                const map = new Map(assets.map((a) => [a.id, a]));
+                return globalRows.map((r) => {
+                  const asset = map.get(r.memeAssetId);
+                  return {
+                    meme: asset
+                      ? {
+                          id: asset.id,
+                          title: asset.aiAutoTitle ?? 'Meme',
+                          priceCoins: 0,
+                        }
+                      : null,
+                    activationsCount: Number(r.completedActivationsCount || 0),
+                    totalCoinsSpent: Number(r.completedCoinsSpentSum || 0),
+                  };
+                });
+              });
+          })();
 
       const payload = {
         period: effectivePeriod,
         startDate,
         endDate: now,
-        stats,
+        stats: await stats,
         rollup: {
           windowDays: 30,
           source: targetChannelId ? 'channelMemeStats30d' : 'globalMemeStats30d',
@@ -269,13 +344,13 @@ export const getMemeStats = async (req: MemeStatsRequest, res: Response) => {
 
   // Get meme statistics
   const activations = await prisma.memeActivation.groupBy({
-    by: ['memeId'],
+    by: ['channelMemeId'],
     where,
     _count: {
       id: true,
     },
     _sum: {
-      coinsSpent: true,
+      priceCoins: true,
     },
     orderBy: {
       _count: {
@@ -286,42 +361,36 @@ export const getMemeStats = async (req: MemeStatsRequest, res: Response) => {
   });
 
   // Get meme details
-  const memeIds = activations.map((a) => a.memeId);
-  const memes = await prisma.meme.findMany({
+  const memeIds = activations.map((a) => a.channelMemeId);
+  const memes = await prisma.channelMeme.findMany({
     where: {
       id: {
         in: memeIds,
       },
     },
-    include: {
-      createdBy: {
-        select: {
-          id: true,
-          displayName: true,
-        },
-      },
-      tags: {
-        include: {
-          tag: true,
-        },
-      },
+    select: {
+      id: true,
+      title: true,
+      priceCoins: true,
+      tags: { select: { tag: { select: { id: true, name: true } } } },
     },
   });
 
   // Combine data
   const stats = activations.map((activation) => {
-    const meme = memes.find((m) => m.id === activation.memeId);
+    const meme = memes.find((m) => m.id === activation.channelMemeId);
+    const tags = meme?.tags?.map((t) => t.tag) ?? [];
     return {
       meme: meme
         ? {
             id: meme.id,
             title: meme.title,
             priceCoins: meme.priceCoins,
-            tags: meme.tags,
+            ...(tags.length > 0 ? { tags } : {}),
           }
         : null,
       activationsCount: activation._count.id,
-      totalCoinsSpent: activation._sum.coinsSpent || 0,
+      totalCoinsSpent: activation._sum.priceCoins || 0,
     };
   });
 

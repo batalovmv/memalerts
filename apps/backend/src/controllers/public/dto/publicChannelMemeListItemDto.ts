@@ -33,7 +33,7 @@ export type PublicChannelMemeListItemDto = {
   activationsCount: number;
   createdAt: Date;
   createdBy: { id: string; displayName: string } | null;
-  tags?: Array<{ tag: { id: string; name: string } }>;
+  tags?: Array<{ id: string; name: string }>;
   aiAutoTagNames?: string[] | null;
   qualityScore?: number | null;
 };
@@ -53,7 +53,7 @@ export function toPublicChannelMemeListItemDto(
   channelId: string,
   row: {
     id: string;
-    legacyMemeId: string | null;
+    legacyMemeId?: string | null;
     memeAssetId: string;
     title: string;
     priceCoins: number;
@@ -73,8 +73,8 @@ export function toPublicChannelMemeListItemDto(
         fileSizeBytes?: bigint | null;
       }>;
       createdBy?: { id: string; displayName: string } | null;
+      aiAutoTagNames?: string[] | null;
     };
-    aiAutoTagNamesJson?: unknown | null;
     _count?: { activations: number };
   }
 ): PublicChannelMemeListItemDto {
@@ -100,9 +100,9 @@ export function toPublicChannelMemeListItemDto(
       };
     });
 
-  const aiAutoTagNames = Array.isArray(row.aiAutoTagNamesJson)
-    ? (row.aiAutoTagNamesJson as unknown[])
-        .filter((tag): tag is string => typeof tag === 'string' && tag.trim().length > 0)
+  const aiAutoTagNames = Array.isArray(row.memeAsset.aiAutoTagNames)
+    ? row.memeAsset.aiAutoTagNames
+        .filter((tag) => typeof tag === 'string' && tag.trim().length > 0)
         .map((tag) => tag.trim())
     : null;
   const cooldownPayload = buildCooldownPayload({

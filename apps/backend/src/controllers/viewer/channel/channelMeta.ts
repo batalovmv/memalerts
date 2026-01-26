@@ -170,7 +170,7 @@ export const getChannelBySlug = async (req: AuthRequest, res: Response) => {
       autoApproveEnabled: channel.autoApproveEnabled ?? false,
       dynamicPricingEnabled: channel.dynamicPricingEnabled ?? false,
       dynamicPricingMinMult: channel.dynamicPricingMinMult ?? 0.5,
-      dynamicPricingMaxMult: channel.dynamicPricingMaxMult ?? 2.0,
+      dynamicPricingMaxMult: channel.dynamicPricingMaxMult ?? 2,
       coinIconUrl: channel.coinIconUrl ?? null,
       primaryColor: channel.primaryColor ?? null,
       secondaryColor: channel.secondaryColor ?? null,
@@ -193,9 +193,9 @@ export const getChannelBySlug = async (req: AuthRequest, res: Response) => {
     if (includeMemes) {
       if (memeCatalogMode === 'pool_all') {
         const poolWhere: Prisma.MemeAssetWhereInput = {
-          poolVisibility: 'visible',
-          purgedAt: null,
-          fileUrl: { not: null },
+          status: 'active',
+          deletedAt: null,
+          fileUrl: { not: '' },
           NOT: {
             channelMemes: {
               some: {
@@ -243,7 +243,7 @@ export const getChannelBySlug = async (req: AuthRequest, res: Response) => {
               where: { channelId: channel.id, status: 'approved', deletedAt: null },
               take: 1,
               orderBy: { createdAt: 'desc' },
-              select: { id: true, title: true, priceCoins: true, legacyMemeId: true, cooldownMinutes: true, lastActivatedAt: true },
+              select: { id: true, title: true, priceCoins: true, cooldownMinutes: true, lastActivatedAt: true },
             },
           },
         });
@@ -252,7 +252,7 @@ export const getChannelBySlug = async (req: AuthRequest, res: Response) => {
         const legacyTagsById = await loadLegacyTagsById(
           (rows as PoolAssetRow[]).flatMap((row) =>
             Array.isArray(row.channelMemes)
-              ? row.channelMemes.map((ch) => ch?.legacyMemeId ?? null)
+              ? row.channelMemes.map((ch) => ch?.id ?? null)
               : []
           )
         );
@@ -261,7 +261,7 @@ export const getChannelBySlug = async (req: AuthRequest, res: Response) => {
           const title = String(ch?.title || r.aiAutoTitle || 'Meme').slice(0, 200);
           const channelPrice = ch?.priceCoins;
           const priceCoins = Number.isFinite(channelPrice) ? (channelPrice as number) : defaultPriceCoins;
-          const legacyTags = legacyTagsById.get(ch?.legacyMemeId ?? '');
+          const legacyTags = legacyTagsById.get(ch?.id ?? '');
           const cooldownPayload = buildCooldownPayload({
             cooldownMinutes: ch?.cooldownMinutes ?? null,
             lastActivatedAt: ch?.lastActivatedAt ?? null,
@@ -354,7 +354,6 @@ export const getChannelBySlug = async (req: AuthRequest, res: Response) => {
           skip: memesOffset,
           select: {
             id: true,
-            legacyMemeId: true,
             memeAssetId: true,
             title: true,
             priceCoins: true,
@@ -380,16 +379,18 @@ export const getChannelBySlug = async (req: AuthRequest, res: Response) => {
                 },
                 aiStatus: true,
                 aiAutoTitle: true,
+                aiAutoDescription: true,
+                aiAutoTagNames: true,
                 createdBy: { select: { id: true, displayName: true } },
               },
             },
           },
         });
 
-        const legacyTagsById = await loadLegacyTagsById((rows as ChannelMemeRow[]).map((r) => r.legacyMemeId));
+        const legacyTagsById = await loadLegacyTagsById((rows as ChannelMemeRow[]).map((r) => r.id));
         response.memes = (rows as ChannelMemeRow[]).map((r) => {
           const item = toChannelMemeListItemDto(req, channel.id, r);
-          const tags = legacyTagsById.get(r.legacyMemeId ?? '');
+          const tags = legacyTagsById.get(r.id);
           return tags && tags.length > 0 ? { ...item, tags } : item;
         });
         if (Array.isArray(response.memes) && response.memes.length > 0) {
@@ -443,122 +444,6 @@ export const getChannelBySlug = async (req: AuthRequest, res: Response) => {
 
     res.json(response);
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : '';
-    if (message && message.includes('does not exist')) {
-      const channel = (await prisma.$queryRaw`
-          SELECT id, slug, name, "coinPerPointRatio", "createdAt"
-          FROM "Channel"
-          WHERE slug = ${slug}
-        `) as Array<{ id: string; slug: string; name: string; coinPerPointRatio: number | null; createdAt: Date }>;
-
-      if (!channel || channel.length === 0) {
-        return res.status(404).json({ error: 'Channel not found' });
-      }
-
-      const memes = await prisma.meme.findMany({
-        where: {
-          channelId: channel[0].id,
-          status: 'approved',
-        },
-        orderBy: { createdAt: 'desc' },
-        take: includeMemes ? memesLimit : undefined,
-        skip: includeMemes ? memesOffset : undefined,
-        select: {
-          id: true,
-          title: true,
-          type: true,
-          fileUrl: true,
-          durationMs: true,
-          priceCoins: true,
-          createdAt: true,
-        },
-      });
-
-      const memesCount = await prisma.meme.count({
-        where: {
-          channelId: channel[0].id,
-          status: 'approved',
-        },
-      });
-
-      const usersCount = await prisma.user.count({
-        where: { channelId: channel[0].id },
-      });
-
-      const response: ChannelResponse = {
-        id: channel[0].id,
-        slug: channel[0].slug,
-        name: channel[0].name,
-        memeCatalogMode: 'channel',
-        coinPerPointRatio: channel[0].coinPerPointRatio,
-        overlayMode: 'queue',
-        overlayShowSender: false,
-        overlayMaxConcurrent: 3,
-        rewardIdForCoins: null,
-        rewardEnabled: false,
-        rewardTitle: null,
-        rewardCost: null,
-        rewardCoins: null,
-        rewardOnlyWhenLive: false,
-        kickRewardEnabled: false,
-        kickRewardIdForCoins: null,
-        kickCoinPerPointRatio: 1.0,
-        kickRewardCoins: null,
-        kickRewardOnlyWhenLive: false,
-        trovoManaCoinsPerUnit: 0,
-        trovoElixirCoinsPerUnit: 0,
-        vkvideoRewardEnabled: false,
-        vkvideoRewardIdForCoins: null,
-        vkvideoCoinPerPointRatio: 1.0,
-        vkvideoRewardCoins: null,
-        vkvideoRewardOnlyWhenLive: false,
-        youtubeLikeRewardEnabled: false,
-        youtubeLikeRewardCoins: 0,
-        youtubeLikeRewardOnlyWhenLive: false,
-        submissionRewardCoins: 0,
-        submissionRewardOnlyWhenLive: false,
-        submissionsEnabled: true,
-        submissionsOnlyWhenLive: false,
-        autoApproveEnabled: false,
-        dynamicPricingEnabled: false,
-        dynamicPricingMinMult: 0.5,
-        dynamicPricingMaxMult: 2.0,
-        coinIconUrl: null,
-        primaryColor: null,
-        secondaryColor: null,
-        accentColor: null,
-        dashboardCardOrder: null,
-        createdAt: channel[0].createdAt,
-        owner: null,
-        stats: {
-          memesCount,
-          usersCount,
-        },
-      };
-
-      if (includeMemes) {
-        response.memes = memes;
-        response.memesPage = {
-          limit: memesLimit,
-          offset: memesOffset,
-          returned: Array.isArray(memes) ? memes.length : 0,
-          total: memesCount,
-        };
-      }
-
-      if (!includeMemes && canCacheMeta) {
-        setChannelMetaCacheHeaders(req, res);
-        const body = JSON.stringify(response);
-        const etag = makeEtagFromString(body);
-        res.setHeader('ETag', etag);
-        channelMetaCache.set(cacheKey, { ts: Date.now(), data: response, etag });
-        pruneOldestEntries(channelMetaCache, CHANNEL_META_CACHE_MAX);
-        void redisSetStringEx(nsKey('channel_meta', cacheKey), Math.ceil(getChannelMetaCacheMs() / 1000), body);
-        if (ifNoneMatchHit(req, etag)) return res.status(304).end();
-        return res.type('application/json').send(body);
-      }
-      return res.json(response);
-    }
     throw error;
   }
 };

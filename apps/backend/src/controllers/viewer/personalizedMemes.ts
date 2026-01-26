@@ -52,7 +52,6 @@ async function loadChannelCandidates(channelId: string, limit: number, userId?: 
     where,
     select: {
       id: true,
-      legacyMemeId: true,
       memeAssetId: true,
       title: true,
       priceCoins: true,
@@ -60,7 +59,6 @@ async function loadChannelCandidates(channelId: string, limit: number, userId?: 
       lastActivatedAt: true,
       status: true,
       createdAt: true,
-      aiAutoTagNamesJson: true,
       memeAsset: {
         select: {
           type: true,
@@ -79,6 +77,8 @@ async function loadChannelCandidates(channelId: string, limit: number, userId?: 
           },
           aiStatus: true,
           aiAutoTitle: true,
+          aiAutoDescription: true,
+          aiAutoTagNames: true,
           createdBy: { select: { id: true, displayName: true } },
         },
       },
@@ -90,9 +90,9 @@ async function loadChannelCandidates(channelId: string, limit: number, userId?: 
 
 async function loadPoolCandidates(channelId: string, limit: number, userId?: string | null) {
   const where: Prisma.MemeAssetWhereInput = {
-    poolVisibility: 'visible',
-    purgedAt: null,
-    fileUrl: { not: null },
+    status: 'active',
+    deletedAt: null,
+    fileUrl: { not: '' },
     NOT: {
       channelMemes: {
         some: {
@@ -126,13 +126,13 @@ async function loadPoolCandidates(channelId: string, limit: number, userId?: str
       },
       createdAt: true,
       aiAutoTitle: true,
-      aiAutoTagNamesJson: true,
+      aiAutoTagNames: true,
       createdBy: { select: { id: true, displayName: true } },
       channelMemes: {
         where: { channelId, status: 'approved', deletedAt: null },
         take: 1,
         orderBy: { createdAt: 'desc' },
-        select: { id: true, title: true, priceCoins: true, legacyMemeId: true, cooldownMinutes: true, lastActivatedAt: true },
+        select: { id: true, title: true, priceCoins: true, cooldownMinutes: true, lastActivatedAt: true },
       },
     },
   });
@@ -249,10 +249,10 @@ async function buildChannelFallbackItems(
   limit: number
 ): Promise<ChannelMemeListItemDto[]> {
   const rows = await loadChannelCandidates(channelId, limit, req.userId);
-  const legacyTagsById = await loadLegacyTagsById(rows.map((r) => r.legacyMemeId));
+  const legacyTagsById = await loadLegacyTagsById(rows.map((r) => r.id));
   return rows.map((row) => {
     const item = toChannelMemeListItemDto(req, channelId, row);
-    const tags = legacyTagsById.get(row.legacyMemeId ?? '');
+    const tags = legacyTagsById.get(row.id);
     return tags && tags.length > 0 ? ({ ...item, tags } as ChannelMemeListItemDto) : item;
   });
 }
@@ -265,15 +265,15 @@ async function buildChannelPersonalizedItems(
   limit: number
 ): Promise<ChannelMemeListItemDto[]> {
   const rows = await loadChannelCandidates(channelId, candidateLimit, req.userId);
-  const legacyTagsById = await loadLegacyTagsById(rows.map((r) => r.legacyMemeId));
+  const legacyTagsById = await loadLegacyTagsById(rows.map((r) => r.id));
 
   const scored: ScoredItem[] = rows.map((row) => {
-    const legacyTags = legacyTagsById.get(row.legacyMemeId ?? '');
+    const legacyTags = legacyTagsById.get(row.id);
     const tagNames =
       legacyTags && legacyTags.length > 0
-        ? legacyTags.map((t) => t.tag.name)
-        : Array.isArray(row.aiAutoTagNamesJson)
-          ? (row.aiAutoTagNamesJson as string[])
+        ? legacyTags.map((t) => t.name)
+        : Array.isArray(row.memeAsset.aiAutoTagNames)
+          ? row.memeAsset.aiAutoTagNames
           : [];
     const score = TasteProfileService.scoreMemeForUser(profile, { tagNames });
     const item = toChannelMemeListItemDto(req, channelId, row);
@@ -293,7 +293,7 @@ async function buildPoolFallbackItems(
 ): Promise<Array<Record<string, unknown>>> {
   const rows = await loadPoolCandidates(channelId, limit, req.userId);
   const legacyTagsById = await loadLegacyTagsById(
-    rows.flatMap((row) => (Array.isArray(row.channelMemes) ? row.channelMemes.map((ch) => ch?.legacyMemeId ?? null) : []))
+    rows.flatMap((row) => (Array.isArray(row.channelMemes) ? row.channelMemes.map((ch) => ch?.id ?? null) : []))
   );
   return rows.map((row) => mapPoolAssetToItem(req, channelId, row, defaultPriceCoins, legacyTagsById));
 }
@@ -308,17 +308,17 @@ async function buildPoolPersonalizedItems(
 ): Promise<Array<Record<string, unknown>>> {
   const rows = await loadPoolCandidates(channelId, candidateLimit, req.userId);
   const legacyTagsById = await loadLegacyTagsById(
-    rows.flatMap((row) => (Array.isArray(row.channelMemes) ? row.channelMemes.map((ch) => ch?.legacyMemeId ?? null) : []))
+    rows.flatMap((row) => (Array.isArray(row.channelMemes) ? row.channelMemes.map((ch) => ch?.id ?? null) : []))
   );
 
   const scored: ScoredItem[] = rows.map((row) => {
     const ch = Array.isArray(row.channelMemes) && row.channelMemes.length > 0 ? row.channelMemes[0] : null;
-    const legacyTags = legacyTagsById.get(ch?.legacyMemeId ?? '');
+    const legacyTags = legacyTagsById.get(ch?.id ?? '');
     const tagNames =
       legacyTags && legacyTags.length > 0
-        ? legacyTags.map((t) => t.tag.name)
-        : Array.isArray(row.aiAutoTagNamesJson)
-          ? (row.aiAutoTagNamesJson as string[])
+        ? legacyTags.map((t) => t.name)
+        : Array.isArray(row.aiAutoTagNames)
+          ? row.aiAutoTagNames
           : [];
     const score = TasteProfileService.scoreMemeForUser(profile, { tagNames });
     const item = mapPoolAssetToItem(req, channelId, row, defaultPriceCoins, legacyTagsById);
@@ -351,7 +351,6 @@ function mapPoolAssetToItem(
       id: string;
       title: string | null;
       priceCoins: number | null;
-      legacyMemeId: string | null;
       cooldownMinutes: number | null;
       lastActivatedAt: Date | null;
     }>;
@@ -368,7 +367,7 @@ function mapPoolAssetToItem(
       : Number.isFinite(defaultPriceCoins)
         ? (defaultPriceCoins as number)
         : 100;
-  const legacyTags = legacyTagsById.get(ch?.legacyMemeId ?? '');
+  const legacyTags = legacyTagsById.get(ch?.id ?? '');
   const cooldownPayload = buildCooldownPayload({
     cooldownMinutes: ch?.cooldownMinutes ?? null,
     lastActivatedAt: ch?.lastActivatedAt ?? null,

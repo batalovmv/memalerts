@@ -8,6 +8,7 @@ import {
   loadLegacyTagsById,
   toChannelMemeListItemDto,
   type ChannelMemeListItemDto,
+  type MemeTagDto,
 } from '../channelMemeListDto.js';
 import { buildChannelMemeVisibilityFilter, buildMemeAssetVisibilityFilter, applyViewerMemeState, loadViewerMemeState } from '../memeViewerState.js';
 import { sendSearchResponse, type PoolAssetRow, type ChannelMemeRow, type SearchContext } from './searchShared.js';
@@ -31,14 +32,14 @@ function mapPoolRows(
   rows: PoolAssetRow[],
   channelId: string,
   defaultPriceCoins: number,
-  legacyTagsById?: Map<string, { tag: { id: string; name: string } }[]>
+  tagsByChannelMemeId?: Map<string, MemeTagDto[]>
 ): Array<Record<string, unknown>> {
   return rows.map((r) => {
     const ch = Array.isArray(r.channelMemes) && r.channelMemes.length > 0 ? r.channelMemes[0] : null;
     const title = String(ch?.title || r.aiAutoTitle || 'Meme').slice(0, 200);
     const channelPrice = ch?.priceCoins;
     const priceCoins = Number.isFinite(channelPrice) ? (channelPrice as number) : defaultPriceCoins;
-    const legacyTags = legacyTagsById?.get(ch?.legacyMemeId ?? '');
+    const legacyTags = tagsByChannelMemeId?.get(ch?.id ?? '');
     const cooldownPayload = buildCooldownPayload({
       cooldownMinutes: ch?.cooldownMinutes ?? null,
       lastActivatedAt: ch?.lastActivatedAt ?? null,
@@ -89,7 +90,8 @@ function applyChannelSearchFilters(where: Prisma.ChannelMemeWhereInput, ctx: Sea
     const searchTerms = terms.length > 0 ? terms : [ctx.qStr];
     where.OR = searchTerms.flatMap((term) => [
       { title: { contains: term, mode: 'insensitive' } },
-      { searchText: { contains: term, mode: 'insensitive' } },
+      { memeAsset: { aiAutoTitle: { contains: term, mode: 'insensitive' } } },
+      { memeAsset: { aiSearchText: { contains: term, mode: 'insensitive' } } },
     ]);
     if (ctx.includeUploaderEnabled) {
       where.OR.push({ memeAsset: { createdBy: { displayName: { contains: ctx.qStr, mode: 'insensitive' } } } });
@@ -99,7 +101,9 @@ function applyChannelSearchFilters(where: Prisma.ChannelMemeWhereInput, ctx: Sea
   if (ctx.tagsStr) {
     const tagNames = parseTagNames(ctx.tagsStr);
     if (tagNames.length > 0) {
-      where.AND = tagNames.map((tag) => ({ searchText: { contains: tag, mode: 'insensitive' } }));
+      where.AND = tagNames.map((tag) => ({
+        tags: { some: { tag: { name: { contains: tag, mode: 'insensitive' } } } },
+      }));
     }
   }
 }
@@ -169,10 +173,10 @@ async function buildChannelItems(
   rows: ChannelMemeRow[],
   orderedIds?: string[]
 ): Promise<Array<Record<string, unknown>>> {
-  const legacyTagsById = await loadLegacyTagsById(rows.map((r) => r.legacyMemeId));
+  const legacyTagsById = await loadLegacyTagsById(rows.map((r) => r.id));
   const items = rows.map((r) => {
     const item = toChannelMemeListItemDto(ctx.req, ctx.targetChannelId!, r);
-    const tags = legacyTagsById.get(r.legacyMemeId ?? '');
+    const tags = legacyTagsById.get(r.id);
     return tags && tags.length > 0 ? ({ ...item, tags } as Record<string, unknown>) : (item as Record<string, unknown>);
   });
 
@@ -189,7 +193,7 @@ async function buildPoolItems(
   const legacyTagsById = await loadLegacyTagsById(
     rows.flatMap((row) =>
       Array.isArray(row.channelMemes)
-        ? row.channelMemes.map((ch) => ch?.legacyMemeId ?? null)
+        ? row.channelMemes.map((ch) => ch?.id ?? null)
         : []
     )
   );
@@ -209,7 +213,7 @@ async function loadFavorites(ctx: SearchContext): Promise<SearchRowsResult | nul
 
   const visibility = buildMemeAssetVisibilityFilter({ channelId, userId, includeUserHidden: true });
   const assetWhere: Prisma.MemeAssetWhereInput = {
-    ...(isPoolMode ? { poolVisibility: 'visible', purgedAt: null, fileUrl: { not: null } } : {}),
+    ...(isPoolMode ? { status: 'active', deletedAt: null, fileUrl: { not: '' } } : {}),
   };
   if (visibility) Object.assign(assetWhere, visibility);
 
@@ -254,12 +258,8 @@ async function loadFavorites(ctx: SearchContext): Promise<SearchRowsResult | nul
       },
       select: {
         id: true,
-        legacyMemeId: true,
         memeAssetId: true,
         title: true,
-        searchText: true,
-        aiAutoDescription: true,
-        aiAutoTagNamesJson: true,
         priceCoins: true,
         cooldownMinutes: true,
         lastActivatedAt: true,
@@ -283,6 +283,8 @@ async function loadFavorites(ctx: SearchContext): Promise<SearchRowsResult | nul
             },
             aiStatus: true,
             aiAutoTitle: true,
+            aiAutoDescription: true,
+            aiAutoTagNames: true,
             createdBy: { select: { id: true, displayName: true } },
           },
         },
@@ -316,7 +318,7 @@ async function loadFavorites(ctx: SearchContext): Promise<SearchRowsResult | nul
         where: { channelId, status: 'approved', deletedAt: null },
         take: 1,
         orderBy: { createdAt: 'desc' },
-        select: { id: true, title: true, priceCoins: true, legacyMemeId: true, cooldownMinutes: true, lastActivatedAt: true },
+        select: { id: true, title: true, priceCoins: true, cooldownMinutes: true, lastActivatedAt: true },
       },
     },
   })) as PoolAssetRow[];
@@ -334,7 +336,7 @@ async function loadHidden(ctx: SearchContext): Promise<SearchRowsResult | null> 
 
   const visibility = buildMemeAssetVisibilityFilter({ channelId, userId, includeUserHidden: false });
   const assetWhere: Prisma.MemeAssetWhereInput = {
-    ...(isPoolMode ? { poolVisibility: 'visible', purgedAt: null, fileUrl: { not: null } } : {}),
+    ...(isPoolMode ? { status: 'active', deletedAt: null, fileUrl: { not: '' } } : {}),
   };
   if (visibility) Object.assign(assetWhere, visibility);
 
@@ -379,12 +381,8 @@ async function loadHidden(ctx: SearchContext): Promise<SearchRowsResult | null> 
       },
       select: {
         id: true,
-        legacyMemeId: true,
         memeAssetId: true,
         title: true,
-        searchText: true,
-        aiAutoDescription: true,
-        aiAutoTagNamesJson: true,
         priceCoins: true,
         cooldownMinutes: true,
         lastActivatedAt: true,
@@ -408,6 +406,8 @@ async function loadHidden(ctx: SearchContext): Promise<SearchRowsResult | null> 
             },
             aiStatus: true,
             aiAutoTitle: true,
+            aiAutoDescription: true,
+            aiAutoTagNames: true,
             createdBy: { select: { id: true, displayName: true } },
           },
         },
@@ -441,7 +441,7 @@ async function loadHidden(ctx: SearchContext): Promise<SearchRowsResult | null> 
         where: { channelId, status: 'approved', deletedAt: null },
         take: 1,
         orderBy: { createdAt: 'desc' },
-        select: { id: true, title: true, priceCoins: true, legacyMemeId: true, cooldownMinutes: true, lastActivatedAt: true },
+        select: { id: true, title: true, priceCoins: true, cooldownMinutes: true, lastActivatedAt: true },
       },
     },
   })) as PoolAssetRow[];
@@ -495,7 +495,7 @@ async function loadBlocked(ctx: SearchContext): Promise<SearchRowsResult | null>
         where: { channelId, status: 'approved', deletedAt: null },
         take: 1,
         orderBy: { createdAt: 'desc' },
-        select: { id: true, title: true, priceCoins: true, legacyMemeId: true, cooldownMinutes: true, lastActivatedAt: true },
+        select: { id: true, title: true, priceCoins: true, cooldownMinutes: true, lastActivatedAt: true },
       },
     },
   })) as PoolAssetRow[];
@@ -513,7 +513,7 @@ async function loadFrequent(ctx: SearchContext): Promise<SearchRowsResult | null
   const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
   const rows = await prisma.memeActivation.groupBy({
-    by: ['memeId'],
+    by: ['channelMemeId'],
     where: {
       channelId,
       userId,
@@ -526,14 +526,14 @@ async function loadFrequent(ctx: SearchContext): Promise<SearchRowsResult | null
     skip: ctx.parsedOffset,
   });
 
-  const memeIds = rows.map((r) => r.memeId);
-  if (memeIds.length === 0) return { items: [] };
+  const channelMemeIds = rows.map((r) => r.channelMemeId);
+  if (channelMemeIds.length === 0) return { items: [] };
 
   const where: Prisma.ChannelMemeWhereInput = {
     channelId,
     status: 'approved',
     deletedAt: null,
-    legacyMemeId: { in: memeIds },
+    id: { in: channelMemeIds },
   };
   applyChannelSearchFilters(where, ctx);
   const visibility = buildChannelMemeVisibilityFilter({ channelId, userId, includeUserHidden: true });
@@ -543,12 +543,8 @@ async function loadFrequent(ctx: SearchContext): Promise<SearchRowsResult | null
     where,
     select: {
       id: true,
-      legacyMemeId: true,
       memeAssetId: true,
       title: true,
-      searchText: true,
-      aiAutoDescription: true,
-      aiAutoTagNamesJson: true,
       priceCoins: true,
       cooldownMinutes: true,
       lastActivatedAt: true,
@@ -572,14 +568,16 @@ async function loadFrequent(ctx: SearchContext): Promise<SearchRowsResult | null
           },
           aiStatus: true,
           aiAutoTitle: true,
+          aiAutoDescription: true,
+          aiAutoTagNames: true,
           createdBy: { select: { id: true, displayName: true } },
         },
       },
     },
   })) as ChannelMemeRow[];
 
-  const assetOrder = memeIds
-    .map((memeId) => channelRows.find((row) => row.legacyMemeId === memeId)?.memeAssetId)
+  const assetOrder = channelMemeIds
+    .map((channelMemeId) => channelRows.find((row) => row.id === channelMemeId)?.memeAssetId)
     .filter((id): id is string => typeof id === 'string' && id.length > 0);
   const items = await buildChannelItems(ctx, channelRows, assetOrder.length > 0 ? assetOrder : undefined);
   return { items };
@@ -595,7 +593,7 @@ async function loadRecent(ctx: SearchContext): Promise<SearchRowsResult | null> 
   const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
   const rows = await prisma.memeActivation.groupBy({
-    by: ['memeId'],
+    by: ['channelMemeId'],
     where: {
       channelId,
       userId,
@@ -608,14 +606,14 @@ async function loadRecent(ctx: SearchContext): Promise<SearchRowsResult | null> 
     skip: ctx.parsedOffset,
   });
 
-  const memeIds = rows.map((r) => r.memeId);
-  if (memeIds.length === 0) return { items: [] };
+  const channelMemeIds = rows.map((r) => r.channelMemeId);
+  if (channelMemeIds.length === 0) return { items: [] };
 
   const where: Prisma.ChannelMemeWhereInput = {
     channelId,
     status: 'approved',
     deletedAt: null,
-    legacyMemeId: { in: memeIds },
+    id: { in: channelMemeIds },
   };
   applyChannelSearchFilters(where, ctx);
   const visibility = buildChannelMemeVisibilityFilter({ channelId, userId, includeUserHidden: true });
@@ -625,12 +623,8 @@ async function loadRecent(ctx: SearchContext): Promise<SearchRowsResult | null> 
     where,
     select: {
       id: true,
-      legacyMemeId: true,
       memeAssetId: true,
       title: true,
-      searchText: true,
-      aiAutoDescription: true,
-      aiAutoTagNamesJson: true,
       priceCoins: true,
       cooldownMinutes: true,
       lastActivatedAt: true,
@@ -654,14 +648,16 @@ async function loadRecent(ctx: SearchContext): Promise<SearchRowsResult | null> 
           },
           aiStatus: true,
           aiAutoTitle: true,
+          aiAutoDescription: true,
+          aiAutoTagNames: true,
           createdBy: { select: { id: true, displayName: true } },
         },
       },
     },
   })) as ChannelMemeRow[];
 
-  const assetOrder = memeIds
-    .map((memeId) => channelRows.find((row) => row.legacyMemeId === memeId)?.memeAssetId)
+  const assetOrder = channelMemeIds
+    .map((channelMemeId) => channelRows.find((row) => row.id === channelMemeId)?.memeAssetId)
     .filter((id): id is string => typeof id === 'string' && id.length > 0);
   const items = await buildChannelItems(ctx, channelRows, assetOrder.length > 0 ? assetOrder : undefined);
   return { items };
@@ -676,60 +672,69 @@ async function loadTrending(ctx: SearchContext): Promise<SearchRowsResult | null
   const scope = ctx.trendingScope;
   const isPoolMode = ctx.memeCatalogMode === 'pool_all';
 
-  let memeIds: string[] = [];
+  let channelMemeIds: string[] = [];
+  let memeAssetIds: string[] = [];
   if (scope === 'channel') {
     if (periodDays === 7) {
       const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
       const rows = await prisma.channelMemeDailyStats.groupBy({
-        by: ['memeId'],
+        by: ['channelMemeId'],
         where: { channelId, day: { gte: since } },
         _sum: { completedActivationsCount: true },
         orderBy: { _sum: { completedActivationsCount: 'desc' } },
         take: ctx.parsedLimit,
         skip: ctx.parsedOffset,
       });
-      memeIds = rows.map((r) => r.memeId);
+      channelMemeIds = rows.map((r) => r.channelMemeId);
     } else {
       const rows = await prisma.channelMemeStats30d.findMany({
         where: { channelId },
         orderBy: { completedActivationsCount: 'desc' },
         take: ctx.parsedLimit,
         skip: ctx.parsedOffset,
-        select: { memeId: true },
+        select: { channelMemeId: true },
       });
-      memeIds = rows.map((r) => r.memeId);
+      channelMemeIds = rows.map((r) => r.channelMemeId);
     }
   } else {
     if (periodDays === 7) {
       const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
       const rows = await prisma.globalMemeDailyStats.groupBy({
-        by: ['memeId'],
+        by: ['memeAssetId'],
         where: { day: { gte: since } },
         _sum: { completedActivationsCount: true },
         orderBy: { _sum: { completedActivationsCount: 'desc' } },
         take: ctx.parsedLimit,
         skip: ctx.parsedOffset,
       });
-      memeIds = rows.map((r) => r.memeId);
+      memeAssetIds = rows.map((r) => r.memeAssetId);
     } else {
       const rows = await prisma.globalMemeStats30d.findMany({
         orderBy: { completedActivationsCount: 'desc' },
         take: ctx.parsedLimit,
         skip: ctx.parsedOffset,
-        select: { memeId: true },
+        select: { memeAssetId: true },
       });
-      memeIds = rows.map((r) => r.memeId);
+      memeAssetIds = rows.map((r) => r.memeAssetId);
     }
   }
 
-  if (memeIds.length === 0) return { items: [] };
+  if (scope === 'channel') {
+    if (channelMemeIds.length === 0) return { items: [] };
+  } else if (memeAssetIds.length === 0) {
+    return { items: [] };
+  }
 
   const channelWhere: Prisma.ChannelMemeWhereInput = {
     channelId,
     status: 'approved',
     deletedAt: null,
-    legacyMemeId: { in: memeIds },
   };
+  if (scope === 'channel') {
+    channelWhere.id = { in: channelMemeIds };
+  } else {
+    channelWhere.memeAssetId = { in: memeAssetIds };
+  }
   applyChannelSearchFilters(channelWhere, ctx);
   const channelVisibility = buildChannelMemeVisibilityFilter({
     channelId,
@@ -743,12 +748,8 @@ async function loadTrending(ctx: SearchContext): Promise<SearchRowsResult | null
       where: channelWhere,
       select: {
         id: true,
-        legacyMemeId: true,
         memeAssetId: true,
         title: true,
-        searchText: true,
-        aiAutoDescription: true,
-        aiAutoTagNamesJson: true,
         priceCoins: true,
         cooldownMinutes: true,
         lastActivatedAt: true,
@@ -772,30 +773,46 @@ async function loadTrending(ctx: SearchContext): Promise<SearchRowsResult | null
             },
             aiStatus: true,
             aiAutoTitle: true,
+            aiAutoDescription: true,
+            aiAutoTagNames: true,
             createdBy: { select: { id: true, displayName: true } },
           },
         },
       },
     })) as ChannelMemeRow[];
-    const assetOrder = memeIds
-      .map((memeId) => rows.find((row) => row.legacyMemeId === memeId)?.memeAssetId)
-      .filter((id): id is string => typeof id === 'string' && id.length > 0);
+    const assetOrder =
+      scope === 'channel'
+        ? channelMemeIds
+            .map((channelMemeId) => rows.find((row) => row.id === channelMemeId)?.memeAssetId)
+            .filter((id): id is string => typeof id === 'string' && id.length > 0)
+        : memeAssetIds.filter((assetId) => rows.some((row) => row.memeAssetId === assetId));
     const items = await buildChannelItems(ctx, rows, assetOrder.length > 0 ? assetOrder : undefined);
     return { items };
   }
 
-  const channelMemes = await prisma.channelMeme.findMany({
-    where: { legacyMemeId: { in: memeIds }, status: 'approved', deletedAt: null },
-    select: { legacyMemeId: true, memeAssetId: true },
-  });
-  const assetByLegacy = new Map(channelMemes.map((cm) => [cm.legacyMemeId ?? '', cm.memeAssetId]));
+  const channelMemes =
+    scope === 'channel'
+      ? await prisma.channelMeme.findMany({
+          where: { id: { in: channelMemeIds }, channelId, status: 'approved', deletedAt: null },
+          select: { id: true, memeAssetId: true },
+        })
+      : [];
+  const assetByChannelMeme = new Map(channelMemes.map((cm) => [cm.id, cm.memeAssetId]));
   const orderedAssets: string[] = [];
   const seen = new Set<string>();
-  for (const memeId of memeIds) {
-    const assetId = assetByLegacy.get(memeId);
-    if (!assetId || seen.has(assetId)) continue;
-    seen.add(assetId);
-    orderedAssets.push(assetId);
+  if (scope === 'channel') {
+    for (const channelMemeId of channelMemeIds) {
+      const assetId = assetByChannelMeme.get(channelMemeId);
+      if (!assetId || seen.has(assetId)) continue;
+      seen.add(assetId);
+      orderedAssets.push(assetId);
+    }
+  } else {
+    for (const assetId of memeAssetIds) {
+      if (!assetId || seen.has(assetId)) continue;
+      seen.add(assetId);
+      orderedAssets.push(assetId);
+    }
   }
   if (orderedAssets.length === 0) return { items: [] };
 
@@ -832,7 +849,7 @@ async function loadTrending(ctx: SearchContext): Promise<SearchRowsResult | null
         where: { channelId, status: 'approved', deletedAt: null },
         take: 1,
         orderBy: { createdAt: 'desc' },
-        select: { id: true, title: true, priceCoins: true, legacyMemeId: true, cooldownMinutes: true, lastActivatedAt: true },
+        select: { id: true, title: true, priceCoins: true, cooldownMinutes: true, lastActivatedAt: true },
       },
     },
   })) as PoolAssetRow[];

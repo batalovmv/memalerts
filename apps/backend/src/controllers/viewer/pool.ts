@@ -106,8 +106,8 @@ export const getMemePool = async (req: AuthRequest, res: Response) => {
   // ChannelMeme adoption (approved/disabled/deletedAt) must NOT hide the asset from the pool.
   // Search is best-effort via historical channel titles (even if disabled).
   const where: Prisma.MemeAssetWhereInput = {
-    poolVisibility: 'visible',
-    purgedAt: null,
+    status: 'active',
+    deletedAt: null,
   };
   const visibility = buildMemeAssetVisibilityFilter({
     channelId: targetChannelId,
@@ -153,7 +153,7 @@ export const getMemePool = async (req: AuthRequest, res: Response) => {
       qualityScore: true,
       createdAt: true,
       aiAutoTitle: true,
-      aiAutoTagNamesJson: true,
+      aiAutoTagNames: true,
       ...(isAdmin ? { aiStatus: true, aiAutoDescription: true } : {}),
       variants: {
         select: {
@@ -173,28 +173,22 @@ export const getMemePool = async (req: AuthRequest, res: Response) => {
         orderBy: { createdAt: 'desc' },
         take: 1,
         select: {
+          id: true,
           title: true,
           priceCoins: true,
           channelId: true,
-          legacyMemeId: true,
         },
       },
     },
   });
 
   const legacyTagsById = await loadLegacyTagsById(
-    rows.flatMap((row) =>
-      Array.isArray(row.channelMemes)
-        ? row.channelMemes.map((ch) => ch?.legacyMemeId ?? null)
-        : []
-    )
+    rows.flatMap((row) => (Array.isArray(row.channelMemes) ? row.channelMemes.map((ch) => ch?.id ?? null) : []))
   );
 
   const items = rows.map((r) => {
-    const aiAutoTagNames = Array.isArray(r.aiAutoTagNamesJson)
-      ? (r.aiAutoTagNamesJson as unknown[])
-          .filter((tag): tag is string => typeof tag === 'string' && tag.trim().length > 0)
-          .map((tag) => tag.trim())
+    const aiAutoTagNames = Array.isArray(r.aiAutoTagNames)
+      ? r.aiAutoTagNames.filter((tag) => typeof tag === 'string' && tag.trim().length > 0).map((tag) => tag.trim())
       : null;
     const aiAutoTitle = typeof (r as { aiAutoTitle?: unknown }).aiAutoTitle === 'string'
       ? String((r as { aiAutoTitle?: string }).aiAutoTitle).trim()
@@ -221,7 +215,7 @@ export const getMemePool = async (req: AuthRequest, res: Response) => {
           fileSizeBytes: typeof v.fileSizeBytes === 'bigint' ? Number(v.fileSizeBytes) : null,
         };
       });
-    const legacyTags = legacyTagsById.get(r.channelMemes?.[0]?.legacyMemeId ?? '');
+    const legacyTags = legacyTagsById.get(r.channelMemes?.[0]?.id ?? '');
     return {
       id: r.id,
       memeAssetId: r.id,

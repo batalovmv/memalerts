@@ -1,6 +1,12 @@
 import type { Prisma } from '@prisma/client';
 import { prisma } from '../../../lib/prisma.js';
-import { buildCooldownPayload, getSourceType, loadLegacyTagsById, toChannelMemeListItemDto } from '../channelMemeListDto.js';
+import {
+  buildCooldownPayload,
+  getSourceType,
+  loadLegacyTagsById,
+  toChannelMemeListItemDto,
+  type MemeTagDto,
+} from '../channelMemeListDto.js';
 import { parseTagNames } from '../cache.js';
 import { sendSearchResponse, type ChannelMemeRow, type PoolAssetRow, type SearchContext } from './searchShared.js';
 import { buildSearchTerms } from '../../../shared/utils/searchTerms.js';
@@ -26,14 +32,14 @@ function mapPoolRows(
   rows: PoolAssetRow[],
   channelId: string,
   defaultPriceCoins: number,
-  legacyTagsById?: Map<string, { tag: { id: string; name: string } }[]>
+  tagsByChannelMemeId?: Map<string, MemeTagDto[]>
 ) {
   return rows.map((r) => {
     const ch = Array.isArray(r.channelMemes) && r.channelMemes.length > 0 ? r.channelMemes[0] : null;
     const title = String(ch?.title || r.aiAutoTitle || 'Meme').slice(0, 200);
     const channelPrice = ch?.priceCoins;
     const priceCoins = Number.isFinite(channelPrice) ? (channelPrice as number) : defaultPriceCoins;
-    const legacyTags = legacyTagsById?.get(ch?.legacyMemeId ?? '');
+    const legacyTags = tagsByChannelMemeId?.get(ch?.id ?? '');
     const cooldownPayload = buildCooldownPayload({
       cooldownMinutes: ch?.cooldownMinutes ?? null,
       lastActivatedAt: ch?.lastActivatedAt ?? null,
@@ -126,9 +132,9 @@ export async function handleChannelListingMode(ctx: SearchContext) {
 
   if (ctx.memeCatalogMode === 'pool_all') {
     const poolWhere: Prisma.MemeAssetWhereInput = {
-      poolVisibility: 'visible',
-      purgedAt: null,
-      fileUrl: { not: null },
+      status: 'active',
+      deletedAt: null,
+      fileUrl: { not: '' },
       NOT: {
         channelMemes: {
           some: {
@@ -172,17 +178,13 @@ export async function handleChannelListingMode(ctx: SearchContext) {
           where: { channelId: ctx.targetChannelId!, status: 'approved', deletedAt: null },
           take: 1,
           orderBy: { createdAt: 'desc' },
-          select: { id: true, title: true, priceCoins: true, legacyMemeId: true, cooldownMinutes: true, lastActivatedAt: true },
+          select: { id: true, title: true, priceCoins: true, cooldownMinutes: true, lastActivatedAt: true },
         },
       },
     })) as PoolAssetRow[];
 
     const legacyTagsById = await loadLegacyTagsById(
-      rows.flatMap((row) =>
-        Array.isArray(row.channelMemes)
-          ? row.channelMemes.map((ch) => ch?.legacyMemeId ?? null)
-          : []
-      )
+      rows.flatMap((row) => (Array.isArray(row.channelMemes) ? row.channelMemes.map((ch) => ch?.id ?? null) : []))
     );
     const items = mapPoolRows(rows, ctx.targetChannelId!, defaultPriceCoinsFromChannel(ctx), legacyTagsById);
     const withState = await attachViewerState(ctx, items);
@@ -213,45 +215,43 @@ export async function handleChannelListingMode(ctx: SearchContext) {
     skip: ctx.parsedOffset,
       select: {
         id: true,
-        legacyMemeId: true,
         memeAssetId: true,
         title: true,
-        searchText: true,
-        aiAutoDescription: true,
-        aiAutoTagNamesJson: true,
         priceCoins: true,
         cooldownMinutes: true,
         lastActivatedAt: true,
         status: true,
         createdAt: true,
         memeAsset: {
-        select: {
-          type: true,
-          fileUrl: true,
-          fileHash: true,
-          durationMs: true,
-          qualityScore: true,
-          variants: {
-            select: {
-              format: true,
-              fileUrl: true,
-              status: true,
-              priority: true,
-              fileSizeBytes: true,
+          select: {
+            type: true,
+            fileUrl: true,
+            fileHash: true,
+            durationMs: true,
+            qualityScore: true,
+            variants: {
+              select: {
+                format: true,
+                fileUrl: true,
+                status: true,
+                priority: true,
+                fileSizeBytes: true,
+              },
             },
+            aiStatus: true,
+            aiAutoTitle: true,
+            aiAutoDescription: true,
+            aiAutoTagNames: true,
+            createdBy: { select: { id: true, displayName: true } },
           },
-          aiStatus: true,
-          aiAutoTitle: true,
-          createdBy: { select: { id: true, displayName: true } },
         },
       },
-    },
   })) as ChannelMemeRow[];
 
-  const legacyTagsById = await loadLegacyTagsById(rows.map((r) => r.legacyMemeId));
+  const legacyTagsById = await loadLegacyTagsById(rows.map((r) => r.id));
   const items = rows.map((r) => {
     const item = toChannelMemeListItemDto(ctx.req, ctx.targetChannelId!, r);
-    const tags = legacyTagsById.get(r.legacyMemeId ?? '');
+    const tags = legacyTagsById.get(r.id);
     return tags && tags.length > 0 ? { ...item, tags } : item;
   });
   const withState = await attachViewerState(ctx, items as Array<Record<string, unknown>>);
@@ -272,9 +272,9 @@ export async function handlePoolAllChannelFilterMode(ctx: SearchContext) {
   if (!isPoolAllChannelFilterMode) return null;
 
   const poolWhere: Prisma.MemeAssetWhereInput = {
-    poolVisibility: 'visible',
-    purgedAt: null,
-    fileUrl: { not: null },
+    status: 'active',
+    deletedAt: null,
+    fileUrl: { not: '' },
     NOT: {
       channelMemes: {
         some: {
@@ -338,17 +338,13 @@ export async function handlePoolAllChannelFilterMode(ctx: SearchContext) {
         where: { channelId: ctx.targetChannelId!, status: 'approved', deletedAt: null },
         take: 1,
         orderBy: { createdAt: 'desc' },
-        select: { id: true, title: true, priceCoins: true, legacyMemeId: true, cooldownMinutes: true, lastActivatedAt: true },
+        select: { id: true, title: true, priceCoins: true, cooldownMinutes: true, lastActivatedAt: true },
       },
     },
   })) as PoolAssetRow[];
 
   const legacyTagsById = await loadLegacyTagsById(
-    rows.flatMap((row) =>
-      Array.isArray(row.channelMemes)
-        ? row.channelMemes.map((ch) => ch?.legacyMemeId ?? null)
-        : []
-    )
+    rows.flatMap((row) => (Array.isArray(row.channelMemes) ? row.channelMemes.map((ch) => ch?.id ?? null) : []))
   );
   const items = mapPoolRows(rows, ctx.targetChannelId!, defaultPriceCoinsFromChannel(ctx), legacyTagsById);
   const withState = await attachViewerState(ctx, items);
@@ -369,9 +365,9 @@ export async function handleChannelSearchMode(ctx: SearchContext) {
 
   if (ctx.memeCatalogMode === 'pool_all') {
     const where: Prisma.MemeAssetWhereInput = {
-      poolVisibility: 'visible',
-      purgedAt: null,
-      fileUrl: { not: null },
+      status: 'active',
+      deletedAt: null,
+      fileUrl: { not: '' },
       NOT: {
         channelMemes: {
           some: {
@@ -424,17 +420,13 @@ export async function handleChannelSearchMode(ctx: SearchContext) {
           where: { channelId: ctx.targetChannelId!, status: 'approved', deletedAt: null },
           take: 1,
           orderBy: { createdAt: 'desc' },
-          select: { id: true, title: true, priceCoins: true, legacyMemeId: true, cooldownMinutes: true, lastActivatedAt: true },
+          select: { id: true, title: true, priceCoins: true, cooldownMinutes: true, lastActivatedAt: true },
         },
       },
     })) as PoolAssetRow[];
 
     const legacyTagsById = await loadLegacyTagsById(
-      rows.flatMap((row) =>
-        Array.isArray(row.channelMemes)
-          ? row.channelMemes.map((ch) => ch?.legacyMemeId ?? null)
-          : []
-      )
+      rows.flatMap((row) => (Array.isArray(row.channelMemes) ? row.channelMemes.map((ch) => ch?.id ?? null) : []))
     );
     const items = mapPoolRows(rows, ctx.targetChannelId!, defaultPriceCoinsFromChannel(ctx), legacyTagsById);
     const withState = await attachViewerState(ctx, items);
@@ -462,13 +454,16 @@ export async function handleChannelSearchMode(ctx: SearchContext) {
     const searchTerms = terms.length > 0 ? terms : [ctx.qStr];
     where.OR = searchTerms.flatMap((term) => [
       { title: { contains: term, mode: 'insensitive' } },
-      { searchText: { contains: term, mode: 'insensitive' } },
+      { memeAsset: { aiAutoTitle: { contains: term, mode: 'insensitive' } } },
+      { memeAsset: { aiSearchText: { contains: term, mode: 'insensitive' } } },
     ]);
   }
   if (ctx.tagsStr) {
     const tagNames = parseTagNames(ctx.tagsStr);
     if (tagNames.length > 0) {
-      where.AND = tagNames.map((tag) => ({ searchText: { contains: tag, mode: 'insensitive' } }));
+      where.AND = tagNames.map((tag) => ({
+        tags: { some: { tag: { name: { contains: tag, mode: 'insensitive' } } } },
+      }));
     }
   }
   if (ctx.includeUploaderEnabled && ctx.qStr) {
@@ -483,12 +478,8 @@ export async function handleChannelSearchMode(ctx: SearchContext) {
     skip: ctx.parsedOffset,
     select: {
       id: true,
-      legacyMemeId: true,
       memeAssetId: true,
       title: true,
-      searchText: true,
-      aiAutoDescription: true,
-      aiAutoTagNamesJson: true,
       priceCoins: true,
       cooldownMinutes: true,
       lastActivatedAt: true,
@@ -512,16 +503,18 @@ export async function handleChannelSearchMode(ctx: SearchContext) {
           },
           aiStatus: true,
           aiAutoTitle: true,
+          aiAutoDescription: true,
+          aiAutoTagNames: true,
           createdBy: { select: { id: true, displayName: true } },
         },
       },
     },
   })) as ChannelMemeRow[];
 
-  const legacyTagsById = await loadLegacyTagsById(rows.map((r) => r.legacyMemeId));
+  const legacyTagsById = await loadLegacyTagsById(rows.map((r) => r.id));
   const items = rows.map((r) => {
     const item = toChannelMemeListItemDto(ctx.req, ctx.targetChannelId!, r);
-    const tags = legacyTagsById.get(r.legacyMemeId ?? '');
+    const tags = legacyTagsById.get(r.id);
     return tags && tags.length > 0 ? { ...item, tags } : item;
   });
   const withState = await attachViewerState(ctx, items as Array<Record<string, unknown>>);

@@ -119,9 +119,9 @@ export const getChannelMemesPublic = async (req: AuthRequest, res: Response) => 
 
   if (isPoolMode) {
     const poolWhere: Prisma.MemeAssetWhereInput = {
-      poolVisibility: 'visible',
-      purgedAt: null,
-      fileUrl: { not: null },
+      status: 'active',
+      deletedAt: null,
+      fileUrl: { not: '' },
       NOT: {
         channelMemes: {
           some: {
@@ -168,7 +168,7 @@ export const getChannelMemesPublic = async (req: AuthRequest, res: Response) => 
           where: { channelId: channel.id, status: 'approved', deletedAt: null },
           take: 1,
           orderBy: { createdAt: 'desc' },
-          select: { id: true, title: true, priceCoins: true, legacyMemeId: true, cooldownMinutes: true, lastActivatedAt: true },
+          select: { id: true, title: true, priceCoins: true, cooldownMinutes: true, lastActivatedAt: true },
         },
       },
     });
@@ -179,7 +179,7 @@ export const getChannelMemesPublic = async (req: AuthRequest, res: Response) => 
     const legacyTagsById = await loadLegacyTagsById(
       (sliced as PoolAssetRow[]).flatMap((row) =>
         Array.isArray(row.channelMemes)
-          ? row.channelMemes.map((ch) => ch?.legacyMemeId ?? null)
+          ? row.channelMemes.map((ch) => ch?.id ?? null)
           : []
       )
     );
@@ -188,7 +188,7 @@ export const getChannelMemesPublic = async (req: AuthRequest, res: Response) => 
       const title = String(ch?.title || r.aiAutoTitle || 'Meme').slice(0, 200);
       const channelPrice = ch?.priceCoins;
       const priceCoins = Number.isFinite(channelPrice) ? (channelPrice as number) : defaultPriceCoins;
-      const legacyTags = legacyTagsById.get(ch?.legacyMemeId ?? '');
+      const legacyTags = legacyTagsById.get(ch?.id ?? '');
       const cooldownPayload = buildCooldownPayload({
         cooldownMinutes: ch?.cooldownMinutes ?? null,
         lastActivatedAt: ch?.lastActivatedAt ?? null,
@@ -264,7 +264,6 @@ export const getChannelMemesPublic = async (req: AuthRequest, res: Response) => 
       where,
       select: {
         id: true,
-        legacyMemeId: true,
         memeAssetId: true,
         title: true,
         priceCoins: true,
@@ -290,6 +289,8 @@ export const getChannelMemesPublic = async (req: AuthRequest, res: Response) => 
             },
             aiStatus: true,
             aiAutoTitle: true,
+            aiAutoDescription: true,
+            aiAutoTagNames: true,
             createdBy: { select: { id: true, displayName: true } },
           },
         },
@@ -300,10 +301,10 @@ export const getChannelMemesPublic = async (req: AuthRequest, res: Response) => 
 
     hasMore = rows.length > limit;
     const sliced = hasMore ? rows.slice(0, limit) : rows;
-    const legacyTagsById = await loadLegacyTagsById(sliced.map((r) => r.legacyMemeId));
+    const legacyTagsById = await loadLegacyTagsById(sliced.map((r) => r.id));
     items = (sliced as ChannelMemeRow[]).map((r) => {
       const item = toChannelMemeListItemDto(req, channel.id, r);
-      const tags = legacyTagsById.get(r.legacyMemeId ?? '');
+      const tags = legacyTagsById.get(r.id);
       return tags && tags.length > 0 ? { ...item, tags } : item;
     });
     items = await attachViewerState(items as Array<Record<string, unknown>>);

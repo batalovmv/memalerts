@@ -50,7 +50,7 @@ export type MemeAssetPoolRow = Prisma.MemeAssetGetPayload<{
     };
     createdAt: true;
     aiAutoTitle: true;
-    aiAutoTagNamesJson: true;
+    aiAutoTagNames: true;
     createdBy: { select: { id: true; displayName: true } };
     channelMemes: {
       where: { channelId: string; status: 'approved'; deletedAt: null };
@@ -60,7 +60,6 @@ export type MemeAssetPoolRow = Prisma.MemeAssetGetPayload<{
         id: true;
         title: true;
         priceCoins: true;
-        legacyMemeId: true;
         cooldownMinutes: true;
         lastActivatedAt: true;
         _count: {
@@ -113,9 +112,9 @@ export type PublicChannelSearchQuery = {
 
 export function buildChannelPoolWhere(channelId: string): Prisma.MemeAssetWhereInput {
   return {
-    poolVisibility: 'visible',
-    purgedAt: null,
-    fileUrl: { not: null },
+    status: 'active',
+    deletedAt: null,
+    fileUrl: { not: '' },
     NOT: {
       channelMemes: {
         some: {
@@ -229,10 +228,10 @@ export function mapPoolAssetsToDtos(
       ? r.variants.filter((v) => String(v.status || '') === 'done')
       : [];
     const preview = doneVariants.find((v) => String(v.format || '') === 'preview');
-    const variants = doneVariants
-      .filter((v) => String(v.format || '') !== 'preview')
-      .sort((a, b) => (a.priority ?? 0) - (b.priority ?? 0))
-      .map((v) => {
+  const variants = doneVariants
+    .filter((v) => String(v.format || '') !== 'preview')
+    .sort((a, b) => (a.priority ?? 0) - (b.priority ?? 0))
+    .map((v) => {
         const format = (String(v.format || '') as 'webm' | 'mp4') || 'mp4';
         return {
           format,
@@ -241,10 +240,8 @@ export function mapPoolAssetsToDtos(
           fileSizeBytes: typeof v.fileSizeBytes === 'bigint' ? Number(v.fileSizeBytes) : null,
         };
       });
-    const aiAutoTagNames = Array.isArray(r.aiAutoTagNamesJson)
-      ? (r.aiAutoTagNamesJson as unknown[])
-          .filter((tag): tag is string => typeof tag === 'string' && tag.trim().length > 0)
-          .map((tag) => tag.trim())
+    const aiAutoTagNames = Array.isArray(r.aiAutoTagNames)
+      ? r.aiAutoTagNames.filter((tag) => typeof tag === 'string' && tag.trim().length > 0).map((tag) => tag.trim())
       : null;
     return {
       id: r.id,

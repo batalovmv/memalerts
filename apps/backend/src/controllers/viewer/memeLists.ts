@@ -13,7 +13,7 @@ async function resolveChannelBySlug(slug: string) {
 async function ensureMemeAssetAccessible(channelId: string, memeAssetId: string, catalogMode: string) {
   if (catalogMode === 'pool_all') {
     const asset = await prisma.memeAsset.findFirst({
-      where: { id: memeAssetId, poolVisibility: 'visible', purgedAt: null },
+      where: { id: memeAssetId, status: 'active', deletedAt: null },
       select: { id: true },
     });
     return !!asset;

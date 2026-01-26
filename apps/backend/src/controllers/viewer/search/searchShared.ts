@@ -30,7 +30,6 @@ export type PoolAssetRow = {
     id: string;
     title: string;
     priceCoins: number;
-    legacyMemeId: string | null;
     cooldownMinutes?: number | null;
     lastActivatedAt?: Date | null;
   } | null>;
@@ -38,12 +37,8 @@ export type PoolAssetRow = {
 
 export type ChannelMemeRow = {
   id: string;
-  legacyMemeId: string | null;
   memeAssetId: string;
   title: string;
-  searchText: string | null;
-  aiAutoDescription: string | null;
-  aiAutoTagNamesJson: unknown | null;
   priceCoins: number;
   cooldownMinutes?: number | null;
   lastActivatedAt?: Date | null;
@@ -64,6 +59,8 @@ export type ChannelMemeRow = {
     }>;
     aiStatus?: string | null;
     aiAutoTitle?: string | null;
+    aiAutoDescription?: string | null;
+    aiAutoTagNames?: string[] | null;
     createdBy: { id: string; displayName: string } | null;
   };
 };

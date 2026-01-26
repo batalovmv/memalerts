@@ -68,7 +68,6 @@ export const getMemes = async (req: AuthRequest, res: Response) => {
     ...(offset !== undefined && { skip: offset }),
   });
 
-  // Back-compat: keep legacy `id` when available so existing activation paths using Meme.id continue to work.
   const items = rows.map((r) => {
     const doneVariants = Array.isArray(r.memeAsset.variants)
       ? r.memeAsset.variants.filter((v) => String(v.status || '') === 'done')
@@ -87,20 +86,20 @@ export const getMemes = async (req: AuthRequest, res: Response) => {
         };
       });
     return {
-    id: r.legacyMemeId ?? r.id,
-    channelMemeId: r.id,
-    memeAssetId: r.memeAssetId,
-    title: r.title,
-    type: r.memeAsset.type,
-    previewUrl: preview?.fileUrl ?? null,
-    variants,
-    fileUrl: variants[0]?.fileUrl ?? preview?.fileUrl ?? r.memeAsset.fileUrl,
-    durationMs: r.memeAsset.durationMs,
-    qualityScore: r.memeAsset.qualityScore ?? null,
-    priceCoins: r.priceCoins,
-    status: r.status,
-    createdAt: r.createdAt,
-    createdBy: r.memeAsset.createdBy,
+      id: r.id,
+      channelMemeId: r.id,
+      memeAssetId: r.memeAssetId,
+      title: r.title,
+      type: r.memeAsset.type,
+      previewUrl: preview?.fileUrl ?? null,
+      variants,
+      fileUrl: variants[0]?.fileUrl ?? preview?.fileUrl ?? r.memeAsset.fileUrl,
+      durationMs: r.memeAsset.durationMs,
+      qualityScore: r.memeAsset.qualityScore ?? null,
+      priceCoins: r.priceCoins,
+      status: r.status,
+      createdAt: r.createdAt,
+      createdBy: r.memeAsset.createdBy,
     };
   });
 

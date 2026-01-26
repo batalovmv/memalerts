@@ -15,10 +15,10 @@ export async function recomputeMemeDailyStats(days: number): Promise<{ days: num
   const runTs = new Date();
 
   // Completed-only stats (viewer semantics).
-  // Upsert per (day,memeId) globally and per (channelId,day,memeId) for channel-scoped stats.
+  // Upsert per (day,memeAssetId) globally and per (channelId,day,channelMemeId) for channel-scoped stats.
   const sql1 = `
       WITH base AS (
-        SELECT "channelId","memeId","coinsSpent","createdAt"
+        SELECT "channelId","channelMemeId","priceCoins","createdAt"
         FROM "MemeActivation"
         WHERE "createdAt" >= $1
           AND status IN ('done','completed')
@@ -27,25 +27,25 @@ export async function recomputeMemeDailyStats(days: number): Promise<{ days: num
         SELECT
           b."channelId",
           date_trunc('day', b."createdAt") as day,
-          b."memeId",
+          b."channelMemeId",
           COUNT(*)::int as cnt,
-          COALESCE(SUM(b."coinsSpent"), 0)::bigint as coins
+          COALESCE(SUM(b."priceCoins"), 0)::bigint as coins
         FROM base b
-        GROUP BY b."channelId", day, b."memeId"
+        GROUP BY b."channelId", day, b."channelMemeId"
       )
       INSERT INTO "ChannelMemeDailyStats" (
-        "channelId","day","memeId",
+        "channelId","day","channelMemeId",
         "completedActivationsCount","completedCoinsSpentSum","updatedAt"
       )
       SELECT
         c."channelId",
         c.day,
-        c."memeId",
+        c."channelMemeId",
         c.cnt,
         c.coins,
         $2::timestamp
       FROM channel_daily c
-      ON CONFLICT ("channelId","day","memeId")
+      ON CONFLICT ("channelId","day","channelMemeId")
       DO UPDATE SET
         "completedActivationsCount" = EXCLUDED."completedActivationsCount",
         "completedCoinsSpentSum" = EXCLUDED."completedCoinsSpentSum",
@@ -54,32 +54,33 @@ export async function recomputeMemeDailyStats(days: number): Promise<{ days: num
 
   const sql2 = `
       WITH base AS (
-        SELECT "memeId","coinsSpent","createdAt"
-        FROM "MemeActivation"
-        WHERE "createdAt" >= $1
-          AND status IN ('done','completed')
+        SELECT cm."memeAssetId", a."priceCoins", a."createdAt"
+        FROM "MemeActivation" a
+        JOIN "ChannelMeme" cm ON cm.id = a."channelMemeId"
+        WHERE a."createdAt" >= $1
+          AND a.status IN ('done','completed')
       ),
       global_daily AS (
         SELECT
           date_trunc('day', b."createdAt") as day,
-          b."memeId",
+          b."memeAssetId",
           COUNT(*)::int as cnt,
-          COALESCE(SUM(b."coinsSpent"), 0)::bigint as coins
+          COALESCE(SUM(b."priceCoins"), 0)::bigint as coins
         FROM base b
-        GROUP BY day, b."memeId"
+        GROUP BY day, b."memeAssetId"
       )
       INSERT INTO "GlobalMemeDailyStats" (
-        "day","memeId",
+        "day","memeAssetId",
         "completedActivationsCount","completedCoinsSpentSum","updatedAt"
       )
       SELECT
         g.day,
-        g."memeId",
+        g."memeAssetId",
         g.cnt,
         g.coins,
         $2::timestamp
       FROM global_daily g
-      ON CONFLICT ("day","memeId")
+      ON CONFLICT ("day","memeAssetId")
       DO UPDATE SET
         "completedActivationsCount" = EXCLUDED."completedActivationsCount",
         "completedCoinsSpentSum" = EXCLUDED."completedCoinsSpentSum",

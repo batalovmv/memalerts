@@ -20,10 +20,8 @@ export type MemeVariantDto = {
 };
 
 export type MemeTagDto = {
-  tag: {
-    id: string;
-    name: string;
-  };
+  id: string;
+  name: string;
 };
 
 export type ChannelMemeListItemDto = {
@@ -138,7 +136,7 @@ export function toChannelMemeListItemDto(
   channelId: string,
   row: {
     id: string;
-    legacyMemeId: string | null;
+    legacyMemeId?: string | null;
     memeAssetId: string;
     title: string;
     priceCoins: number;
@@ -162,9 +160,9 @@ export function toChannelMemeListItemDto(
       createdBy?: { id: string; displayName: string } | null;
       aiStatus?: string | null;
       aiAutoTitle?: string | null;
+      aiAutoDescription?: string | null;
+      aiAutoTagNames?: string[] | null;
     };
-    aiAutoDescription?: string | null;
-    aiAutoTagNamesJson?: unknown | null;
   }
 ): ChannelMemeListItemDto {
   const exposeHash = canReturnFileHash(req, channelId);
@@ -187,7 +185,9 @@ export function toChannelMemeListItemDto(
       };
     });
 
-  const aiAutoTagNames = Array.isArray(row.aiAutoTagNamesJson) ? (row.aiAutoTagNamesJson as string[]) : null;
+  const aiAutoTagNames = Array.isArray(row.memeAsset.aiAutoTagNames)
+    ? row.memeAsset.aiAutoTagNames.filter((tag) => typeof tag === 'string' && tag.trim().length > 0).map((tag) => tag.trim())
+    : null;
   const cooldownPayload = buildCooldownPayload({
     cooldownMinutes: row.cooldownMinutes,
     lastActivatedAt: row.lastActivatedAt,
@@ -217,7 +217,7 @@ export function toChannelMemeListItemDto(
     ...(aiAutoTagNames && aiAutoTagNames.length > 0 ? { aiAutoTagNames } : {}),
     ...(exposeAi
       ? {
-          aiAutoDescription: row.aiAutoDescription ?? null,
+          aiAutoDescription: row.memeAsset.aiAutoDescription ?? null,
           aiAutoTagNames,
           aiStatus: row.memeAsset.aiStatus ?? null,
           aiAutoTitle: row.memeAsset.aiAutoTitle ?? null,
@@ -227,11 +227,11 @@ export function toChannelMemeListItemDto(
 }
 
 export async function loadLegacyTagsById(
-  legacyIds: Array<string | null | undefined>
+  channelMemeIds: Array<string | null | undefined>
 ): Promise<Map<string, MemeTagDto[]>> {
   const ids = Array.from(
     new Set(
-      legacyIds
+      channelMemeIds
         .filter((id): id is string => typeof id === 'string' && id.trim().length > 0)
         .map((id) => id.trim())
     )
@@ -239,7 +239,7 @@ export async function loadLegacyTagsById(
   if (ids.length === 0) return new Map();
 
   try {
-    const rows = await prisma.meme.findMany({
+    const rows = await prisma.channelMeme.findMany({
       where: { id: { in: ids } },
       select: {
         id: true,
@@ -253,9 +253,19 @@ export async function loadLegacyTagsById(
       },
     });
 
-    return new Map(
-      rows.map((row) => [row.id, Array.isArray(row.tags) ? (row.tags as MemeTagDto[]) : []])
-    );
+    const result = new Map<string, MemeTagDto[]>();
+    for (const row of rows) {
+      const channelMemeId = row.id;
+      if (!channelMemeId) continue;
+      const tags = Array.isArray(row.tags) ? row.tags.map((t) => t.tag) : [];
+      if (tags.length === 0) continue;
+      const existing = result.get(channelMemeId) ?? [];
+      const merged = [...existing, ...tags].filter(
+        (tag, idx, arr) => arr.findIndex((t) => t.id === tag.id) === idx
+      );
+      result.set(channelMemeId, merged);
+    }
+    return result;
   } catch {
     return new Map();
   }
