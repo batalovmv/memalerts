@@ -3,6 +3,7 @@ name: CI
 on:
   push:
     branches: [main, develop]
+    tags: ['prod-*']
   pull_request:
     branches: [main, develop]
   workflow_dispatch:
@@ -81,7 +82,7 @@ jobs:
   deploy-backend-production:
     name: Deploy backend production on VPS (self-hosted)
     runs-on: [self-hosted, linux, x64, memalerts-vps]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/prod-'))
     needs: [build]
     timeout-minutes: 20
     env:
@@ -1472,7 +1473,7 @@ jobs:
   deploy-frontend-production:
     name: Deploy frontend production on VPS (self-hosted)
     runs-on: [self-hosted, linux, x64, memalerts-vps]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/prod-'))
     needs: [build]
     timeout-minutes: 20
     defaults:
