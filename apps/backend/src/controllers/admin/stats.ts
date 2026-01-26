@@ -100,7 +100,7 @@ export const getChannelStats = async (req: AuthRequest, res: Response) => {
           const rows = await prisma.$queryRaw<Array<{ day: Date; activations: bigint; coins: bigint }>>`
             SELECT date_trunc('day', "createdAt") as day,
                    COUNT(*)::bigint as activations,
-                   COALESCE(SUM("coinsSpent"), 0)::bigint as coins
+                   COALESCE(SUM("priceCoins"), 0)::bigint as coins
             FROM "MemeActivation"
             WHERE "channelId" = ${channelId}
               AND "createdAt" >= (NOW() - INTERVAL '14 days')
@@ -139,9 +139,9 @@ export const getChannelStats = async (req: AuthRequest, res: Response) => {
           const rows = await prisma.memeActivation.groupBy({
             by: ['userId'],
             where: { channelId },
-            _sum: { coinsSpent: true },
+            _sum: { priceCoins: true },
             _count: { id: true },
-            orderBy: { _sum: { coinsSpent: 'desc' } },
+            orderBy: { _sum: { priceCoins: 'desc' } },
             take: 20,
           });
           return { rows, source: 'raw' as const };
@@ -157,7 +157,7 @@ export const getChannelStats = async (req: AuthRequest, res: Response) => {
           orderBy: [{ totalActivationsCount: 'desc' }, { totalCoinsSpentSum: 'desc' }],
           take: 20,
           select: {
-            memeId: true,
+            channelMemeId: true,
             totalActivationsCount: true,
             totalCoinsSpentSum: true,
           },
@@ -168,10 +168,10 @@ export const getChannelStats = async (req: AuthRequest, res: Response) => {
         const metaRec = asRecord(errorRec.meta);
         if (errorRec.code === 'P2021' && String(metaRec.table || '').includes('ChannelMemeStats30d')) {
           const rows = await prisma.memeActivation.groupBy({
-            by: ['memeId'],
+            by: ['channelMemeId'],
             where: { channelId },
             _count: { id: true },
-            _sum: { coinsSpent: true },
+            _sum: { priceCoins: true },
             orderBy: { _count: { id: 'desc' } },
             take: 20,
           });
@@ -185,14 +185,18 @@ export const getChannelStats = async (req: AuthRequest, res: Response) => {
       userSpendingPromise,
       memeStatsPromise,
       prisma.memeActivation.count({ where: { channelId } }),
-      prisma.memeActivation.aggregate({ where: { channelId }, _sum: { coinsSpent: true } }),
-      prisma.meme.count({ where: { channelId, status: 'approved' } }),
+      prisma.memeActivation.aggregate({ where: { channelId }, _sum: { priceCoins: true } }),
+      prisma.channelMeme.count({ where: { channelId, status: 'approved', deletedAt: null } }),
       dailyPromise,
     ]);
 
     // Fetch user/meme details (only if needed)
-    const userIds = userSpendingRes.rows.map((s) => String(asRecord(s).userId || '')).filter((id) => id);
-    const memeIds = memeStatsRes.rows.map((s) => String(asRecord(s).memeId || '')).filter((id) => id);
+    const userIds = userSpendingRes.rows
+      .map((row: Record<string, unknown>) => String(asRecord(row).userId || ''))
+      .filter((id): id is string => id.length > 0);
+    const memeIds = memeStatsRes.rows
+      .map((row: Record<string, unknown>) => String(asRecord(row).channelMemeId || ''))
+      .filter((id): id is string => id.length > 0);
 
     const [users, memes] = await Promise.all([
       userIds.length
@@ -202,7 +206,7 @@ export const getChannelStats = async (req: AuthRequest, res: Response) => {
           })
         : Promise.resolve([] as Array<{ id: string; displayName: string }>),
       memeIds.length
-        ? prisma.meme.findMany({
+        ? prisma.channelMeme.findMany({
             where: { id: { in: memeIds } },
             select: { id: true, title: true, priceCoins: true },
           })
@@ -217,12 +221,12 @@ export const getChannelStats = async (req: AuthRequest, res: Response) => {
       totalCoinsSpent: number;
       activationsCount: number;
     };
-    const userSpendingOut: UserSpendingOut[] = userSpendingRes.rows.map((s) => {
-      const rec = asRecord(s);
+    const userSpendingOut: UserSpendingOut[] = userSpendingRes.rows.map((row: Record<string, unknown>) => {
+      const rec = asRecord(row);
       const sumRec = asRecord(rec._sum);
       const countRec = asRecord(rec._count);
       const userId = String(rec.userId || '');
-      const totalCoinsSpentRaw = rec.totalCoinsSpentSum ?? sumRec.coinsSpent;
+      const totalCoinsSpentRaw = rec.totalCoinsSpentSum ?? sumRec.priceCoins;
       const activationsCountRaw = rec.totalActivationsCount ?? countRec.id;
       return {
         user: usersById.get(userId) || { id: userId, displayName: 'Unknown' },
@@ -241,12 +245,12 @@ export const getChannelStats = async (req: AuthRequest, res: Response) => {
       activationsCount: number;
       totalCoinsSpent: number;
     };
-    const memePopularityOut: MemePopularityOut[] = memeStatsRes.rows.map((s) => {
-      const rec = asRecord(s);
+    const memePopularityOut: MemePopularityOut[] = memeStatsRes.rows.map((row: Record<string, unknown>) => {
+      const rec = asRecord(row);
       const sumRec = asRecord(rec._sum);
       const countRec = asRecord(rec._count);
-      const memeId = String(rec.memeId || '');
-      const totalCoinsSpentRaw = rec.totalCoinsSpentSum ?? sumRec.coinsSpent;
+      const memeId = String(rec.channelMemeId || '');
+      const totalCoinsSpentRaw = rec.totalCoinsSpentSum ?? sumRec.priceCoins;
       const activationsCountRaw = rec.totalActivationsCount ?? countRec.id;
       return {
         meme: memesById.get(memeId) || null,
@@ -264,7 +268,7 @@ export const getChannelStats = async (req: AuthRequest, res: Response) => {
       memePopularity: memePopularityOut.slice(0, 20),
       overall: {
         totalActivations,
-        totalCoinsSpent: totalCoinsSpent._sum.coinsSpent || 0,
+        totalCoinsSpent: totalCoinsSpent._sum.priceCoins || 0,
         totalMemes,
       },
       daily,

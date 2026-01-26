@@ -2,6 +2,7 @@ import { memo, useMemo } from 'react';
 
 import { useMemeCard, type MemeCardPreviewMode } from './model/useMemeCard';
 import { MemeCardView } from './ui/MemeCardView';
+
 import type { MemeCardItem } from './model/types';
 
 import { resolveMediaUrl } from '@/shared/config/urls';

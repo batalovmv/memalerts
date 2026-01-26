@@ -1,7 +1,6 @@
-import { getErrorMessage } from './errorMessages';
+import { ErrorCodeSchema, type ApiError } from '@memalerts/api-contracts';
 
-import type { ApiError } from '@memalerts/api-contracts';
-import { ErrorCodeSchema } from '@memalerts/api-contracts';
+import { getErrorMessage } from './errorMessages';
 
 function getStringField(obj: Record<string, unknown>, key: string): string | undefined {
   const value = obj[key];
