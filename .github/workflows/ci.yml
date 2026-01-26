@@ -1541,7 +1541,7 @@ jobs:
             --exclude .env \
             ../../packages/api-contracts/ "$CONTRACTS_DIR/"
 
-          cd "$FRONTEND_DIR"
+          cd "$APP_DIR"
 
           BUILD_DIR="$APP_DIR/dist-next"
           OVERLAY_BUILD_DIR="$APP_DIR/overlay/dist-next"
@@ -1550,11 +1550,11 @@ jobs:
 
           pnpm install --frozen-lockfile
           pnpm --filter @memalerts/api-contracts build
-          pnpm lint
-          pnpm lint:overlay
-          pnpm test:ci
-          pnpm build
-          pnpm build:overlay
+          pnpm --filter @memalerts/frontend lint
+          pnpm --filter @memalerts/frontend lint:overlay
+          pnpm --filter @memalerts/frontend test:ci
+          pnpm --filter @memalerts/frontend build
+          pnpm --filter @memalerts/frontend build:overlay
 
           if [ ! -f "$BUILD_DIR/index.html" ] && [ -f "$FRONTEND_DIR/dist/index.html" ]; then
             BUILD_DIR="$FRONTEND_DIR/dist"
@@ -1663,7 +1663,7 @@ jobs:
             --exclude .env \
             ../../packages/api-contracts/ "$CONTRACTS_DIR/"
 
-          cd "$FRONTEND_DIR"
+          cd "$APP_DIR"
 
           BUILD_DIR="$APP_DIR/dist-next"
           OVERLAY_BUILD_DIR="$APP_DIR/overlay/dist-next"
@@ -1672,11 +1672,11 @@ jobs:
 
           pnpm install --frozen-lockfile
           pnpm --filter @memalerts/api-contracts build
-          pnpm lint
-          pnpm lint:overlay
-          pnpm test:ci
-          pnpm build
-          pnpm build:overlay
+          pnpm --filter @memalerts/frontend lint
+          pnpm --filter @memalerts/frontend lint:overlay
+          pnpm --filter @memalerts/frontend test:ci
+          pnpm --filter @memalerts/frontend build
+          pnpm --filter @memalerts/frontend build:overlay
 
           if [ ! -f "$BUILD_DIR/index.html" ] && [ -f "$FRONTEND_DIR/dist/index.html" ]; then
             BUILD_DIR="$FRONTEND_DIR/dist"
