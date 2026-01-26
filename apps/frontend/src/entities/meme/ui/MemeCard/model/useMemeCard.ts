@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 
-import { useHasUserInteracted } from '@/shared/lib/userInteraction';
 import type { MemeCardItem } from './types';
+
+import { useHasUserInteracted } from '@/shared/lib/userInteraction';
 
 export type MemeCardPreviewMode = 'hoverWithSound' | 'hoverMuted' | 'autoplayMuted';
 

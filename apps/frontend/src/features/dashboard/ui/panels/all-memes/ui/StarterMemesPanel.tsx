@@ -2,9 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 
-import type { MemeDetail } from '@memalerts/api-contracts';
-
 import type { MemePoolItem } from '@/shared/api/memes/memesPool';
+import type { MemeDetail } from '@memalerts/api-contracts';
 
 import { getStarterMemes } from '@/shared/api/memes';
 import { createPoolSubmission } from '@/shared/api/submissions/submissionsApi';

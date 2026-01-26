@@ -1,10 +1,10 @@
 import { memo, useMemo } from 'react';
 
-import { resolveMediaUrl } from '@/shared/config/urls';
-
 import { useMemeCard, type MemeCardPreviewMode } from './model/useMemeCard';
-import type { MemeCardItem } from './model/types';
 import { MemeCardView } from './ui/MemeCardView';
+import type { MemeCardItem } from './model/types';
+
+import { resolveMediaUrl } from '@/shared/config/urls';
 
 export interface MemeCardProps {
   meme: MemeCardItem;

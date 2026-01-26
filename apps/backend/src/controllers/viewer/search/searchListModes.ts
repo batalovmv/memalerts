@@ -101,7 +101,7 @@ function applyChannelSearchFilters(where: Prisma.ChannelMemeWhereInput, ctx: Sea
   if (ctx.tagsStr) {
     const tagNames = parseTagNames(ctx.tagsStr);
     if (tagNames.length > 0) {
-      where.AND = tagNames.map((tag) => ({
+      where.AND = tagNames.map((tag: string) => ({
         tags: { some: { tag: { name: { contains: tag, mode: 'insensitive' } } } },
       }));
     }
@@ -112,7 +112,7 @@ function applyPoolSearchFilters(where: Prisma.MemeAssetWhereInput, ctx: SearchCo
   if (ctx.tagsStr) {
     const tagNames = parseTagNames(ctx.tagsStr);
     if (tagNames.length > 0) {
-      where.AND = tagNames.map((tag) => ({ aiSearchText: { contains: tag, mode: 'insensitive' } }));
+      where.AND = tagNames.map((tag: string) => ({ aiSearchText: { contains: tag, mode: 'insensitive' } }));
     }
   }
 

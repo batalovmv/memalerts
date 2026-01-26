@@ -110,7 +110,7 @@ export const searchPublicChannelMemes = async (req: AuthRequest, res: Response) 
   });
   if (poolVisibility) Object.assign(poolWhereBase, poolVisibility);
   if (tagNames.length > 0) {
-    poolWhereBase.AND = tagNames.map((tag) => ({ aiSearchText: { contains: tag, mode: queryMode } }));
+    poolWhereBase.AND = tagNames.map((tag: string) => ({ aiSearchText: { contains: tag, mode: queryMode } }));
   }
   if (q) {
     const terms = buildSearchTerms(q);
@@ -135,7 +135,7 @@ export const searchPublicChannelMemes = async (req: AuthRequest, res: Response) 
     else channelWhereBase.AND = [channelWhereBase.AND, channelVisibility];
   }
   if (tagNames.length > 0) {
-    const tagFilters = tagNames.map((tag) => ({
+    const tagFilters = tagNames.map((tag: string) => ({
       tags: { some: { tag: { name: { contains: tag, mode: queryMode } } } },
     }));
     if (!channelWhereBase.AND) channelWhereBase.AND = tagFilters;

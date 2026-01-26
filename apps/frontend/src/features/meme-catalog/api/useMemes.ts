@@ -1,4 +1,3 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ActivateMemeBody,
   ActivateMemeResponse,
@@ -9,6 +8,7 @@ import {
   ListChannelMemesResponse,
   ListChannelMemesResponseSchema,
 } from '@memalerts/api-contracts';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { apiClient } from '@/shared/api/client';
 

@@ -117,7 +117,7 @@ export const getMemePool = async (req: AuthRequest, res: Response) => {
   if (visibility) Object.assign(where, visibility);
 
   if (tagNames.length > 0) {
-    where.AND = tagNames.map((tag) => ({ aiSearchText: { contains: tag, mode: 'insensitive' } }));
+    where.AND = tagNames.map((tag: string) => ({ aiSearchText: { contains: tag, mode: 'insensitive' } }));
   }
 
   if (q) {
