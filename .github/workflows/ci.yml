@@ -555,6 +555,11 @@ jobs:
             exit 1
           fi
 
+          if [ -d "$FRONTEND_DIR/overlay/node_modules" ]; then
+            echo "Removing stale overlay/node_modules to avoid duplicate React copies"
+            sudo rm -rf "$FRONTEND_DIR/overlay/node_modules"
+          fi
+
           pnpm install --frozen-lockfile
           pnpm --filter @memalerts/api-contracts build
           pnpm --filter @memalerts/backend build
@@ -1295,6 +1300,11 @@ jobs:
           else
             echo "❌ DATABASE_URL not found in $APP_DIR/.env"
             exit 1
+          fi
+
+          if [ -d "$FRONTEND_DIR/overlay/node_modules" ]; then
+            echo "Removing stale overlay/node_modules to avoid duplicate React copies"
+            sudo rm -rf "$FRONTEND_DIR/overlay/node_modules"
           fi
 
           pnpm install --frozen-lockfile
