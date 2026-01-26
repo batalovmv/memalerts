@@ -7,6 +7,7 @@ import {
   tryClaimAiSubmission,
 } from '../src/jobs/aiQueue.js';
 import { processOneSubmission } from '../src/jobs/aiModerationSubmissions.js';
+import { randomBytes } from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import { createChannel, createSubmission, createUser } from './factories/index.js';
@@ -170,7 +171,7 @@ describe('AI queue resilience', () => {
     const prevKey = process.env.OPENAI_API_KEY;
     delete process.env.OPENAI_API_KEY;
     const { channel, user } = await createBaseEntities();
-    const hash = 'a'.repeat(64);
+    const hash = randomBytes(32).toString('hex');
     const relPath = path.join('uploads', 'memes', `${hash}.mp4`);
     const absPath = path.resolve(process.cwd(), relPath);
 

@@ -79,7 +79,7 @@ describe('SearchPage (integration)', () => {
       makeMeme({
         id: 'm1',
         title: 'A',
-        tags: [{ tag: tagFun }, { tag: tagLol }],
+        tags: [tagFun, tagLol],
       }),
     ];
 

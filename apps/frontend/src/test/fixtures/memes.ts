@@ -21,7 +21,7 @@ export function makeMeme(overrides: Partial<MemeDetail> = {}): MemeDetail {
     activationsCount: 0,
     createdAt: '2024-01-01T00:00:00.000Z',
     channelId: 'c1',
-    tags: [{ tag: makeTag() }],
+    tags: [makeTag()],
     ...overrides,
   };
 }

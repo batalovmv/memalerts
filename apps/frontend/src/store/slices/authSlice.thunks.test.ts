@@ -48,7 +48,7 @@ describe('authSlice thunks (integration via MSW)', () => {
     expect(s.loading).toBe(false);
     expect(s.user).toBeNull();
     expect(s.error).toBeTruthy();
-    expect(String(s.error)).toMatch(/500|failed/i);
+    expect(String(s.error)).toBe('Nope');
   });
 
   it('logout() calls /auth/logout and clears user + preferences cache on success', async () => {
