@@ -94,10 +94,11 @@ describe('owner entitlements', () => {
   });
 
   it('grants custom bot entitlements by provider', async () => {
+    const externalId = `${Date.now()}${Math.floor(Math.random() * 1000)}`;
     const channel = await createChannel({
       slug: 'owner-entitlements-provider',
       name: 'Owner Entitlements Provider',
-      twitchChannelId: '123456',
+      twitchChannelId: externalId,
     });
     const admin = await createUser({ role: 'admin' });
     const token = makeJwt({ userId: admin.id, role: admin.role, channelId: null });
@@ -105,7 +106,7 @@ describe('owner entitlements', () => {
     const res = await request(makeApp())
       .post('/owner/entitlements/custom-bot/grant-by-provider')
       .set('Cookie', [`token=${encodeURIComponent(token)}`])
-      .send({ provider: 'twitch', externalId: '123456' });
+      .send({ provider: 'twitch', externalId });
 
     expect(res.status).toBe(200);
     expect(res.body?.channelId).toBe(channel.id);

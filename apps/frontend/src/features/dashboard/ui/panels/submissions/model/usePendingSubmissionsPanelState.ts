@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import type { SubmissionsPanelTab } from '@/features/dashboard/ui/panels/submissions/model/types';
-import type { Submission } from '@/types';
+import type { Submission } from '@memalerts/api-contracts';
 
 import { useLoadMoreOnIntersect } from '@/features/dashboard/ui/panels/pending-submissions/model/useLoadMoreOnIntersect';
 
@@ -141,3 +141,4 @@ export function usePendingSubmissionsPanelState({
     visibleSubmissions,
   };
 }
+

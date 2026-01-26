@@ -23,14 +23,14 @@ export async function purgeMemeAssetsOnce(opts: PurgeOptions): Promise<{
 
   const rows = await prisma.memeAsset.findMany({
     where: {
-      purgedAt: null,
-      purgeNotBefore: { not: null, lte: now },
+      status: 'deleted',
+      deletedAt: { not: null, lte: now },
     },
     select: {
       id: true,
     },
     take: batchSize,
-    orderBy: { purgeNotBefore: 'asc' },
+    orderBy: { deletedAt: 'asc' },
   });
 
   let purged = 0;
@@ -42,9 +42,8 @@ export async function purgeMemeAssetsOnce(opts: PurgeOptions): Promise<{
         await tx.memeAsset.update({
           where: { id: r.id },
           data: {
-            purgedAt: now,
-            // Keep hidden in pool permanently once purged.
-            poolVisibility: 'hidden',
+            status: 'deleted',
+            deletedAt: now,
           },
         });
 

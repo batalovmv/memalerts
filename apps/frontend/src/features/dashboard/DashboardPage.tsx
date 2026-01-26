@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
 import type { DashboardCardId, ExpandCard } from '@/features/dashboard/types';
-import type { Meme } from '@/types';
+import type { MemeDetail } from '@memalerts/api-contracts';
 
 import Header from '@/components/Header';
 import { useHelpMode } from '@/contexts/HelpModeContext';
@@ -40,7 +40,7 @@ const DashboardPage = memo(function DashboardPage() {
   const { enabled: helpEnabled, setEnabled: setHelpEnabled } = useHelpMode();
 
   const [submissionsPanelTab, setSubmissionsPanelTab] = useState<'pending' | 'mine'>('pending');
-  const [selectedMeme, setSelectedMeme] = useState<Meme | null>(null);
+  const [selectedMeme, setSelectedMeme] = useState<MemeDetail | null>(null);
   const [isMemeModalOpen, setIsMemeModalOpen] = useState(false);
   const { autoplayMemesEnabled } = useAutoplayMemes();
   const submissionsPanelRef = useRef<HTMLDivElement>(null);
@@ -392,4 +392,6 @@ const DashboardPage = memo(function DashboardPage() {
 });
 
 export default DashboardPage;
+
+
 

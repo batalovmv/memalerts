@@ -7,7 +7,7 @@ import type { PreloadedState } from '@reduxjs/toolkit';
 import { createTestStore } from '@/test/test-utils';
 import { fetchUser, setUnauthenticated } from '@/store/slices/authSlice';
 import type { RootState } from '@/store';
-import type { Submission, User, Wallet } from '@/types';
+import type { Submission, User, Wallet } from '@memalerts/api-contracts';
 
 type Listener = (...args: unknown[]) => void;
 type EmittedEvent = { event: string; args: unknown[] };
@@ -401,3 +401,4 @@ describe('SocketProvider (realtime)', () => {
     expect(s.disconnected).toBeGreaterThanOrEqual(1);
   });
 });
+

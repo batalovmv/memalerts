@@ -2,8 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 
-import type { Meme } from '@/types';
 import type { MemePoolItem } from '@/shared/api/memes/memesPool';
+import type { MemeDetail } from '@memalerts/api-contracts';
 
 import { getStarterMemes } from '@/shared/api/memes';
 import { createPoolSubmission } from '@/shared/api/submissions/submissionsApi';
@@ -25,7 +25,7 @@ const buildMemeTitle = (item: MemePoolItem, fallback: string) =>
   item.sampleTitle?.trim() ||
   fallback;
 
-const toMemeCard = (item: MemePoolItem, fallbackTitle: string): Meme => {
+const toMemeCard = (item: MemePoolItem, fallbackTitle: string): MemeDetail => {
   const type = item.type || 'video';
   const fileUrl = item.fileUrl || item.previewUrl || item.variants?.[0]?.fileUrl || '';
   const samplePrice =
@@ -44,10 +44,12 @@ const toMemeCard = (item: MemePoolItem, fallbackTitle: string): Meme => {
     title: buildMemeTitle(item, fallbackTitle),
     type,
     previewUrl: item.previewUrl ?? null,
-    variants: item.variants,
+    variants: item.variants ?? [],
     fileUrl,
     durationMs: typeof item.durationMs === 'number' && Number.isFinite(item.durationMs) ? item.durationMs : 0,
     priceCoins: samplePrice,
+    activationsCount: 0,
+    createdAt: new Date().toISOString(),
     aiAutoTagNames: Array.isArray(item.aiAutoTagNames) ? item.aiAutoTagNames : null,
     qualityScore,
   };
@@ -228,7 +230,6 @@ export function StarterMemesPanel({ channelId, isOpen, onImported, onDismiss }: 
                       meme={meme}
                       onClick={() => toggleSelected(item.id)}
                       previewMode="hoverMuted"
-                      showAiBadges={false}
                     />
                     <div className="absolute top-3 right-3 z-30 pointer-events-none">
                       <span
@@ -275,3 +276,5 @@ export function StarterMemesPanel({ channelId, isOpen, onImported, onDismiss }: 
     </section>
   );
 }
+
+

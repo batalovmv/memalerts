@@ -2,7 +2,7 @@ import { useCallback, useState } from 'react';
 import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 
-import type { TwitchAutoRewardsV1 } from '@/types';
+import type { TwitchAutoRewardsV1 } from '@memalerts/api-contracts';
 import type { MutableRefObject } from 'react';
 
 import { normalizeTwitchAutoRewards, toRecord } from '@/features/settings/tabs/rewards/utils';
@@ -96,3 +96,4 @@ export function useTwitchAutoRewards({ lastSavedTwitchAutoRewardsRef, onClearReq
     saveTwitchAutoRewards,
   };
 }
+

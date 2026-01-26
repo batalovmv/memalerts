@@ -156,7 +156,11 @@ function isSerializableConflict(error: unknown): boolean {
   if (!error || typeof error !== 'object') return false;
   const err = error as { message?: string; meta?: { message?: string } };
   const message = String(err.message || err.meta?.message || '').toLowerCase();
-  return message.includes('could not serialize access');
+  return (
+    message.includes('could not serialize access') ||
+    message.includes('write conflict') ||
+    message.includes('deadlock')
+  );
 }
 
 async function runActivationWithRetry(req: AuthRequest, maxAttempts = 3): Promise<TestResponse> {
@@ -265,7 +269,7 @@ describe('stress: concurrent operations', () => {
     expect(wallets.every((wallet) => wallet.balance === 0)).toBe(true);
 
     const activationCount = await prisma.memeActivation.count({
-      where: { channelId: channel.id, memeId: meme.id },
+      where: { channelId: channel.id, channelMemeId: meme.id },
     });
     expect(activationCount).toBe(activations);
   });

@@ -115,23 +115,16 @@ export const getMemes = async (req: AuthRequest, res: Response) => {
     where: whereChannelMeme,
     ...(usePaging ? { take: limit + 1, skip: offset } : {}),
     orderBy: { createdAt: sortOrder },
-      select: {
-        id: true,
-        legacyMemeId: true,
-        channelId: true,
-        title: true,
-        priceCoins: true,
-        cooldownMinutes: true,
-        lastActivatedAt: true,
-        status: true,
-        deletedAt: true,
-        createdAt: true,
-      ...(includeAi
-        ? {
-            aiAutoDescription: true,
-            aiAutoTagNamesJson: true,
-          }
-        : {}),
+    select: {
+      id: true,
+      channelId: true,
+      title: true,
+      priceCoins: true,
+      cooldownMinutes: true,
+      lastActivatedAt: true,
+      status: true,
+      deletedAt: true,
+      createdAt: true,
       memeAsset: {
         select: {
           id: true,
@@ -154,7 +147,7 @@ export const getMemes = async (req: AuthRequest, res: Response) => {
                 aiAutoTitle: true,
                 aiCompletedAt: true,
                 aiAutoDescription: true,
-                aiAutoTagNamesJson: true,
+                aiAutoTagNames: true,
               }
             : {}),
           createdBy: {
@@ -164,12 +157,6 @@ export const getMemes = async (req: AuthRequest, res: Response) => {
               channel: { select: { slug: true } },
             },
           },
-        },
-      },
-      approvedBy: {
-        select: {
-          id: true,
-          displayName: true,
         },
       },
     },
@@ -254,7 +241,6 @@ export const getMemes = async (req: AuthRequest, res: Response) => {
       });
     return {
       id: r.id,
-      legacyMemeId: r.legacyMemeId,
       channelId: r.channelId,
       title: r.title,
       type: r.memeAsset.type,
@@ -269,41 +255,34 @@ export const getMemes = async (req: AuthRequest, res: Response) => {
       deletedAt: r.deletedAt,
       createdAt: r.createdAt,
       createdBy: r.memeAsset.createdBy,
-    approvedBy: r.approvedBy,
-    ...(includeAi
-      ? {
-          aiAutoDescription: asRecord(r as unknown).aiAutoDescription ?? null,
-          aiAutoTagNames: Array.isArray(asRecord(r as unknown).aiAutoTagNamesJson)
-            ? (asRecord(r as unknown).aiAutoTagNamesJson as string[])
-            : null,
-          aiStatus: asRecord(r.memeAsset as unknown).aiStatus ?? null,
-          aiAutoTitle: asRecord(r.memeAsset as unknown).aiAutoTitle ?? null,
-          aiCompletedAt: asRecord(r.memeAsset as unknown).aiCompletedAt
-            ? new Date(String(asRecord(r.memeAsset as unknown).aiCompletedAt)).toISOString()
-            : null,
-          assetFileHash: asRecord(r.memeAsset as unknown).fileHash ?? null,
-          assetAiAutoDescription: asRecord(r.memeAsset as unknown).aiAutoDescription ?? null,
-          assetAiAutoTagNames: Array.isArray(asRecord(r.memeAsset as unknown).aiAutoTagNamesJson)
-            ? (asRecord(r.memeAsset as unknown).aiAutoTagNamesJson as string[])
-            : null,
-          aiLastSubmission: (() => {
-            const assetId = String(asRecord(r.memeAsset as unknown).id || '');
-            if (!assetId) return null;
-            const last = latestAiByAssetId.get(assetId);
-            if (!last) return null;
-            return {
-              id: last.submissionId,
-              aiStatus: last.aiStatus || null,
-              aiPipelineVersion: last.aiPipelineVersion,
-              aiRetryCount: last.aiRetryCount,
-              aiLastTriedAt: last.aiLastTriedAt ? new Date(last.aiLastTriedAt).toISOString() : null,
-              aiCompletedAt: last.aiCompletedAt ? new Date(last.aiCompletedAt).toISOString() : null,
-              aiErrorShort: last.aiError ? String(last.aiError).slice(0, 500) : null,
-              aiDebug: last.aiModelVersionsJson ? last.aiModelVersionsJson : null,
-            };
-          })(),
-        }
-      : {}),
+      ...(includeAi
+        ? {
+            aiAutoDescription: r.memeAsset.aiAutoDescription ?? null,
+            aiAutoTagNames: Array.isArray(r.memeAsset.aiAutoTagNames) ? r.memeAsset.aiAutoTagNames : null,
+            aiStatus: r.memeAsset.aiStatus ?? null,
+            aiAutoTitle: r.memeAsset.aiAutoTitle ?? null,
+            aiCompletedAt: r.memeAsset.aiCompletedAt ? new Date(r.memeAsset.aiCompletedAt).toISOString() : null,
+            assetFileHash: r.memeAsset.fileHash ?? null,
+            assetAiAutoDescription: r.memeAsset.aiAutoDescription ?? null,
+            assetAiAutoTagNames: Array.isArray(r.memeAsset.aiAutoTagNames) ? r.memeAsset.aiAutoTagNames : null,
+            aiLastSubmission: (() => {
+              const assetId = String(r.memeAsset.id || '');
+              if (!assetId) return null;
+              const last = latestAiByAssetId.get(assetId);
+              if (!last) return null;
+              return {
+                id: last.submissionId,
+                aiStatus: last.aiStatus || null,
+                aiPipelineVersion: last.aiPipelineVersion,
+                aiRetryCount: last.aiRetryCount,
+                aiLastTriedAt: last.aiLastTriedAt ? new Date(last.aiLastTriedAt).toISOString() : null,
+                aiCompletedAt: last.aiCompletedAt ? new Date(last.aiCompletedAt).toISOString() : null,
+                aiErrorShort: last.aiError ? String(last.aiError).slice(0, 500) : null,
+                aiDebug: last.aiModelVersionsJson ? last.aiModelVersionsJson : null,
+              };
+            })(),
+          }
+        : {}),
     };
   });
 

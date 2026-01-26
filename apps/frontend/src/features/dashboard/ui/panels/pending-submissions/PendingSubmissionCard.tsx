@@ -5,7 +5,7 @@ import { getResubmitsLeft } from './lib/resubmits';
 import { useSubmissionPreview } from './model/useSubmissionPreview';
 import { SubmissionPreview } from './ui/SubmissionPreview';
 
-import type { Submission } from '@/types';
+import type { Submission } from '@memalerts/api-contracts';
 
 import { getRuntimeConfig } from '@/shared/config/runtimeConfig';
 import { cn } from '@/shared/lib/cn';
@@ -405,3 +405,4 @@ export function PendingSubmissionCard(props: {
     </li>
   );
 }
+

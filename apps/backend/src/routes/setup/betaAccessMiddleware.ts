@@ -25,6 +25,7 @@ export function registerBetaAccessMiddleware(app: Router) {
       req.path.startsWith('/auth/twitch') ||
       req.path === '/auth/logout' ||
       req.path.startsWith('/uploads') ||
+      /^\/memes\/[0-9a-fA-F-]{36}$/.test(req.path) ||
       /^\/memes\/[^\/]+\/activate$/.test(req.path) ||
       req.path === '/me' ||
       req.path === '/me/preferences' ||

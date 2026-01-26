@@ -1,4 +1,4 @@
-import type { Meme } from '@/types';
+import type { MemeDetail } from '@memalerts/api-contracts';
 
 import { resolveMediaUrl } from '@/lib/urls';
 
@@ -8,7 +8,7 @@ function pushUrl(list: string[], raw?: string | null) {
   list.push(resolveMediaUrl(trimmed));
 }
 
-export function getMemeMediaCandidates(meme: Meme): string[] {
+export function getMemeMediaCandidates(meme: MemeDetail): string[] {
   const urls: string[] = [];
   pushUrl(urls, meme.previewUrl);
 
@@ -30,7 +30,9 @@ export function getMemeMediaCandidates(meme: Meme): string[] {
   });
 }
 
-export function getMemeMediaUrl(meme: Meme): string {
+export function getMemeMediaUrl(meme: MemeDetail): string {
   const candidates = getMemeMediaCandidates(meme);
   return candidates[0] || '';
 }
+
+

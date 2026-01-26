@@ -160,7 +160,7 @@ export function useBoostyRewards({ channelSlug, settingsLoadedRef, lastSavedBoos
     } catch (e) {
       const err = toApiError(e, t('admin.failedToSaveSettings', { defaultValue: 'Failed to save settings' }));
 
-      if (err.errorCode === 'VALIDATION_ERROR' && Array.isArray(err.details)) {
+      if (err.code === 'VALIDATION_ERROR' && Array.isArray(err.details)) {
         let table: string | null = null;
         const nextRows: BoostyTierCoinsRowErrors = {};
 
@@ -188,7 +188,7 @@ export function useBoostyRewards({ channelSlug, settingsLoadedRef, lastSavedBoos
         return; // Important: no toast on inline validation errors.
       }
 
-      toast.error(err.error || err.message);
+      toast.error(err.message);
     } finally {
       await ensureMinDuration(startedAt, 650);
       setSavingBoosty(false);

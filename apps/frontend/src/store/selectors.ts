@@ -1,7 +1,7 @@
 import { createSelector } from '@reduxjs/toolkit';
 
 import type { RootState } from './index';
-import type { Meme } from '@/types';
+import type { MemeDetail } from '@memalerts/api-contracts';
 
 export const selectAuthState = (s: RootState) => s.auth;
 export const selectUser = (s: RootState) => s.auth.user;
@@ -19,7 +19,7 @@ export const selectMemeById = createSelector(
 );
 
 export const selectMemesByType = createSelector(
-  [selectMemes, (_: RootState, type: Meme['type']) => type],
+  [selectMemes, (_: RootState, type: MemeDetail['type']) => type],
   (memes, type) => memes.filter((m) => m.type === type),
 );
 
@@ -37,4 +37,6 @@ export const selectPendingSubmissions = createSelector([selectSubmissions], (ite
 );
 
 export const selectPendingSubmissionsCount = createSelector([selectPendingSubmissions], (items) => items.length);
+
+
 

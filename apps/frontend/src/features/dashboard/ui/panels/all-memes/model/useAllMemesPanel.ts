@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import type { Meme, MemeStatus } from '@/types';
+import type { MemeDetail, MemeStatus } from '@memalerts/api-contracts';
 
 import { apiGetWithMeta } from '@/lib/api';
 import { useDebounce } from '@/shared/lib/hooks';
@@ -23,7 +23,7 @@ export function useAllMemesPanel(params: { isOpen: boolean; channelId: string; i
   });
 
   // Raw loaded items (pagination offset must be based on unfiltered length).
-  const [items, setItems] = useState<Meme[]>([]);
+  const [items, setItems] = useState<MemeDetail[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
@@ -75,7 +75,7 @@ export function useAllMemesPanel(params: { isOpen: boolean; channelId: string; i
     const p = new URLSearchParams(paramsBase);
     p.set('offset', String(offset));
     if (opts?.includeTotal) p.set('includeTotal', '1');
-    return await apiGetWithMeta<Meme[]>(`/streamer/memes?${p.toString()}`);
+    return await apiGetWithMeta<MemeDetail[]>(`/streamer/memes?${p.toString()}`);
   };
 
   const reload = useCallback(async () => {
@@ -161,5 +161,7 @@ export function useAllMemesPanel(params: { isOpen: boolean; channelId: string; i
     totalCount,
   };
 }
+
+
 
 

@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 
 import type { PendingFilters, SubmissionsPanelTab } from '@/features/dashboard/ui/panels/submissions/model/types';
 import type { MySubmission } from '@/features/submit/types';
-import type { Submission } from '@/types';
+import type { Submission } from '@memalerts/api-contracts';
 
 import { useMySubmissionsList } from '@/features/dashboard/ui/panels/submissions/model/useMySubmissionsList';
 import { usePendingHotkeys } from '@/features/dashboard/ui/panels/submissions/model/usePendingHotkeys';
@@ -216,3 +216,4 @@ export const DashboardSubmissionsPanel = memo(function DashboardSubmissionsPanel
     </section>
   );
 });
+

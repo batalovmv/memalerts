@@ -44,9 +44,9 @@ export async function processOneSubmission(submissionId: string): Promise<void> 
   if (!submission) return;
 
   const fileContext = await resolveAiModerationFileContext(submission, submissionId);
-  const { fileUrl, localPath, localFileExists, localRootUsed, fileHash, contentHash, durationMs } = fileContext;
+  const { fileUrl, localPath, localFileExists, localRootUsed, fileHash, durationMs } = fileContext;
 
-  const reused = await tryReuseAiResults({ submission, fileHash, contentHash, now });
+  const reused = await tryReuseAiResults({ submission, fileHash, now });
   if (reused) return;
 
   if (fileUrl.startsWith('/uploads/') && localPath && !localFileExists) {
@@ -64,13 +64,12 @@ export async function processOneSubmission(submissionId: string): Promise<void> 
   const { canonicalTagNames } = await persistAiModerationResults({
     submission,
     fileHash,
-    contentHash,
     fileUrl,
     durationMs,
     now,
     pipeline,
   });
-  await maybeAutoApproveSubmission({ submission, fileUrl, fileHash, contentHash, durationMs, pipeline, canonicalTagNames });
+  await maybeAutoApproveSubmission({ submission, fileUrl, fileHash, durationMs, pipeline, canonicalTagNames });
 
   if (submission.submitterUserId) {
     try {

@@ -3,7 +3,7 @@ import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 
 import type { PublicSubmissionsStatus, SubmissionsControlState } from '@/features/dashboard/types';
-import type { User } from '@/types';
+import type { User } from '@memalerts/api-contracts';
 
 import { api } from '@/lib/api';
 import { getPublicSubmissionsStatus, rotateSubmissionsControlLink as rotateSubmissionsControlLinkApi } from '@/shared/api/submissions';
@@ -245,3 +245,4 @@ export function useDashboardSubmissionsControl({ user }: UseDashboardSubmissions
     rotateSubmissionsControlLink,
   };
 }
+

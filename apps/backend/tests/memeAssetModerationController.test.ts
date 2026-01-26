@@ -100,17 +100,10 @@ describe('moderationMemeAssetController.list', () => {
         fileHash: 'hash-1',
         durationMs: null,
         createdAt: new Date('2024-01-01T00:00:00Z'),
-        poolVisibility: 'hidden',
-        poolHiddenAt: new Date('2024-01-02T00:00:00Z'),
-        poolHiddenByUserId: 'user-1',
-        poolHiddenReason: 'bad',
-        purgeRequestedAt: null,
-        purgeNotBefore: null,
-        purgedAt: null,
-        purgeReason: null,
-        purgeByUserId: null,
-        hiddenBy: { id: 'user-1', displayName: 'Admin' },
-        purgedBy: null,
+        status: 'hidden',
+        hiddenAt: new Date('2024-01-02T00:00:00Z'),
+        quarantinedAt: null,
+        deletedAt: null,
       },
     ]);
 
@@ -126,8 +119,8 @@ describe('moderationMemeAssetController.list', () => {
     expect(Array.isArray(res.body)).toBe(true);
     expect((res.body as Array<Record<string, unknown>>)[0]).toMatchObject({
       id: 'asset-1',
-      hiddenReason: 'bad',
-      hiddenByUserId: 'user-1',
+      status: 'hidden',
+      poolVisibility: 'hidden',
     });
   });
 });
@@ -136,11 +129,10 @@ describe('moderationMemeAssetController.hide', () => {
   it('hides meme asset and writes audit log', async () => {
     prismaMock.memeAsset.update.mockResolvedValue({
       id: 'asset-1',
-      poolVisibility: 'hidden',
-      poolHiddenAt: new Date('2024-01-01T00:00:00Z'),
-      poolHiddenByUserId: 'user-1',
-      poolHiddenReason: 'bad',
-      hiddenBy: { id: 'user-1', displayName: 'Admin' },
+      status: 'hidden',
+      hiddenAt: new Date('2024-01-01T00:00:00Z'),
+      quarantinedAt: null,
+      deletedAt: null,
     });
     auditMocks.auditLog.mockResolvedValue(undefined);
 
@@ -152,8 +144,8 @@ describe('moderationMemeAssetController.hide', () => {
     expect(res.statusCode).toBe(200);
     expect(res.body).toMatchObject({
       id: 'asset-1',
-      poolHiddenReason: 'bad',
-      hiddenReason: 'bad',
+      status: 'hidden',
+      poolVisibility: 'hidden',
     });
     expect(auditMocks.auditLog).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -187,15 +179,10 @@ describe('moderationMemeAssetController.unhide', () => {
   it('unhides meme asset and writes audit log', async () => {
     prismaMock.memeAsset.update.mockResolvedValue({
       id: 'asset-1',
-      poolVisibility: 'visible',
-      poolHiddenAt: null,
-      poolHiddenByUserId: null,
-      poolHiddenReason: null,
-      purgeRequestedAt: null,
-      purgeNotBefore: null,
-      purgedAt: null,
-      hiddenBy: null,
-      purgedBy: null,
+      status: 'active',
+      hiddenAt: null,
+      quarantinedAt: null,
+      deletedAt: null,
     });
     auditMocks.auditLog.mockResolvedValue(undefined);
 
@@ -205,7 +192,7 @@ describe('moderationMemeAssetController.unhide', () => {
     await moderationMemeAssetController.unhide(req as never, res as never);
 
     expect(res.statusCode).toBe(200);
-    expect(res.body).toMatchObject({ poolVisibility: 'visible' });
+    expect(res.body).toMatchObject({ status: 'active', poolVisibility: 'visible' });
     expect(auditMocks.auditLog).toHaveBeenCalledWith(
       expect.objectContaining({
         action: 'moderation.memeAsset.unhide',
@@ -256,17 +243,10 @@ describe('moderationMemeAssetController.del', () => {
 
     prismaMock.memeAsset.update.mockResolvedValue({
       id: 'asset-1',
-      poolVisibility: 'hidden',
-      poolHiddenAt: new Date('2024-02-01T00:00:00Z'),
-      poolHiddenByUserId: 'user-1',
-      poolHiddenReason: 'dmca',
-      purgeRequestedAt: new Date('2024-02-01T00:00:00Z'),
-      purgeNotBefore: new Date('2024-02-04T00:00:00Z'),
-      purgedAt: null,
-      purgeReason: 'dmca',
-      purgeByUserId: 'user-1',
-      hiddenBy: { id: 'user-1', displayName: 'Admin' },
-      purgedBy: { id: 'user-1', displayName: 'Admin' },
+      status: 'deleted',
+      hiddenAt: new Date('2024-02-01T00:00:00Z'),
+      quarantinedAt: null,
+      deletedAt: new Date('2024-02-01T00:00:00Z'),
     });
 
     const req = makeReq({
@@ -280,9 +260,9 @@ describe('moderationMemeAssetController.del', () => {
 
     expect(res.statusCode).toBe(200);
     const updateArg = prismaMock.memeAsset.update.mock.calls[0]?.[0];
-    expect(updateArg?.data?.poolVisibility).toBe('hidden');
-    expect(updateArg?.data?.purgeNotBefore).toBeInstanceOf(Date);
-    expect(res.body).toMatchObject({ purgeReason: 'dmca' });
+    expect(updateArg?.data?.status).toBe('deleted');
+    expect(updateArg?.data?.deletedAt).toBeInstanceOf(Date);
+    expect(res.body).toMatchObject({ status: 'deleted', poolVisibility: 'hidden' });
     expect(auditMocks.auditLog).toHaveBeenCalledWith(
       expect.objectContaining({
         action: 'moderation.memeAsset.delete',

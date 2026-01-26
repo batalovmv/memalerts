@@ -1,7 +1,7 @@
 import { createAsyncThunk, createSlice } from '@reduxjs/toolkit';
 
 import type { BotStatus } from '@/shared/api/bot';
-import type { ApiError, BotProvider } from '@/types';
+import type { ApiError, BotProvider } from '@memalerts/api-contracts';
 
 import { getAllBotStatuses, updateBotSettings } from '@/shared/api/bot';
 import { toApiError } from '@/shared/api/toApiError';
@@ -76,3 +76,4 @@ const botIntegrationSlice = createSlice({
 });
 
 export default botIntegrationSlice.reducer;
+

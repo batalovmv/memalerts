@@ -89,22 +89,22 @@ describe('streamer stats', () => {
 
     await createChannelMemeStats30d({
       channelId: channel.id,
-      memeId: memeA.id,
+      channelMemeId: memeA.id,
       totalActivationsCount: 3,
       totalCoinsSpentSum: BigInt(300),
     });
     await createChannelMemeStats30d({
       channelId: channel.id,
-      memeId: memeB.id,
+      channelMemeId: memeB.id,
       totalActivationsCount: 2,
       totalCoinsSpentSum: BigInt(80),
     });
 
-    await createMemeActivation({ channelId: channel.id, userId: viewerA.id, memeId: memeA.id, coinsSpent: 100 });
-    await createMemeActivation({ channelId: channel.id, userId: viewerA.id, memeId: memeA.id, coinsSpent: 100 });
-    await createMemeActivation({ channelId: channel.id, userId: viewerA.id, memeId: memeA.id, coinsSpent: 100 });
-    await createMemeActivation({ channelId: channel.id, userId: viewerB.id, memeId: memeB.id, coinsSpent: 40 });
-    await createMemeActivation({ channelId: channel.id, userId: viewerB.id, memeId: memeB.id, coinsSpent: 40 });
+    await createMemeActivation({ channelId: channel.id, userId: viewerA.id, channelMemeId: memeA.id, priceCoins: 100 });
+    await createMemeActivation({ channelId: channel.id, userId: viewerA.id, channelMemeId: memeA.id, priceCoins: 100 });
+    await createMemeActivation({ channelId: channel.id, userId: viewerA.id, channelMemeId: memeA.id, priceCoins: 100 });
+    await createMemeActivation({ channelId: channel.id, userId: viewerB.id, channelMemeId: memeB.id, priceCoins: 40 });
+    await createMemeActivation({ channelId: channel.id, userId: viewerB.id, channelMemeId: memeB.id, priceCoins: 40 });
 
     const tokenCookie = makeJwt({ userId: streamer.id, role: streamer.role, channelId: channel.id });
     const res = await request(makeApp())

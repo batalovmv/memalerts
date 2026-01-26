@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next';
 
-import type { TwitchAutoRewardsV1 } from '@/types';
+import type { TwitchAutoRewardsV1 } from '@memalerts/api-contracts';
 
 import { AutoRewardsEditor } from '@/features/settings/tabs/rewards/TwitchAutoRewardsEditor';
 import { SettingsSection } from '@/features/settings/ui/SettingsSection';
@@ -79,3 +79,4 @@ export function AutoRewardsSection({
     </SettingsSection>
   );
 }
+

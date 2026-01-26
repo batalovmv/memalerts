@@ -12,6 +12,7 @@ import { Server } from 'socket.io';
 import { setupSocketIO } from './socket/index.js';
 import { maybeSetupSocketIoRedisAdapter } from './socket/redisAdapter.js';
 import { setupRoutes } from './routes/index.js';
+import { registerApiV1Routes } from './routes/setup/apiV1Routes.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { globalLimiter } from './middleware/rateLimit.js';
 import { requestContext } from './middleware/requestContext.js';
@@ -399,7 +400,10 @@ const apiRouter = express.Router();
 setupRoutes(apiRouter);
 app.use('/', apiRouter);
 app.use('/v1', apiRouter);
-app.use('/api/v1', apiRouter);
+
+const apiV1Router = express.Router();
+registerApiV1Routes(apiV1Router);
+app.use('/api/v1', apiV1Router);
 
 // 404 handler for unmatched routes
 app.use((req, res) => {

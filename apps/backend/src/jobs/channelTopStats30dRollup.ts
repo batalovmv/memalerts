@@ -19,7 +19,7 @@ export async function recomputeTopStats30d(days: number): Promise<{ days: number
   // This keeps results correct while preserving MVCC consistency for readers.
   const sql = `
       WITH base AS (
-        SELECT "channelId", "userId", "memeId", "coinsSpent", "status"
+        SELECT "channelId", "userId", "memeId", "priceCoins", "status"
         FROM "MemeActivation"
         WHERE "createdAt" >= $1
       ),
@@ -28,9 +28,9 @@ export async function recomputeTopStats30d(days: number): Promise<{ days: number
           b."channelId",
           b."userId",
           COUNT(*)::int AS total_count,
-          COALESCE(SUM(b."coinsSpent"), 0)::bigint AS total_coins,
+          COALESCE(SUM(b."priceCoins"), 0)::bigint AS total_coins,
           COUNT(*) FILTER (WHERE b.status IN ('done','completed'))::int AS completed_count,
-          COALESCE(SUM(b."coinsSpent") FILTER (WHERE b.status IN ('done','completed')), 0)::bigint AS completed_coins
+          COALESCE(SUM(b."priceCoins") FILTER (WHERE b.status IN ('done','completed')), 0)::bigint AS completed_coins
         FROM base b
         GROUP BY b."channelId", b."userId"
       ),
@@ -39,9 +39,9 @@ export async function recomputeTopStats30d(days: number): Promise<{ days: number
           b."channelId",
           b."memeId",
           COUNT(*)::int AS total_count,
-          COALESCE(SUM(b."coinsSpent"), 0)::bigint AS total_coins,
+          COALESCE(SUM(b."priceCoins"), 0)::bigint AS total_coins,
           COUNT(*) FILTER (WHERE b.status IN ('done','completed'))::int AS completed_count,
-          COALESCE(SUM(b."coinsSpent") FILTER (WHERE b.status IN ('done','completed')), 0)::bigint AS completed_coins
+          COALESCE(SUM(b."priceCoins") FILTER (WHERE b.status IN ('done','completed')), 0)::bigint AS completed_coins
         FROM base b
         GROUP BY b."channelId", b."memeId"
       ),
@@ -49,7 +49,7 @@ export async function recomputeTopStats30d(days: number): Promise<{ days: number
         SELECT
           b."memeId",
           COUNT(*) FILTER (WHERE b.status IN ('done','completed'))::int AS completed_count,
-          COALESCE(SUM(b."coinsSpent") FILTER (WHERE b.status IN ('done','completed')), 0)::bigint AS completed_coins
+          COALESCE(SUM(b."priceCoins") FILTER (WHERE b.status IN ('done','completed')), 0)::bigint AS completed_coins
         FROM base b
         GROUP BY b."memeId"
       )
@@ -83,7 +83,7 @@ export async function recomputeTopStats30d(days: number): Promise<{ days: number
 
   const sql2 = `
       WITH base AS (
-        SELECT "channelId", "memeId", "coinsSpent", "status", "createdAt"
+        SELECT "channelId", "memeId", "priceCoins", "status", "createdAt"
         FROM "MemeActivation"
         WHERE "createdAt" >= $1
       ),
@@ -92,9 +92,9 @@ export async function recomputeTopStats30d(days: number): Promise<{ days: number
           b."channelId",
           b."memeId",
           COUNT(*)::int AS total_count,
-          COALESCE(SUM(b."coinsSpent"), 0)::bigint AS total_coins,
+          COALESCE(SUM(b."priceCoins"), 0)::bigint AS total_coins,
           COUNT(*) FILTER (WHERE b.status IN ('done','completed'))::int AS completed_count,
-          COALESCE(SUM(b."coinsSpent") FILTER (WHERE b.status IN ('done','completed')), 0)::bigint AS completed_coins
+          COALESCE(SUM(b."priceCoins") FILTER (WHERE b.status IN ('done','completed')), 0)::bigint AS completed_coins
         FROM base b
         GROUP BY b."channelId", b."memeId"
       )
@@ -128,7 +128,7 @@ export async function recomputeTopStats30d(days: number): Promise<{ days: number
 
   const sql3 = `
       WITH base AS (
-        SELECT "memeId", "coinsSpent", "status", "createdAt"
+        SELECT "memeId", "priceCoins", "status", "createdAt"
         FROM "MemeActivation"
         WHERE "createdAt" >= $1
       ),
@@ -136,7 +136,7 @@ export async function recomputeTopStats30d(days: number): Promise<{ days: number
         SELECT
           b."memeId",
           COUNT(*) FILTER (WHERE b.status IN ('done','completed'))::int AS completed_count,
-          COALESCE(SUM(b."coinsSpent") FILTER (WHERE b.status IN ('done','completed')), 0)::bigint AS completed_coins
+          COALESCE(SUM(b."priceCoins") FILTER (WHERE b.status IN ('done','completed')), 0)::bigint AS completed_coins
         FROM base b
         GROUP BY b."memeId"
       )

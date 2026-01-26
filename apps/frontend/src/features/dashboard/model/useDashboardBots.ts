@@ -3,7 +3,7 @@ import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 
 import type { BotIntegration } from '@/features/dashboard/types';
-import type { User } from '@/types';
+import type { User } from '@memalerts/api-contracts';
 
 import { api } from '@/lib/api';
 
@@ -128,3 +128,4 @@ export function useDashboardBots({ user }: UseDashboardBotsOptions) {
     toggleAllBots,
   };
 }
+

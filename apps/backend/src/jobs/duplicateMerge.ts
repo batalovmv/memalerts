@@ -15,14 +15,14 @@ function isSchedulerEnabled(): boolean {
   return !['0', 'false', 'off', 'no'].includes(raw);
 }
 
-type DuplicateGroupRow = { contentHash: string; ids: string[]; cnt: number };
+type DuplicateGroupRow = { fileHash: string; ids: string[]; cnt: number };
 
 async function loadDuplicateGroups(): Promise<DuplicateGroupRow[]> {
   const rows = await prisma.$queryRaw<DuplicateGroupRow[]>`
-    SELECT "contentHash", array_agg(id) as ids, COUNT(*)::int as cnt
+    SELECT "fileHash", array_agg(id) as ids, COUNT(*)::int as cnt
     FROM "MemeAsset"
-    WHERE "contentHash" IS NOT NULL AND "purgedAt" IS NULL
-    GROUP BY "contentHash"
+    WHERE "fileHash" IS NOT NULL AND "deletedAt" IS NULL
+    GROUP BY "fileHash"
     HAVING COUNT(*) > 1
   `;
   return rows ?? [];
@@ -117,11 +117,8 @@ async function mergeDuplicate(primaryId: string, duplicateId: string): Promise<v
     await tx.memeAsset.update({
       where: { id: duplicateId },
       data: {
-        purgedAt: now,
-        purgeReason: 'duplicate_merged',
-        poolVisibility: 'hidden',
-        poolHiddenAt: now,
-        poolHiddenReason: 'duplicate_merged',
+        status: 'deleted',
+        deletedAt: now,
       },
     });
   });

@@ -187,8 +187,7 @@ export const createSubmissionWithRepos = async (deps: SubmissionDeps, req: AuthR
     fileHashForCleanup = uploadResult.fileHashForCleanup;
     fileHashRefAdded = uploadResult.fileHashRefAdded;
 
-    const { finalFilePath, fileHash, contentHash, normalizedMimeType, normalizedSizeBytes, effectiveDurationMs } =
-      uploadResult;
+    const { finalFilePath, fileHash, normalizedMimeType, normalizedSizeBytes, effectiveDurationMs } = uploadResult;
 
     const existingResult = await handleExistingAssetForUpload({
       deps,
@@ -199,7 +198,6 @@ export const createSubmissionWithRepos = async (deps: SubmissionDeps, req: AuthR
       finalTitle,
       userProvidedTitle,
       fileHash,
-      contentHash,
       fileHashRefAdded,
     });
     fileHashRefAdded = existingResult.fileHashRefAdded;
@@ -216,10 +214,8 @@ export const createSubmissionWithRepos = async (deps: SubmissionDeps, req: AuthR
         defaultPriceCoins: channel.defaultPriceCoins,
         finalTitle,
         userProvidedTitle,
-        tagIds,
         finalFilePath,
         fileHash,
-        contentHash,
         normalizedMimeType,
         normalizedSizeBytes,
         effectiveDurationMs,
@@ -237,7 +233,6 @@ export const createSubmissionWithRepos = async (deps: SubmissionDeps, req: AuthR
       bodyNotes: body.notes || null,
       finalFilePath,
       fileHash,
-      contentHash,
       effectiveDurationMs,
       normalizedMimeType,
       normalizedSizeBytes,

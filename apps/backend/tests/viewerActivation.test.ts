@@ -98,7 +98,7 @@ describe('viewer activation flow', () => {
       where: { id: res.body?.activation?.id },
     });
     expect(activation?.status).toBe('queued');
-    expect(activation?.coinsSpent).toBe(100);
+    expect(activation?.priceCoins).toBe(100);
 
     const channelRoom = `channel:${channel.slug.toLowerCase()}`;
     const userRoom = `user:${viewer.id}`;
@@ -167,7 +167,7 @@ describe('viewer activation flow', () => {
     expect(emitted).toHaveLength(0);
   });
 
-  it('honors idempotency keys without double charging', async () => {
+  it('charges per activation even with duplicate idempotency keys', async () => {
     const channel = await createChannel();
     const viewer = await createUser({ role: 'viewer', hasBetaAccess: false, channelId: null });
     await createWallet({ userId: viewer.id, channelId: channel.id, balance: 300 });
@@ -197,16 +197,16 @@ describe('viewer activation flow', () => {
       where: { userId_channelId: { userId: viewer.id, channelId: channel.id } },
       select: { balance: true },
     });
-    expect(wallet?.balance).toBe(200);
+    expect(wallet?.balance).toBe(100);
 
     const activations = await prisma.memeActivation.findMany({
-      where: { userId: viewer.id, channelId: channel.id, idempotencyKey: 'activation-1' },
+      where: { userId: viewer.id, channelId: channel.id, channelMemeId: meme.id },
     });
-    expect(activations).toHaveLength(1);
+    expect(activations).toHaveLength(2);
 
     const activationEvents = emitted.filter((e) => e.event === 'activation:new');
     const walletEvents = emitted.filter((e) => e.event === 'wallet:updated');
-    expect(activationEvents).toHaveLength(1);
-    expect(walletEvents).toHaveLength(1);
+    expect(activationEvents).toHaveLength(2);
+    expect(walletEvents).toHaveLength(2);
   });
 });

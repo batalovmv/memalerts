@@ -1,16 +1,20 @@
 import { describe, expect, it } from 'vitest';
 
 import { getMemeMediaUrl } from './getMemeMediaUrl';
-import type { Meme } from '@/types';
+import type { MemeDetail } from '@memalerts/api-contracts';
 
-function makeMeme(overrides: Partial<Meme> = {}): Meme {
+function makeMeme(overrides: Partial<MemeDetail> = {}): MemeDetail {
   return {
     id: 'm1',
     title: 'Test',
     type: 'video',
     fileUrl: 'https://cdn.example.com/original.webm',
+    previewUrl: null,
+    variants: [],
     priceCoins: 100,
     durationMs: 1000,
+    activationsCount: 0,
+    createdAt: '2024-01-01T00:00:00.000Z',
     ...overrides,
   };
 }
@@ -43,3 +47,5 @@ describe('getMemeMediaUrl', () => {
     expect(getMemeMediaUrl(meme)).toBe('https://cdn.example.com/original.webm');
   });
 });
+
+

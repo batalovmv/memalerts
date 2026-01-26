@@ -175,9 +175,6 @@ describe('submission moderation flow', () => {
     expect(channelMeme?.status).toBe('approved');
     expect(channelMeme?.priceCoins).toBe(200);
 
-    const legacy = await prisma.meme.findUnique({ where: { id: channelMeme!.legacyMemeId! } });
-    expect(legacy?.status).toBe('approved');
-
     const wallet = await prisma.wallet.findUnique({
       where: { userId_channelId: { userId: submitter.id, channelId: channel.id } },
     });

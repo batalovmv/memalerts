@@ -1,6 +1,6 @@
 import { http, HttpResponse } from 'msw';
 
-import type { User } from '@/types';
+import type { User } from '@memalerts/api-contracts';
 import type { ModerationMemeAsset } from '@/shared/api/memes';
 
 export type BetaStatus = {
@@ -559,4 +559,5 @@ export function mockResubmitSubmission(assert?: (data: { id: string; title: stri
     return HttpResponse.json({ ok: true });
   });
 }
+
 

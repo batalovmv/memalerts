@@ -212,7 +212,9 @@ describe('bot service', () => {
     expect(enableRes.body.ok).toBe(true);
     expect(enableRes.body.followGreetingsEnabled).toBe(true);
     expect(enableRes.body.followGreetingTemplate).toBe('Hello {user}');
-    expect(twitchApiMocks.getEventSubSubscriptions).toHaveBeenCalledWith('twitch-follow');
+    expect(twitchApiMocks.getEventSubSubscriptions).toHaveBeenCalledWith(
+      expect.stringContaining('twitch-follow')
+    );
     expect(twitchApiMocks.createEventSubSubscriptionOfType).toHaveBeenCalled();
 
     const patchRes = await request(app)

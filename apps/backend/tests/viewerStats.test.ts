@@ -37,10 +37,10 @@ describe('viewer meme stats', () => {
     const topMeme = await createMeme({ channelId: channel.id, title: 'Top Meme', priceCoins: 100 });
     const secondMeme = await createMeme({ channelId: channel.id, title: 'Second Meme', priceCoins: 50 });
 
-    await createMemeActivation({ channelId: channel.id, memeId: topMeme.id, coinsSpent: 100 });
-    await createMemeActivation({ channelId: channel.id, memeId: topMeme.id, coinsSpent: 100 });
-    await createMemeActivation({ channelId: channel.id, memeId: topMeme.id, coinsSpent: 100 });
-    await createMemeActivation({ channelId: channel.id, memeId: secondMeme.id, coinsSpent: 50 });
+    await createMemeActivation({ channelId: channel.id, channelMemeId: topMeme.id, priceCoins: 100 });
+    await createMemeActivation({ channelId: channel.id, channelMemeId: topMeme.id, priceCoins: 100 });
+    await createMemeActivation({ channelId: channel.id, channelMemeId: topMeme.id, priceCoins: 100 });
+    await createMemeActivation({ channelId: channel.id, channelMemeId: secondMeme.id, priceCoins: 50 });
 
     const res = await request(makeApp())
       .get(`/memes/stats?channelId=${encodeURIComponent(channel.id)}&period=all&limit=2`)

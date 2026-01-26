@@ -1,6 +1,5 @@
 import { Router } from 'express';
 import type { AuthRequest } from '../middleware/auth.js';
-import { adminController } from '../controllers/adminController.js';
 import { youtubeDefaultBotController } from '../controllers/owner/youtubeDefaultBotController.js';
 import { vkvideoDefaultBotController } from '../controllers/owner/vkvideoDefaultBotController.js';
 import { twitchDefaultBotController } from '../controllers/owner/twitchDefaultBotController.js';
@@ -23,11 +22,6 @@ ownerRoutes.use((req, res, next) => {
   if (!assertAdmin((req as AuthRequest).userRole, res)) return;
   next();
 });
-
-// Wallet management (owner-only)
-ownerRoutes.get('/wallets/options', adminController.getWalletOptions);
-ownerRoutes.get('/wallets', adminController.getAllWallets);
-ownerRoutes.post('/wallets/:userId/:channelId/adjust', adminController.adjustWallet);
 
 // YouTube default bot (global shared sender, admin-only)
 ownerRoutes.get('/bots/youtube/default/status', youtubeDefaultBotController.status);

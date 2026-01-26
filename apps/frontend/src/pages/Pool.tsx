@@ -4,17 +4,17 @@ import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
 
 import type { MemePoolItem } from '@/shared/api/memes';
-import type { Meme } from '@/types';
+import type { MemeDetail } from '@memalerts/api-contracts';
 
 import Header from '@/components/Header';
 import { login } from '@/lib/auth';
 import { resolveMediaUrl } from '@/lib/urls';
 import { getMemesPool, moderationHideMemeAsset, moderationQuarantineMemeAsset, moderationUpdateMemeAssetTitle } from '@/shared/api/memes';
 import { createPoolSubmission } from '@/shared/api/submissions';
+import { canModerateGlobalPool } from '@/shared/lib/permissions';
 import { PageShell, Button, HelpTooltip, Input, Spinner, Textarea, Pill } from '@/shared/ui';
 import { Modal } from '@/shared/ui/Modal/Modal';
 import ConfirmDialog from '@/shared/ui/modals/ConfirmDialog';
-import { canModerateGlobalPool } from '@/shared/lib/permissions';
 import { useAppSelector } from '@/store/hooks';
 import MemeCard from '@/widgets/meme-card/MemeCard';
 
@@ -27,7 +27,7 @@ function getPoolMemeAssetId(m: PoolItem): string | null {
   return null;
 }
 
-function toPoolCardMeme(m: PoolItem, fallbackTitle: string): Meme {
+function toPoolCardMeme(m: PoolItem, fallbackTitle: string): MemeDetail {
   // MemeCard expects Meme-like shape; pool items are MemeAsset-like (channel-independent).
   // Best-effort mapping with sensible fallbacks.
   const previewUrl =
@@ -40,7 +40,7 @@ function toPoolCardMeme(m: PoolItem, fallbackTitle: string): Meme {
     previewUrl ||
     '';
   const variants = Array.isArray((m as unknown as { variants?: unknown }).variants)
-    ? ((m as unknown as { variants: Meme['variants'] }).variants ?? undefined)
+    ? ((m as unknown as { variants: MemeDetail['variants'] }).variants ?? undefined)
     : undefined;
 
   const title =
@@ -51,17 +51,19 @@ function toPoolCardMeme(m: PoolItem, fallbackTitle: string): Meme {
         : fallbackTitle;
   const priceCoins = typeof m.samplePriceCoins === 'number' && Number.isFinite(m.samplePriceCoins) ? m.samplePriceCoins : 0;
   const durationMs = typeof m.durationMs === 'number' && Number.isFinite(m.durationMs) ? m.durationMs : 0;
-  const type = (m.type as Meme['type'] | undefined) || 'video';
+  const type = (m.type as MemeDetail['type'] | undefined) || 'video';
 
   return {
     id: String(m.id ?? ''),
     title,
     type,
     previewUrl,
-    variants,
+    variants: variants ?? [],
     fileUrl,
     priceCoins,
     durationMs,
+    activationsCount: 0,
+    createdAt: new Date().toISOString(),
   };
 }
 
@@ -167,7 +169,7 @@ export default function PoolPage() {
     );
     setAdminTitle(initialTitle);
     setAdminReason('');
-  }, [selectedItem?.id]);
+  }, [selectedItem]);
 
   const runAdd = async (memeAssetId: string, title: string | null) => {
     try {
@@ -432,7 +434,6 @@ export default function PoolPage() {
                       setSelectedItem(m);
                       setIsMemeModalOpen(true);
                     }}
-                    isOwner={false}
                     previewMode="autoplayMuted"
                   />
                 </HelpTooltip>
@@ -736,3 +737,5 @@ export default function PoolPage() {
     </PageShell>
   );
 }
+
+

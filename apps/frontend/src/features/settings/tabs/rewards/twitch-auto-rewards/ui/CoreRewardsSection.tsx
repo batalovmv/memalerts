@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next';
 
 import type { AutoRewardsEnabledKey } from '@/features/settings/tabs/rewards/twitch-auto-rewards/model/types';
-import type { TwitchAutoRewardsV1 } from '@/types';
+import type { TwitchAutoRewardsV1 } from '@memalerts/api-contracts';
 
 import { bool, intOrEmpty } from '@/features/settings/tabs/rewards/twitch-auto-rewards/model/utils';
 import { PlatformBadges } from '@/features/settings/tabs/rewards/twitch-auto-rewards/ui/PlatformBadges';
@@ -227,3 +227,4 @@ export function CoreRewardsSection({ value, disabled, setEnabled, patch }: CoreR
     </details>
   );
 }
+

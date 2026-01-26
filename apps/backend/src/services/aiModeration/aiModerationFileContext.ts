@@ -3,7 +3,6 @@ import path from 'path';
 import { prisma } from '../../lib/prisma.js';
 import { logger } from '../../utils/logger.js';
 import { calculateFileHash } from '../../utils/fileHash.js';
-import { computeContentHash } from '../../utils/media/contentHash.js';
 import { validatePathWithinDirectory } from '../../utils/pathSecurity.js';
 import { clampInt, tryExtractSha256FromUploadsPath, withTimeout } from './aiModerationHelpers.js';
 import type { AiModerationSubmission } from './aiModerationTypes.js';
@@ -14,7 +13,6 @@ export type AiModerationFileContext = {
   localFileExists: boolean;
   localRootUsed: string | null;
   fileHash: string;
-  contentHash: string | null;
   durationMs: number | null;
 };
 
@@ -95,27 +93,12 @@ export async function resolveAiModerationFileContext(
 
   if (!fileHash) throw new Error('missing_filehash');
 
-  let contentHash: string | null = null;
-  if (localPath && localFileExists) {
-    try {
-      contentHash = await computeContentHash(localPath);
-    } catch (error) {
-      const err = error as Error;
-      logger.warn('ai_moderation.contenthash_failed', {
-        submissionId,
-        fileUrl,
-        errorMessage: err?.message || String(error),
-      });
-    }
-  }
-
   return {
     fileUrl,
     localPath,
     localFileExists,
     localRootUsed,
     fileHash,
-    contentHash,
     durationMs,
   };
 }

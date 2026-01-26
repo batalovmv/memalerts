@@ -2,13 +2,13 @@ import { useTranslation } from 'react-i18next';
 
 import { AiRegenerateButton } from '../AiRegenerateButton';
 
-import type { Meme } from '@/types';
+import type { MemeDetail } from '@memalerts/api-contracts';
 import type { FormEvent } from 'react';
 
 import { Button, HelpTooltip, Input, Pill, Spinner } from '@/shared/ui';
 
 type MemeModalInfoProps = {
-  meme: Meme;
+  meme: MemeDetail;
   mode: 'admin' | 'viewer';
   isOwner: boolean;
   isEditing: boolean;
@@ -586,3 +586,5 @@ export function MemeModalInfo({
     </aside>
   );
 }
+
+

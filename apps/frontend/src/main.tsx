@@ -2,6 +2,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Provider } from 'react-redux';
 import { BrowserRouter } from 'react-router-dom';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 import App from '@/App.tsx';
 import { ChannelColorsProvider } from '@/contexts/ChannelColorsContext.tsx';
@@ -40,6 +41,8 @@ if (!rootElement) {
   throw new Error('Root element not found');
 }
 
+const queryClient = new QueryClient();
+
 async function bootstrap() {
   // Load runtime config first, so initial /me request uses correct origin (beta vs prod)
   const cfg = await loadRuntimeConfig();
@@ -51,17 +54,19 @@ async function bootstrap() {
   createRoot(rootElement!).render(
     <StrictMode>
       <Provider store={store}>
-        <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-          <ThemeProvider>
-            <ChannelColorsProvider>
-              <HelpModeProvider>
-                <ErrorBoundary>
-                  <App />
-                </ErrorBoundary>
-              </HelpModeProvider>
-            </ChannelColorsProvider>
-          </ThemeProvider>
-        </BrowserRouter>
+        <QueryClientProvider client={queryClient}>
+          <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+            <ThemeProvider>
+              <ChannelColorsProvider>
+                <HelpModeProvider>
+                  <ErrorBoundary>
+                    <App />
+                  </ErrorBoundary>
+                </HelpModeProvider>
+              </ChannelColorsProvider>
+            </ThemeProvider>
+          </BrowserRouter>
+        </QueryClientProvider>
       </Provider>
     </StrictMode>,
   );

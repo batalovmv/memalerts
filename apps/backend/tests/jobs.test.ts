@@ -137,7 +137,7 @@ describe('jobs and workers', () => {
   it('recomputes channel daily stats rollups', async () => {
     const channel = await createChannel({ slug: 'job-rollup', name: 'Job Rollup' });
     const user = await createUser({ role: 'viewer' });
-    await createMemeActivation({ channelId: channel.id, userId: user.id, status: 'done', coinsSpent: 150 });
+    await createMemeActivation({ channelId: channel.id, userId: user.id, status: 'done', priceCoins: 150 });
 
     const res = await recomputeChannelDailyStats({ days: 1 });
     expect(res.rowsUpserted).toBeGreaterThan(0);

@@ -7,7 +7,7 @@ describe('toApiError', () => {
     const err = { response: { status: 403, data: { errorCode: 'SUBMISSIONS_DISABLED' } } };
     const res = toApiError(err, 'Fallback');
     expect(res.message).toBe('Submissions are disabled');
-    expect(res.errorCode).toBe('SUBMISSIONS_DISABLED');
+    expect(res.code).toBe('SUBMISSIONS_DISABLED');
     expect(res.statusCode).toBe(403);
   });
 
@@ -21,5 +21,6 @@ describe('toApiError', () => {
     const err = { response: { status: 500, data: { errorCode: 'UNKNOWN_CODE' } } };
     const res = toApiError(err, 'Fallback');
     expect(res.message).toBe('Fallback');
+    expect(res.code).toBe('INTERNAL_ERROR');
   });
 });

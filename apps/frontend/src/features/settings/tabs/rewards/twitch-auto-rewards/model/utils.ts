@@ -1,5 +1,5 @@
 import type { KvRow, PlatformCode } from '@/features/settings/tabs/rewards/twitch-auto-rewards/model/types';
-import type { TwitchAutoRewardsV1 } from '@/types';
+import type { TwitchAutoRewardsV1 } from '@memalerts/api-contracts';
 
 export const PLATFORM_TITLES: Record<PlatformCode, string> = {
   TW: 'Twitch',
@@ -39,3 +39,4 @@ export function bool(v: unknown, fallback = false): boolean {
 export function base(value: TwitchAutoRewardsV1 | null): TwitchAutoRewardsV1 {
   return value ?? { v: 1 };
 }
+

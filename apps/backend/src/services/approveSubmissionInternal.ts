@@ -1,5 +1,4 @@
 import type { Prisma } from '@prisma/client';
-import { getOrCreateTags } from '../utils/tags.js';
 
 export type ApproveSubmissionInternalArgs = {
   tx: Prisma.TransactionClient;
@@ -9,17 +8,14 @@ export type ApproveSubmissionInternalArgs = {
   resolved: {
     finalFileUrl: string;
     fileHash: string | null;
-    contentHash?: string | null;
     durationMs: number;
     priceCoins: number;
     tagNames?: string[];
   };
 };
 
-type LegacyMeme = Awaited<ReturnType<Prisma.TransactionClient['meme']['findUnique']>>;
-
 export async function approveSubmissionInternal(args: ApproveSubmissionInternalArgs): Promise<{
-  legacyMeme: LegacyMeme | null;
+  legacyMeme: null;
   alreadyApproved: boolean;
   memeAssetId: string | null;
   channelMemeId: string | null;
@@ -64,24 +60,21 @@ export async function approveSubmissionInternal(args: ApproveSubmissionInternalA
 
   // Idempotency: one submission -> one approve.
   if (submission.status === 'approved') {
-    let legacy: LegacyMeme | null = null;
     const memeAssetId: string | null = submission.memeAssetId ?? null;
     let channelMemeId: string | null = null;
 
     if (memeAssetId) {
       const cm = await tx.channelMeme.findUnique({
         where: { channelId_memeAssetId: { channelId: submission.channelId, memeAssetId } },
-        select: { id: true, legacyMemeId: true },
+        select: { id: true },
       });
       channelMemeId = cm?.id ?? null;
-      if (cm?.legacyMemeId) legacy = await tx.meme.findUnique({ where: { id: cm.legacyMemeId } });
     }
 
-    return { legacyMeme: legacy, alreadyApproved: true, memeAssetId, channelMemeId };
+    return { legacyMeme: null, alreadyApproved: true, memeAssetId, channelMemeId };
   }
 
   const tagNames = Array.isArray(resolved.tagNames) ? resolved.tagNames : [];
-  const tagIds = tagNames.length > 0 ? await getOrCreateTags(tagNames) : [];
 
   const aiAutoDescription =
     typeof submission.aiAutoDescription === 'string'
@@ -96,71 +89,27 @@ export async function approveSubmissionInternal(args: ApproveSubmissionInternalA
       ? (aiAutoTagNamesJson as string[])
       : [];
 
-  const memeData: Prisma.MemeUncheckedCreateInput = {
-    channelId: submission.channelId,
-    title: submission.title,
-    type: submission.type,
-    fileUrl: resolved.finalFileUrl,
-    fileHash: resolved.fileHash,
-    durationMs: resolved.durationMs,
-    priceCoins: resolved.priceCoins,
-    status: 'approved',
-    createdByUserId: submission.submitterUserId,
-    approvedByUserId,
-  };
+  if (!resolved.fileHash) throw new Error('FILE_HASH_REQUIRED');
 
-  if (tagIds.length > 0) memeData.tags = { create: tagIds.map((tagId) => ({ tagId })) };
-
-  const legacyMeme = await tx.meme.create({
-    data: memeData,
-    include: {
-      createdBy: { select: { id: true, displayName: true, channel: { select: { slug: true } } } },
-      ...(tagIds.length > 0 ? { tags: { include: { tag: true } } } : {}),
-    },
+  const existingAsset = await tx.memeAsset.findFirst({
+    where: { fileHash: resolved.fileHash },
+    select: { id: true },
   });
-
-  const existingAsset = resolved.contentHash
-    ? await tx.memeAsset.findFirst({ where: { contentHash: resolved.contentHash }, select: { id: true } })
-    : resolved.fileHash !== null
-      ? await tx.memeAsset.findFirst({ where: { fileHash: resolved.fileHash }, select: { id: true } })
-      : await tx.memeAsset.findFirst({
-          where: {
-            fileHash: null,
-            fileUrl: resolved.finalFileUrl,
-            type: submission.type,
-            durationMs: resolved.durationMs,
-          },
-          select: { id: true },
-        });
 
   let memeAssetId = existingAsset?.id ?? null;
   if (!memeAssetId) {
-    try {
-      memeAssetId = (
-        await tx.memeAsset.create({
-          data: {
-            type: submission.type,
-            fileUrl: resolved.finalFileUrl,
-            fileHash: resolved.fileHash,
-            contentHash: resolved.contentHash ?? undefined,
-            durationMs: resolved.durationMs,
-            createdByUserId: submission.submitterUserId || null,
-          },
-          select: { id: true },
-        })
-      ).id;
-    } catch (error) {
-      const errCode = typeof error === 'object' && error !== null ? (error as { code?: string }).code : null;
-      if (errCode === 'P2002' && resolved.contentHash) {
-        const existing = await tx.memeAsset.findFirst({
-          where: { contentHash: resolved.contentHash },
-          select: { id: true },
-        });
-        memeAssetId = existing?.id ?? null;
-      } else {
-        throw error;
-      }
-    }
+    memeAssetId = (
+      await tx.memeAsset.create({
+        data: {
+          type: submission.type,
+          fileUrl: resolved.finalFileUrl,
+          fileHash: resolved.fileHash,
+          durationMs: resolved.durationMs,
+          createdById: submission.submitterUserId || null,
+        },
+        select: { id: true },
+      })
+    ).id;
   }
   if (!memeAssetId) throw new Error('MEME_ASSET_CREATE_FAILED');
 
@@ -187,7 +136,7 @@ export async function approveSubmissionInternal(args: ApproveSubmissionInternalA
     const aiUpdateData: Prisma.MemeAssetUpdateManyMutationInput = {
       aiStatus: 'done',
       aiAutoDescription,
-      aiAutoTagNamesJson: aiAutoTags.length > 0 ? aiAutoTags : undefined,
+      aiAutoTagNames: aiAutoTags.length > 0 ? aiAutoTags : undefined,
       aiTranscript: aiTranscript || undefined,
       aiSearchText,
       aiCompletedAt: new Date(),
@@ -205,27 +154,14 @@ export async function approveSubmissionInternal(args: ApproveSubmissionInternalA
     create: {
       channelId: submission.channelId,
       memeAssetId,
-      legacyMemeId: legacyMeme.id,
       status: 'approved',
       title: channelTitle,
-      searchText: aiSearchText,
-      aiAutoDescription,
-      aiAutoTagNamesJson: aiAutoTags.length > 0 ? aiAutoTags : undefined,
       priceCoins: resolved.priceCoins,
-      addedByUserId: submission.submitterUserId || null,
-      approvedByUserId,
-      approvedAt: new Date(),
     },
     update: {
-      legacyMemeId: legacyMeme.id,
       status: 'approved',
       title: channelTitle,
-      searchText: aiSearchText,
-      aiAutoDescription,
-      aiAutoTagNamesJson: aiAutoTags.length > 0 ? aiAutoTags : undefined,
       priceCoins: resolved.priceCoins,
-      approvedByUserId,
-      approvedAt: new Date(),
       deletedAt: null,
     },
     select: { id: true },
@@ -233,5 +169,5 @@ export async function approveSubmissionInternal(args: ApproveSubmissionInternalA
 
   await tx.memeSubmission.update({ where: { id: submissionId }, data: { status: 'approved', memeAssetId } });
 
-  return { legacyMeme, alreadyApproved: false, memeAssetId, channelMemeId: cm.id };
+  return { legacyMeme: null, alreadyApproved: false, memeAssetId, channelMemeId: cm.id };
 }

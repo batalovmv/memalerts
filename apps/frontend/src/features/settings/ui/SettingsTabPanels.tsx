@@ -2,7 +2,7 @@ import { Suspense, lazy } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import type { SettingsTab } from '@/features/settings/model/types';
-import type { User } from '@/types';
+import type { User } from '@memalerts/api-contracts';
 
 import { getSettingsTabLabel } from '@/features/settings/model/tabLabels';
 import { ChannelSettings } from '@/features/settings/tabs/ChannelSettings';
@@ -128,3 +128,4 @@ export function SettingsTabPanels({ activeTab, isStreamerAdmin, user, getTabButt
     </Suspense>
   );
 }
+

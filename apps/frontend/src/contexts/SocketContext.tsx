@@ -14,7 +14,7 @@ import {
   submissionResubmitted,
 } from '../store/slices/submissionsSlice';
 
-import type { Channel, MemeAssetStatus, SubmissionAiDecision, SubmissionAiStatus, SubmissionStatus } from '@/types';
+import type { Channel, MemeAssetStatus, SubmissionAiDecision, SubmissionAiStatus, SubmissionStatus } from '@memalerts/api-contracts';
 
 import { parseBool } from '@/shared/lib/parsing';
 
@@ -359,3 +359,4 @@ export function SocketProvider({ children }: SocketProviderProps) {
     </SocketContext.Provider>
   );
 }
+

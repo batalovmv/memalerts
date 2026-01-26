@@ -72,7 +72,7 @@ describe('channel catalog mode: pool_all', () => {
       fileUrl,
       fileHash,
       durationMs: 1500,
-      poolVisibility: 'visible',
+      status: 'active',
       aiStatus: 'done',
       aiAutoTitle: 'Pool meme title',
       aiSearchText: 'Pool meme title tag1 tag2',
@@ -105,19 +105,15 @@ describe('channel catalog mode: pool_all', () => {
 
     expect(actRes.status).toBe(200);
     expect(actRes.body?.activation?.status).toBe('queued');
-    expect(typeof actRes.body?.activation?.memeId).toBe('string');
+    expect(typeof actRes.body?.activation?.channelMemeId).toBe('string');
 
     const cm = await prisma.channelMeme.findUnique({
       where: { channelId_memeAssetId: { channelId: channel.id, memeAssetId: asset.id } },
-      select: { id: true, legacyMemeId: true, status: true, deletedAt: true, priceCoins: true },
+      select: { id: true, status: true, deletedAt: true, priceCoins: true },
     });
     expect(cm?.status).toBe('approved');
     expect(cm?.deletedAt).toBeNull();
-    expect(typeof cm?.legacyMemeId).toBe('string');
     expect(cm?.priceCoins).toBe(123);
-
-    const legacy = cm?.legacyMemeId ? await prisma.meme.findUnique({ where: { id: cm.legacyMemeId } }) : null;
-    expect(legacy?.channelId).toBe(channel.id);
-    expect(legacy?.status).toBe('approved');
+    expect(cm?.id).toBe(actRes.body?.activation?.channelMemeId);
   });
 });

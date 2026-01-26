@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import type { AutoRewardsEditorVariant, AutoRewardsEnabledKey, KvRow } from '@/features/settings/tabs/rewards/twitch-auto-rewards/model/types';
-import type { TwitchAutoRewardsV1 } from '@/types';
+import type { TwitchAutoRewardsV1 } from '@memalerts/api-contracts';
 
 import { base, bool, rowsFromRecord } from '@/features/settings/tabs/rewards/twitch-auto-rewards/model/utils';
 
@@ -121,3 +121,4 @@ export function useAutoRewardsEditorState({ value, onChange, variant }: UseAutoR
     setEnabled,
   };
 }
+

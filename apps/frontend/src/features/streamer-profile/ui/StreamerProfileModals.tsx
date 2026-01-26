@@ -1,4 +1,4 @@
-import type { Meme } from '@/types';
+import type { MemeDetail } from '@memalerts/api-contracts';
 
 import AuthRequiredModal from '@/components/AuthRequiredModal';
 import CoinsInfoModal from '@/components/CoinsInfoModal';
@@ -6,7 +6,7 @@ import MemeModal from '@/components/MemeModal';
 import SubmitModal from '@/components/SubmitModal';
 
 type StreamerProfileModalsProps = {
-  selectedMeme: Meme | null;
+  selectedMeme: MemeDetail | null;
   isMemeModalOpen: boolean;
   onCloseMemeModal: () => void;
   onTagSearch: (tag: string) => void;
@@ -85,3 +85,5 @@ export function StreamerProfileModals({
     </>
   );
 }
+
+

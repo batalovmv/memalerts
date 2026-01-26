@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import type { Submission, SubmissionStatus } from '@/types';
+import type { Submission, SubmissionStatus } from '@memalerts/api-contracts';
 
 import { cn } from '@/shared/lib/cn';
 import { Button, HelpTooltip, IconButton, Input, Pill, Select, Spinner } from '@/shared/ui';
@@ -250,5 +250,6 @@ export function ChannelSubmissionsSection({
     </section>
   );
 }
+
 
 

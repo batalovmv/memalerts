@@ -1,4 +1,4 @@
-import type { Submission } from '@/types';
+import type { Submission } from '@memalerts/api-contracts';
 
 import { api } from '@/lib/api';
 
@@ -58,3 +58,4 @@ export async function bulkSubmissionAction(
 ): Promise<{ success: string[]; failed: Array<{ id: string; error: string }> }> {
   return api.post<{ success: string[]; failed: Array<{ id: string; error: string }> }>('/streamer/submissions/bulk', input);
 }
+

@@ -73,11 +73,11 @@ describe('Pool owner adoption', () => {
       fileUrl,
       fileHash,
       durationMs: 1000,
-      createdByUserId: streamerB.id,
-      poolVisibility: 'visible',
+      createdById: streamerB.id,
+      status: 'active',
       aiStatus: 'done',
       aiAutoDescription: 'auto description',
-      aiAutoTagNamesJson: ['tag1', 'tag2'],
+      aiAutoTagNames: ['tag1', 'tag2'],
       aiSearchText: 'auto description search',
       aiCompletedAt: new Date(),
     } satisfies Prisma.MemeAssetCreateInput;
@@ -109,11 +109,14 @@ describe('Pool owner adoption', () => {
 
     const cm = await prisma.channelMeme.findUnique({
       where: { channelId_memeAssetId: { channelId: channelB.id, memeAssetId: asset.id } },
-      select: { aiAutoDescription: true, aiAutoTagNamesJson: true, searchText: true },
+      select: { memeAssetId: true },
     });
 
-    expect(cm?.aiAutoDescription).toBe('auto description');
-    expect(Array.isArray(cm?.aiAutoTagNamesJson)).toBe(true);
-    expect(cm?.searchText).toBe('auto description search');
+    const updatedAsset = cm?.memeAssetId
+      ? await prisma.memeAsset.findUnique({ where: { id: cm.memeAssetId } })
+      : null;
+    expect(updatedAsset?.aiAutoDescription).toBe('auto description');
+    expect(Array.isArray(updatedAsset?.aiAutoTagNames)).toBe(true);
+    expect(updatedAsset?.aiSearchText).toBe('auto description search');
   });
 });

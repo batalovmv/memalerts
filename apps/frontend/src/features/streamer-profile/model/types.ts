@@ -1,4 +1,4 @@
-import type { Meme } from '@/types';
+import type { MemeDetail } from '@memalerts/api-contracts';
 
 export type ChannelInfo = {
   id: string;
@@ -20,7 +20,7 @@ export type ChannelInfo = {
   submissionsEnabled?: boolean;
   submissionsOnlyWhenLive?: boolean;
   createdAt: string;
-  memes: Meme[];
+  memes: MemeDetail[];
   owner?: {
     id: string;
     displayName: string;
@@ -31,3 +31,5 @@ export type ChannelInfo = {
     usersCount: number;
   };
 };
+
+

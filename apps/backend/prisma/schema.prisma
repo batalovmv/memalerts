@@ -129,7 +129,6 @@ model Channel {
   wallets                      Wallet[]
   externalRewardEvents         ExternalRewardEvent[]
   pendingCoinGrants            PendingCoinGrant[]
-  memes                        Meme[]
   channelMemes                 ChannelMeme[]
   memeFavorites                UserMemeFavorite[]
   memeBlocklist                UserMemeBlocklist[]
@@ -693,13 +692,7 @@ model User {
   boostySubscriptionRewards   BoostySubscriptionReward[]
   boostyDiscordRewardsV1      BoostyDiscordSubscriptionReward[]
   boostyDiscordRewardsV2      BoostyDiscordSubscriptionRewardV2[]
-  memesCreated                Meme[]                       @relation("CreatedBy")
-  memesApproved               Meme[]                       @relation("ApprovedBy")
-  memeAssetsCreated           MemeAsset[]                  @relation("MemeAssetCreatedBy")
-  memeAssetsHidden            MemeAsset[]                  @relation("MemeAssetHiddenBy")
-  memeAssetsPurged            MemeAsset[]                  @relation("MemeAssetPurgedBy")
-  channelMemesAdded           ChannelMeme[]                @relation("ChannelMemeAddedBy")
-  channelMemesApproved        ChannelMeme[]                @relation("ChannelMemeApprovedBy")
+  memeAssetsCreated           MemeAsset[]
   submissions                 MemeSubmission[]
   redemptions                 Redemption[]
   activations                 MemeActivation[]
@@ -1073,110 +1066,60 @@ model Wallet {
   @@index([channelId])
 }
 
-model Meme {
-  id               String    @id @default(uuid())
-  channelId        String
-  title            String
-  type             String // image, gif, video, audio
-  fileUrl          String
-  fileHash         String? // SHA-256 hash for deduplication
-  durationMs       Int
-  priceCoins       Int
-  status           String // pending, approved, rejected
-  deletedAt        DateTime?
-  createdByUserId  String?
-  approvedByUserId String?
-  createdAt        DateTime  @default(now())
-
-  channel           Channel                 @relation(fields: [channelId], references: [id], onDelete: Cascade)
-  createdBy         User?                   @relation("CreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
-  approvedBy        User?                   @relation("ApprovedBy", fields: [approvedByUserId], references: [id], onDelete: SetNull)
-  activations       MemeActivation[]
-  globalStats30d    GlobalMemeStats30d?
-  globalDailyStats  GlobalMemeDailyStats[]
-  tags              MemeTag[]
-  channelStats30d   ChannelMemeStats30d[]
-  channelDailyStats ChannelMemeDailyStats[]
-  fileHashRef       FileHash?               @relation(fields: [fileHash], references: [hash], onDelete: SetNull)
-
-  @@index([channelId])
-  @@index([status])
-  @@index([deletedAt])
-  @@index([createdByUserId])
-  @@index([fileHash])
-  // Common read pattern: list approved memes for a channel ordered by createdAt
-  @@index([channelId, status, createdAt])
-}
-
-// Global meme object (shared pool). Appears in pool once at least one ChannelMeme is approved.
+// Global media file shared across channels.
 model MemeAsset {
-  id         String  @id @default(uuid())
-  type       String // image, gif, video, audio (currently video-only for submissions)
-  fileUrl    String?
-  // Preferred playback URL (e.g. audio-normalized derivative). If null, clients should use fileUrl.
-  playFileUrl String?
-  fileHash   String? // SHA-256 hash for deduplication (preferred)
-  // Perceptual content hash for dedup across formats/bitrates (versioned: "v2:<sha256>")
-  contentHash String? @db.VarChar(70)
-  durationMs Int
+  id              String   @id @default(uuid())
 
-  createdByUserId String?
-  createdAt       DateTime @default(now())
+  // Media
+  type            String   // 'video' | 'audio' | 'image'
+  fileUrl         String   // Primary playback URL
+  fileHash        String   @unique // SHA-256 for dedup
+  mimeType        String?
+  fileSizeBytes   BigInt?
+  durationMs      Int      @default(0)
 
-  // Global AI metadata (per unique asset / fileHash).
-  // Used to avoid re-running analysis on duplicates and to instantly provide tags/description on pool adoption.
-  aiStatus           String   @default("pending") // pending|done
-  aiAutoTitle        String?  @db.VarChar(200)
-  aiAutoTagNamesJson Json?
-  aiAutoDescription  String?  @db.VarChar(2000)
-  aiTranscript       String?  @db.VarChar(50000)
-  aiSearchText       String?  @db.VarChar(4000)
-  aiCompletedAt      DateTime?
-  // Engagement/recency score for ranking (0-100+).
-  qualityScore       Float    @default(50)
+  // Variants for different formats
+  variants        MemeAssetVariant[]
 
-  // Audio normalization for playback (site + OBS). Done once per unique asset and reused via playFileUrl.
-  audioNormStatus      String   @default("pending") // pending|processing|done|failed|failed_final
-  audioNormRetryCount  Int      @default(0)
-  audioNormLastTriedAt DateTime?
-  audioNormNextRetryAt DateTime?
-  audioNormError       String?  @db.Text
-  audioNormCompletedAt DateTime?
+  // AI enrichment
+  aiStatus          String   @default("pending") // 'pending' | 'processing' | 'done' | 'failed'
+  aiAutoTitle       String?
+  aiAutoDescription String?  @db.Text
+  aiAutoTagNames    String[] // Array of tag names
+  aiTranscript      String?  @db.Text
+  aiSearchText      String?  @db.Text
+  aiCompletedAt     DateTime?
+  aiRiskScore       Float?
 
-  // Pool moderation (does not affect already-added channel memes; only hides from pool listing)
-  poolVisibility     String    @default("visible") // visible | hidden
-  poolHiddenAt       DateTime?
-  poolHiddenReason   String?
-  poolHiddenByUserId String?
+  // Quality
+  qualityScore    Float?   // 0-100
 
-  // Safe deletion (quarantine)
-  purgeRequestedAt DateTime?
-  purgeNotBefore   DateTime?
-  purgedAt         DateTime?
-  purgeReason      String?
-  purgeByUserId    String?
+  // Status
+  status          String   @default("active") // 'active' | 'hidden' | 'quarantined' | 'deleted'
+  hiddenAt        DateTime?
+  quarantinedAt   DateTime?
+  deletedAt       DateTime?
 
-  createdBy   User?     @relation("MemeAssetCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
-  hiddenBy    User?     @relation("MemeAssetHiddenBy", fields: [poolHiddenByUserId], references: [id], onDelete: SetNull)
-  purgedBy    User?     @relation("MemeAssetPurgedBy", fields: [purgeByUserId], references: [id], onDelete: SetNull)
-  fileHashRef FileHash? @relation(fields: [fileHash], references: [hash], onDelete: SetNull)
-
-  channelMemes ChannelMeme[]
-  submissions  MemeSubmission[]
-  tagSuggestions TagSuggestion[]
-  favoritedBy  UserMemeFavorite[]
-  blockedByUsers UserMemeBlocklist[]
+  // Relations
+  channelMemes    ChannelMeme[]
+  submissions     MemeSubmission[]
+  tagSuggestions  TagSuggestion[]
+  favoritedBy     UserMemeFavorite[]
+  blockedByUsers  UserMemeBlocklist[]
   blockedByChannels ChannelMemeBlocklist[]
-  variants     MemeAssetVariant[]
+  globalStats30d  GlobalMemeStats30d?
+  globalDailyStats GlobalMemeDailyStats[]
+  createdById     String?
+  createdBy       User?    @relation(fields: [createdById], references: [id])
+
+  // Timestamps
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   @@index([fileHash])
-  @@index([contentHash])
-  @@unique([contentHash])
-  @@index([createdByUserId])
-  @@index([poolVisibility])
-  @@index([poolHiddenAt])
-  @@index([purgeNotBefore])
-  @@index([purgedAt])
+  @@index([status])
+  @@index([aiStatus])
+  @@index([qualityScore])
   @@index([createdAt])
 }
 
@@ -1193,88 +1136,60 @@ model UserBanState {
 }
 
 model MemeAssetVariant {
-  id          String   @id @default(uuid())
-  memeAssetId String
-  memeAsset   MemeAsset @relation(fields: [memeAssetId], references: [id], onDelete: Cascade)
+  id              String   @id @default(uuid())
+  memeAssetId     String
+  memeAsset       MemeAsset @relation(fields: [memeAssetId], references: [id], onDelete: Cascade)
 
-  // Format info
-  format    String // preview | webm | mp4
-  codec     String // avc1.42E01E | vp9 | avc1.4d401f
-  container String // mp4 | webm
-  mimeType  String // video/mp4 | video/webm
+  format          String   // 'webm' | 'mp4' | 'preview'
+  fileUrl         String
+  status          String   @default("pending") // 'pending' | 'processing' | 'done' | 'failed'
+  priority        Int      @default(0) // Lower = preferred
+  fileSizeBytes   BigInt?
 
-  // File info
-  fileUrl       String
-  fileHash      String? @db.VarChar(64)
-  fileSizeBytes BigInt?
-
-  durationMs Int?
-  width      Int?
-  height     Int?
-  bitrate    Int?
-
-  status       String   @default("pending")
-  priority     Int      @default(0)
-  errorMessage String?  @db.Text
-  retryCount   Int      @default(0)
-  lastTriedAt  DateTime?
-  completedAt  DateTime?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt       DateTime @default(now())
 
   @@unique([memeAssetId, format])
-  @@index([memeAssetId])
-  @@index([status])
-  @@index([format])
+  @@index([memeAssetId, status])
 }
 
-// Channel-scoped adoption of a MemeAsset (what streamer actually uses).
+// Channel-specific meme entry in catalog.
 model ChannelMeme {
-  id           String  @id @default(uuid())
-  channelId    String
-  memeAssetId  String
-  // Back-compat bridge during migration: points to legacy Meme.id (optional).
-  legacyMemeId String?
+  id              String   @id @default(uuid())
+  channelId       String
+  channel         Channel  @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  memeAssetId     String
+  memeAsset       MemeAsset @relation(fields: [memeAssetId], references: [id])
 
-  status    String    @default("approved") // pending | approved | rejected | disabled
-  deletedAt DateTime?
+  // Display
+  title           String   // Channel-specific title (can differ from AI)
 
-  // Channel-specific fields
-  title      String
-  // Hidden search-only text (not returned in DTOs). Used to include AI-generated description in search.
-  // Keep null/empty if not available; do not display to end-users.
-  searchText String? @db.VarChar(4000)
-  // Hidden AI metadata for moderation/quality control (returned only when explicitly requested by admin/streamer).
-  aiAutoTagNamesJson Json?
-  aiAutoDescription  String? @db.VarChar(2000)
-  priceCoins Int
-  // Smart cooldown (prevent rapid repeat activations)
-  cooldownMinutes Int?      @default(0)
+  // Pricing
+  priceCoins      Int      @default(100)
+
+  // Cooldown
+  cooldownMinutes Int?     // null = no cooldown
   lastActivatedAt DateTime?
 
-  addedByUserId    String?
-  approvedByUserId String?
-  approvedAt       DateTime?
-  createdAt        DateTime  @default(now())
+  // Status
+  status          String   @default("approved") // 'approved' | 'pending' | 'rejected' | 'disabled'
 
-  channel   Channel   @relation(fields: [channelId], references: [id], onDelete: Cascade)
-  memeAsset MemeAsset @relation(fields: [memeAssetId], references: [id], onDelete: Cascade)
+  // Soft delete
+  deletedAt       DateTime?
 
-  addedBy    User? @relation("ChannelMemeAddedBy", fields: [addedByUserId], references: [id], onDelete: SetNull)
-  approvedBy User? @relation("ChannelMemeApprovedBy", fields: [approvedByUserId], references: [id], onDelete: SetNull)
+  // Relations
+  activations     MemeActivation[]
+  tags            ChannelMemeTag[]
+  stats30d        ChannelMemeStats30d[]
+  dailyStats      ChannelMemeDailyStats[]
 
-  // Activations that referenced this ChannelMeme at the time of activation.
-  // (Opposite side of MemeActivation.channelMeme)
-  activations MemeActivation[]
+  // Timestamps
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   @@unique([channelId, memeAssetId])
-  @@index([channelId])
+  @@index([channelId, status, deletedAt])
   @@index([memeAssetId])
-  @@index([legacyMemeId])
-  @@index([status])
-  @@index([deletedAt])
-  @@index([channelId, status, createdAt])
+  @@index([createdAt])
 }
 
 model MemeSubmission {
@@ -1359,37 +1274,29 @@ model Redemption {
 }
 
 model MemeActivation {
-  id            String   @id @default(uuid())
-  channelId     String
-  userId        String
-  memeId        String
-  channelMemeId String?
-  idempotencyKey String? @db.VarChar(128)
-  coinsSpent    Int
-  status        String // queued, playing, done, failed
-  createdAt     DateTime @default(now())
+  id              String   @id @default(uuid())
+  channelMemeId   String
+  channelMeme     ChannelMeme @relation(fields: [channelMemeId], references: [id])
+  userId          String
+  user            User     @relation(fields: [userId], references: [id])
+  channelId       String
+  channel         Channel  @relation(fields: [channelId], references: [id])
 
-  channel     Channel      @relation(fields: [channelId], references: [id], onDelete: Cascade)
-  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  meme        Meme         @relation(fields: [memeId], references: [id], onDelete: Cascade)
-  channelMeme ChannelMeme? @relation(fields: [channelMemeId], references: [id], onDelete: SetNull)
+  // Transaction
+  priceCoins      Int
+  volume          Float    @default(1)
 
-  @@index([channelId])
-  @@index([userId])
-  @@index([status])
-  @@index([memeId])
-  @@index([channelMemeId])
-  @@unique([channelId, userId, idempotencyKey])
-  // Common time-range scans (e.g., daily charts / rollups)
+  // Status
+  status          String   @default("queued") // 'queued' | 'playing' | 'done' | 'cancelled'
+
+  // Timestamps
+  createdAt       DateTime @default(now())
+  playedAt        DateTime?
+  completedAt     DateTime?
+
+  @@index([channelMemeId, status])
+  @@index([userId, createdAt])
   @@index([channelId, createdAt])
-  // Admin stats groupBy helpers (group by userId/memeId within a channel)
-  @@index([channelId, userId])
-  @@index([channelId, memeId])
-  // Query helpers:
-  // - popularity ranking: filter by channelId + status + createdAt, group by memeId
-  @@index([channelId, status, createdAt, memeId])
-  // - favorites ranking: filter by channelId + userId + status, group by memeId
-  @@index([channelId, userId, status, memeId])
 }
 
 model UserMemeFavorite {
@@ -1469,21 +1376,19 @@ model Tag {
   name        String   @unique
   displayName String?
   categoryId  String?
-  status      String   @default("active") // active | pending | deprecated
+  status      String   @default("active") // 'active' | 'deprecated'
   usageCount  Int      @default(0)
   createdAt   DateTime @default(now())
 
   category   TagCategory? @relation(fields: [categoryId], references: [id])
   aliases    TagAlias[]
+  channelMemeTags ChannelMemeTag[]
   mappedSuggestions TagSuggestion[] @relation("TagSuggestionMappedTo")
   tagActivities UserTagActivity[]
-  memes       MemeTag[]
   submissions MemeSubmissionTag[]
 
-  @@index([name])
   @@index([categoryId])
-  @@index([status])
-  @@index([usageCount])
+  @@index([status, usageCount])
 }
 
 model TagCategory {
@@ -1491,7 +1396,6 @@ model TagCategory {
   slug        String   @unique
   displayName String
   sortOrder   Int      @default(0)
-  createdAt   DateTime @default(now())
 
   tags Tag[]
 
@@ -1502,10 +1406,20 @@ model TagAlias {
   id        String   @id @default(uuid())
   alias     String   @unique
   tagId     String
-  createdAt DateTime @default(now())
 
   tag Tag @relation(fields: [tagId], references: [id], onDelete: Cascade)
 
+  @@index([tagId])
+}
+
+model ChannelMemeTag {
+  id              String   @id @default(uuid())
+  channelMemeId   String
+  channelMeme     ChannelMeme @relation(fields: [channelMemeId], references: [id], onDelete: Cascade)
+  tagId           String
+  tag             Tag      @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@unique([channelMemeId, tagId])
   @@index([tagId])
 }
 
@@ -1559,19 +1473,6 @@ model UserTagActivity {
   @@index([userId, createdAt])
 }
 
-model MemeTag {
-  id     String @id @default(uuid())
-  memeId String
-  tagId  String
-
-  meme Meme @relation(fields: [memeId], references: [id], onDelete: Cascade)
-  tag  Tag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
-
-  @@unique([memeId, tagId])
-  @@index([memeId])
-  @@index([tagId])
-}
-
 model MemeSubmissionTag {
   id           String @id @default(uuid())
   submissionId String
@@ -1610,9 +1511,6 @@ model FileHash {
   fileSize       BigInt // File size in bytes
   mimeType       String // MIME type of the file
   createdAt      DateTime @default(now())
-
-  memes      Meme[]
-  memeAssets MemeAsset[]
 
   @@index([referenceCount])
 }
@@ -1689,7 +1587,7 @@ model ChannelUserStats30d {
 
 model ChannelMemeStats30d {
   channelId String
-  memeId    String
+  channelMemeId String
 
   windowStart DateTime
   windowEnd   DateTime
@@ -1701,10 +1599,10 @@ model ChannelMemeStats30d {
 
   updatedAt DateTime @updatedAt
 
-  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
-  meme    Meme    @relation(fields: [memeId], references: [id], onDelete: Cascade)
+  channel     Channel    @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  channelMeme ChannelMeme @relation(fields: [channelMemeId], references: [id], onDelete: Cascade)
 
-  @@id([channelId, memeId])
+  @@id([channelId, channelMemeId])
   @@index([channelId])
   @@index([channelId, completedActivationsCount])
   @@index([channelId, totalActivationsCount])
@@ -1712,7 +1610,7 @@ model ChannelMemeStats30d {
 }
 
 model GlobalMemeStats30d {
-  memeId String
+  memeAssetId String
 
   windowStart DateTime
   windowEnd   DateTime
@@ -1722,9 +1620,9 @@ model GlobalMemeStats30d {
 
   updatedAt DateTime @updatedAt
 
-  meme Meme @relation(fields: [memeId], references: [id], onDelete: Cascade)
+  memeAsset MemeAsset @relation(fields: [memeAssetId], references: [id], onDelete: Cascade)
 
-  @@id([memeId])
+  @@id([memeAssetId])
   @@index([completedActivationsCount])
   @@index([updatedAt])
 }
@@ -1733,34 +1631,34 @@ model GlobalMemeStats30d {
 model ChannelMemeDailyStats {
   channelId String
   day       DateTime // date_trunc('day', createdAt) in UTC
-  memeId    String
+  channelMemeId String
 
   completedActivationsCount Int    @default(0)
   completedCoinsSpentSum    BigInt @default(0)
 
   updatedAt DateTime @updatedAt
 
-  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
-  meme    Meme    @relation(fields: [memeId], references: [id], onDelete: Cascade)
+  channel     Channel    @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  channelMeme ChannelMeme @relation(fields: [channelMemeId], references: [id], onDelete: Cascade)
 
-  @@id([channelId, day, memeId])
+  @@id([channelId, day, channelMemeId])
   @@index([channelId, day])
-  @@index([channelId, memeId])
+  @@index([channelId, channelMemeId])
   @@index([day])
 }
 
 model GlobalMemeDailyStats {
   day    DateTime // date_trunc('day', createdAt) in UTC
-  memeId String
+  memeAssetId String
 
   completedActivationsCount Int    @default(0)
   completedCoinsSpentSum    BigInt @default(0)
 
   updatedAt DateTime @updatedAt
 
-  meme Meme @relation(fields: [memeId], references: [id], onDelete: Cascade)
+  memeAsset MemeAsset @relation(fields: [memeAssetId], references: [id], onDelete: Cascade)
 
-  @@id([day, memeId])
+  @@id([day, memeAssetId])
   @@index([day])
-  @@index([memeId])
+  @@index([memeAssetId])
 }

@@ -1,29 +1,25 @@
-import { useEffect, useMemo, useState } from 'react';
+import { memo, useMemo } from 'react';
 
-import type { Meme } from '@/types';
+import { resolveMediaUrl } from '@/shared/config/urls';
 
-import { getMemeMediaCandidates } from './lib/getMemeMediaUrl';
 import { useMemeCard, type MemeCardPreviewMode } from './model/useMemeCard';
+import type { MemeCardItem } from './model/types';
 import { MemeCardView } from './ui/MemeCardView';
 
 export interface MemeCardProps {
-  meme: Meme;
-  onClick: () => void;
-  isOwner?: boolean;
+  meme: MemeCardItem;
   previewMode?: MemeCardPreviewMode;
-  showAiBadges?: boolean;
+  onClick: () => void;
 }
 
-export function MemeCard({ meme, onClick, previewMode = 'hoverWithSound', showAiBadges = false }: MemeCardProps) {
-  const mediaCandidates = useMemo(() => getMemeMediaCandidates(meme), [meme]);
-  const [mediaIndex, setMediaIndex] = useState(0);
-  const initialSrc = mediaCandidates[0] || '';
+function MemeCardBase({ meme, previewMode = 'hoverMuted', onClick }: MemeCardProps) {
+  const variantUrl = meme.variants?.[0]?.fileUrl;
+  const mediaUrl = useMemo(() => {
+    if (meme.previewUrl) return resolveMediaUrl(meme.previewUrl);
+    if (variantUrl) return resolveMediaUrl(variantUrl);
+    return resolveMediaUrl(meme.fileUrl);
+  }, [meme.previewUrl, variantUrl, meme.fileUrl]);
 
-  useEffect(() => {
-    setMediaIndex(0);
-  }, [meme.id, initialSrc]);
-
-  const mediaUrl = mediaIndex >= 0 ? mediaCandidates[mediaIndex] || '' : '';
   const vm = useMemeCard({ meme, mediaUrl, previewMode, onClick });
 
   return (
@@ -37,20 +33,15 @@ export function MemeCard({ meme, onClick, previewMode = 'hoverWithSound', showAi
       videoMuted={vm.getVideoMuted()}
       setCardEl={vm.setCardEl}
       videoRef={vm.videoRef}
-      onMediaError={() => {
-        setMediaIndex((prev) => {
-          if (mediaCandidates.length === 0) return -1;
-          const next = prev + 1;
-          return next < mediaCandidates.length ? next : -1;
-        });
-      }}
+      onMediaError={() => {}}
       onMouseEnter={vm.onMouseEnter}
       onMouseLeave={vm.onMouseLeave}
       onClick={vm.onClick}
       onMouseDown={vm.onMouseDown}
       onTouchStart={vm.onTouchStart}
       onKeyDown={vm.onKeyDown}
-      showAiBadges={showAiBadges}
     />
   );
 }
+
+export const MemeCard = memo(MemeCardBase);

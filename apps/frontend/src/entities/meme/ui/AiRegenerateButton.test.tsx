@@ -1,7 +1,7 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 
-import type { Meme } from '@/types';
+import type { MemeDetail } from '@memalerts/api-contracts';
 
 import { regenerateMemeAi } from '@/shared/api/channel';
 import { AiRegenerateButton } from './AiRegenerateButton';
@@ -30,14 +30,18 @@ vi.mock('@/shared/lib/hooks', async (orig) => {
   };
 });
 
-function makeMeme(partial: Partial<Meme>): Meme {
+function makeMeme(partial: Partial<MemeDetail>): MemeDetail {
   return {
     id: partial.id || 'm1',
     title: partial.title || 'Meme',
     type: partial.type || 'video',
     fileUrl: partial.fileUrl || '/x.mp4',
+    previewUrl: partial.previewUrl ?? null,
+    variants: partial.variants ?? [],
     priceCoins: partial.priceCoins ?? 1,
     durationMs: partial.durationMs ?? 0,
+    activationsCount: partial.activationsCount ?? 0,
+    createdAt: partial.createdAt ?? '2024-01-01T00:00:00.000Z',
     ...partial,
   };
 }
@@ -105,12 +109,17 @@ describe('AiRegenerateButton', () => {
     );
 
     const btn = screen.getByRole('button', { name: /^ai regenerate$/i });
-    fireEvent.click(btn);
+    await act(async () => {
+      fireEvent.click(btn);
+      await Promise.resolve();
+    });
 
     // With fake timers enabled in this suite, RTL's waitFor() polling won't advance unless we manually tick timers.
     // The click handler calls regenerateMemeAi(primaryId) synchronously before its first await, so we can assert directly.
     expect(regenerateMemeAi).toHaveBeenCalledWith('channel-meme-id');
   });
 });
+
+
 
 

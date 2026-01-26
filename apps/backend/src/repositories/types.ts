@@ -35,12 +35,6 @@ export type MemeRepository = {
     updateMany: (args: Prisma.ChannelMemeUpdateManyArgs) => ReturnType<PrismaClient['channelMeme']['updateMany']>;
     upsert: (args: Prisma.ChannelMemeUpsertArgs) => ReturnType<PrismaClient['channelMeme']['upsert']>;
   };
-  meme: {
-    findUnique: (args: Prisma.MemeFindUniqueArgs) => ReturnType<PrismaClient['meme']['findUnique']>;
-    findFirst: (args: Prisma.MemeFindFirstArgs) => ReturnType<PrismaClient['meme']['findFirst']>;
-    create: (args: Prisma.MemeCreateArgs) => ReturnType<PrismaClient['meme']['create']>;
-    update: (args: Prisma.MemeUpdateArgs) => ReturnType<PrismaClient['meme']['update']>;
-  };
 };
 
 export type UserRepository = {

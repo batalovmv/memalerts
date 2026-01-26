@@ -5,7 +5,7 @@ import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { DashboardSubmissionsPanel } from '../ui/panels/submissions/DashboardSubmissionsPanel';
 import { renderWithProviders } from '@/test/test-utils';
 import { installIntersectionObserverOncePerElement } from '@/test/helpers';
-import type { Submission } from '@/types';
+import type { Submission } from '@memalerts/api-contracts';
 
 function makeSubmission(id: string): Submission {
   return {
@@ -103,3 +103,4 @@ describe('Moderation hotkeys', () => {
     await waitFor(() => expect(onApprove).not.toHaveBeenCalled());
   });
 });
+

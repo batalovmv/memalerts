@@ -3,7 +3,7 @@ import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router-dom';
 
-import type { Meme } from '@/types';
+import type { MemeDetail } from '@memalerts/api-contracts';
 
 import Header from '@/components/Header';
 import { useSocket } from '@/contexts/SocketContext';
@@ -37,7 +37,7 @@ const StreamerProfile = memo(function StreamerProfile() {
   const navigate = useNavigate();
   const { socket, isConnected } = useSocket();
   const [reloadNonce, setReloadNonce] = useState(0);
-  const [selectedMeme, setSelectedMeme] = useState<Meme | null>(null);
+  const [selectedMeme, setSelectedMeme] = useState<MemeDetail | null>(null);
   const [isMemeModalOpen, setIsMemeModalOpen] = useState(false);
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
   const [authModalOpen, setAuthModalOpen] = useState(false);
@@ -107,7 +107,7 @@ const StreamerProfile = memo(function StreamerProfile() {
         meme.aiAutoTagNames.forEach((tag) => pushTag(tag));
       }
       if (Array.isArray(meme.tags)) {
-        meme.tags.forEach((item) => pushTag(item?.tag?.name));
+        meme.tags.forEach((item) => pushTag(item?.name));
       }
     });
     return Array.from(counts.entries())
@@ -204,8 +204,8 @@ const StreamerProfile = memo(function StreamerProfile() {
         toast.success(t('toast.memeActivated'));
         syncWalletFromUser();
       } catch (error: unknown) {
-        const apiError = error as { message?: string; errorCode?: string; details?: unknown };
-        if (apiError.errorCode === 'MEME_COOLDOWN_ACTIVE') {
+        const apiError = error as { message?: string; code?: string; details?: unknown };
+        if (apiError.code === 'MEME_COOLDOWN_ACTIVE') {
           const details = apiError.details as { cooldownSecondsRemaining?: number } | null;
           const remaining = typeof details?.cooldownSecondsRemaining === 'number' ? details.cooldownSecondsRemaining : null;
           const label = remaining
@@ -236,7 +236,7 @@ const StreamerProfile = memo(function StreamerProfile() {
     navigate('/beta-access');
   }, [navigate, user]);
   const handleGoHome = useCallback(() => navigate('/'), [navigate]);
-  const handleSelectMeme = useCallback((meme: Meme) => {
+  const handleSelectMeme = useCallback((meme: MemeDetail) => {
     setSelectedMeme(meme);
     setIsMemeModalOpen(true);
   }, []);
@@ -443,3 +443,5 @@ const StreamerProfile = memo(function StreamerProfile() {
 });
 
 export default StreamerProfile;
+
+

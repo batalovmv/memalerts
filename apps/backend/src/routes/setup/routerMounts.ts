@@ -1,6 +1,5 @@
 import type { Router } from 'express';
 import { authRoutes } from '../auth.js';
-import { viewerRoutes } from '../viewer.js';
 import { submissionRoutes } from '../submissions.js';
 import { streamerRoutes } from '../streamer.js';
 import { ownerRoutes } from '../owner.js';
@@ -13,7 +12,6 @@ import { authenticate } from '../../middleware/auth.js';
 import { requireBetaAccess } from '../../middleware/betaAccess.js';
 import { createAdminQueuesRouter } from '../adminQueues.js';
 import { assertAdmin } from '../../utils/accessControl.js';
-import { viewerController } from '../../controllers/viewerController.js';
 
 export function registerRouterMounts(app: Router) {
   app.use(
@@ -33,13 +31,6 @@ export function registerRouterMounts(app: Router) {
     app.use('/test', testRoutes);
   }
 
-  app.get(
-    '/channels/:channelId/boosty-access',
-    authenticate,
-    requireBetaAccess,
-    viewerController.getBoostyAccessForChannel
-  );
-  app.use('/channels', viewerRoutes);
   app.use('/submissions', submissionRoutes);
   app.use('/streamer', authenticate, requireBetaAccess, streamerRoutes);
   app.use('/owner', authenticate, requireBetaAccess, ownerRoutes);

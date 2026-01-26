@@ -2,7 +2,7 @@ import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 
 import type { RewardSettingsState } from '@/features/settings/tabs/rewards/types';
-import type { TwitchAutoRewardsV1 } from '@/types';
+import type { TwitchAutoRewardsV1 } from '@memalerts/api-contracts';
 import type { Dispatch, SetStateAction } from 'react';
 
 import { AutoRewardsEditor } from '@/features/settings/tabs/rewards/TwitchAutoRewardsEditor';
@@ -279,3 +279,4 @@ export function TwitchRewardsSection({
     </>
   );
 }
+

@@ -1,20 +1,20 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import type { Meme } from '@/types';
+import type { MemeDetail } from '@memalerts/api-contracts';
 
 import { resolveMediaUrl } from '@/lib/urls';
 import { cn } from '@/shared/lib/cn';
 import { getMemePrimaryId } from '@/shared/lib/memeIds';
 
 type PersonalizedMemesSectionProps = {
-  memes: Meme[];
+  memes: MemeDetail[];
   loading: boolean;
   profileReady: boolean;
   totalActivations: number;
   mode: 'personalized' | 'fallback';
   autoplayMemesEnabled: boolean;
-  onSelectMeme: (meme: Meme) => void;
+  onSelectMeme: (meme: MemeDetail) => void;
   showAll?: boolean;
   onShowAll?: () => void;
   onHideAll?: () => void;
@@ -28,9 +28,9 @@ function PersonalizedMemeTile({
   autoplay,
   onSelect,
 }: {
-  meme: Meme;
+  meme: MemeDetail;
   autoplay: boolean;
-  onSelect: (meme: Meme) => void;
+  onSelect: (meme: MemeDetail) => void;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const previewUrl = meme.previewUrl ? resolveMediaUrl(meme.previewUrl) : resolveMediaUrl(meme.fileUrl);
@@ -272,3 +272,5 @@ export function PersonalizedMemesSection({
     </section>
   );
 }
+
+

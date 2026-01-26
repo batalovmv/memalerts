@@ -207,9 +207,6 @@ describe('public channel API', () => {
         'activationsCount',
         'channelId',
         'channelMemeId',
-        'cooldownMinutes',
-        'cooldownSecondsRemaining',
-        'cooldownUntil',
         'createdAt',
         'createdBy',
         'durationMs',
@@ -276,16 +273,16 @@ describe('public channel API', () => {
       fileUrl: '/uploads/memes/pool-visible.webm',
       durationMs: 1200,
       aiAutoTitle: 'Pool Visible',
-      createdByUserId: creator.id,
-    } satisfies Prisma.MemeAssetUncheckedCreateInput);
+      createdById: creator.id,
+    });
     const hiddenAsset = await createMemeAsset({
       type: 'video',
       fileUrl: '/uploads/memes/pool-hidden.webm',
       durationMs: 1200,
       aiAutoTitle: 'Pool Hidden',
-      poolVisibility: 'hidden',
-      createdByUserId: creator.id,
-    } satisfies Prisma.MemeAssetUncheckedCreateInput);
+      status: 'hidden',
+      createdById: creator.id,
+    });
 
     const res = await request(makeApp())
       .get(`/public/channels/${channel.slug}?includeMemes=true`)

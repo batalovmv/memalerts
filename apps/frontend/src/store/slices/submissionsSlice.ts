@@ -1,6 +1,6 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 
-import type { ApiError, Submission, SubmissionAiDecision, SubmissionAiStatus } from '@/types';
+import type { ApiError, Submission, SubmissionAiDecision, SubmissionAiStatus } from '@memalerts/api-contracts';
 
 import { api } from '@/lib/api';
 import { toApiError } from '@/shared/api/toApiError';
@@ -374,3 +374,4 @@ export const {
   submissionAiCompleted,
 } = submissionsSlice.actions;
 export default submissionsSlice.reducer;
+

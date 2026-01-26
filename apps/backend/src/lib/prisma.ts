@@ -148,9 +148,9 @@ if (!prismaStore.middlewareRegistered) {
     }
 
     const isDelete = params.action === 'delete' || params.action === 'deleteMany';
-    const isMeme = params.model === 'Meme';
+    const isMemeAsset = params.model === 'MemeAsset';
     const isSubmission = params.model === 'MemeSubmission';
-    if (!isDelete || (!isMeme && !isSubmission)) {
+    if (!isDelete || (!isMemeAsset && !isSubmission)) {
       return next(params);
     }
 
@@ -161,21 +161,46 @@ if (!prismaStore.middlewareRegistered) {
     const result = await prisma.$transaction(async (tx) => {
       let hashesToDecrement: string[] = [];
 
-      if (isMeme) {
-        if (params.action === 'delete') {
-          const meme = params.args?.where
-            ? await tx.meme.findUnique({
-                where: params.args.where,
-                select: { fileHash: true },
-              })
-            : null;
-          if (meme?.fileHash) hashesToDecrement.push(String(meme.fileHash));
-        } else {
-          const memes = await tx.meme.findMany({
-            where: params.args?.where,
-            select: { fileHash: true },
+      if (isMemeAsset) {
+        const assets =
+          params.action === 'delete'
+            ? params.args?.where
+              ? [
+                  await tx.memeAsset.findUnique({
+                    where: params.args.where,
+                    select: { fileHash: true, fileUrl: true, variants: { select: { fileUrl: true } } },
+                  }),
+                ]
+              : [null]
+            : await tx.memeAsset.findMany({
+                where: params.args?.where,
+                select: { fileHash: true, fileUrl: true, variants: { select: { fileUrl: true } } },
+              });
+
+        const variantPathCounts = new Map<string, number>();
+
+        for (const asset of assets) {
+          if (!asset) continue;
+          if (asset.fileHash) hashesToDecrement.push(String(asset.fileHash));
+          const assetFileUrl = String(asset.fileUrl || '');
+          for (const variant of asset.variants ?? []) {
+            const fileUrl = String(variant.fileUrl || '');
+            if (!fileUrl || fileUrl === assetFileUrl) continue;
+            variantPathCounts.set(fileUrl, (variantPathCounts.get(fileUrl) || 0) + 1);
+          }
+        }
+
+        if (variantPathCounts.size > 0) {
+          const rows = await tx.fileHash.findMany({
+            where: { filePath: { in: Array.from(variantPathCounts.keys()) } },
+            select: { hash: true, filePath: true },
           });
-          hashesToDecrement = memes.map((m) => m.fileHash).filter((hash): hash is string => hash !== null);
+          for (const row of rows) {
+            const count = variantPathCounts.get(String(row.filePath || '')) || 0;
+            for (let i = 0; i < count; i += 1) {
+              hashesToDecrement.push(String(row.hash));
+            }
+          }
         }
       } else {
         const submissions =
@@ -220,10 +245,10 @@ if (!prismaStore.middlewareRegistered) {
       }
 
       const deleteArgs = { ...(params.args || {}), [skipFlag]: true } as Record<string, unknown>;
-      const deleteResult = isMeme
+      const deleteResult = isMemeAsset
         ? params.action === 'delete'
-          ? await tx.meme.delete(deleteArgs as Prisma.MemeDeleteArgs)
-          : await tx.meme.deleteMany(deleteArgs as Prisma.MemeDeleteManyArgs)
+          ? await tx.memeAsset.delete(deleteArgs as Prisma.MemeAssetDeleteArgs)
+          : await tx.memeAsset.deleteMany(deleteArgs as Prisma.MemeAssetDeleteManyArgs)
         : params.action === 'delete'
           ? await tx.memeSubmission.delete(deleteArgs as Prisma.MemeSubmissionDeleteArgs)
           : await tx.memeSubmission.deleteMany(deleteArgs as Prisma.MemeSubmissionDeleteManyArgs);

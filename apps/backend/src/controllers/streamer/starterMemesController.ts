@@ -34,9 +34,9 @@ export const getStarterMemes = async (req: AuthRequest, res: Response) => {
 
   const rows = await prisma.memeAsset.findMany({
     where: {
-      poolVisibility: 'visible',
-      purgedAt: null,
-      fileUrl: { not: null },
+      status: 'active',
+      deletedAt: null,
+      fileUrl: { not: '' },
       aiStatus: 'done',
       NOT: {
         channelMemes: {
@@ -57,7 +57,7 @@ export const getStarterMemes = async (req: AuthRequest, res: Response) => {
       qualityScore: true,
       createdAt: true,
       aiAutoTitle: true,
-      aiAutoTagNamesJson: true,
+      aiAutoTagNames: true,
       variants: {
         select: {
           format: true,
@@ -100,8 +100,8 @@ export const getStarterMemes = async (req: AuthRequest, res: Response) => {
           fileSizeBytes: typeof v.fileSizeBytes === 'bigint' ? Number(v.fileSizeBytes) : null,
         };
       });
-    const aiAutoTagNames = Array.isArray(r.aiAutoTagNamesJson)
-      ? (r.aiAutoTagNamesJson as unknown[])
+    const aiAutoTagNames = Array.isArray(r.aiAutoTagNames)
+      ? r.aiAutoTagNames
           .filter((tag): tag is string => typeof tag === 'string' && tag.trim().length > 0)
           .map((tag) => tag.trim())
       : null;
@@ -125,3 +125,4 @@ export const getStarterMemes = async (req: AuthRequest, res: Response) => {
 
   return res.json(items);
 };
+

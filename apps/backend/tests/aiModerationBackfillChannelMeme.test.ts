@@ -65,8 +65,8 @@ async function writeValidWebm(localPath: string): Promise<bigint> {
   return BigInt(stat.size);
 }
 
-describe('AI moderation backfill into ChannelMeme', () => {
-  it('processes approved upload submissions and copies aiAuto* + searchText into ChannelMeme', async () => {
+describe('AI moderation backfill into MemeAsset', () => {
+  it('processes approved upload submissions and copies aiAuto* + aiSearchText into MemeAsset', async () => {
     const channel = await createChannel({
       slug: `ch_${rand()}`,
       name: `Channel ${rand()}`,
@@ -103,7 +103,7 @@ describe('AI moderation backfill into ChannelMeme', () => {
       fileUrl,
       fileHash,
       durationMs: 1000,
-      createdByUserId: user.id,
+      createdById: user.id,
     });
 
     const channelMeme = await createChannelMeme({
@@ -112,9 +112,6 @@ describe('AI moderation backfill into ChannelMeme', () => {
       status: 'approved',
       title: 'Initial title',
       priceCoins: 100,
-      addedByUserId: user.id,
-      approvedByUserId: user.id,
-      approvedAt: new Date(),
     });
 
     const submissionData = {
@@ -134,14 +131,14 @@ describe('AI moderation backfill into ChannelMeme', () => {
 
     await processOneSubmission(submission.id);
 
-    const updated = await prisma.channelMeme.findUnique({
-      where: { id: channelMeme.id },
-      select: { aiAutoDescription: true, aiAutoTagNamesJson: true, searchText: true },
+    const updated = await prisma.memeAsset.findUnique({
+      where: { id: channelMeme.memeAssetId },
+      select: { aiAutoDescription: true, aiAutoTagNames: true, aiSearchText: true },
     });
 
     expect(typeof updated?.aiAutoDescription).toBe('string');
-    expect(Array.isArray(updated?.aiAutoTagNamesJson)).toBe(true);
-    expect(typeof updated?.searchText).toBe('string');
+    expect(Array.isArray(updated?.aiAutoTagNames)).toBe(true);
+    expect(typeof updated?.aiSearchText).toBe('string');
 
     // Cleanup file best-effort (avoid polluting workspace in repeated test runs).
     try {

@@ -2,11 +2,17 @@
   "name": "memalerts",
   "version": "1.0.0",
   "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "packageManager": "pnpm@9.15.0",
   "scripts": {
     "dev": "turbo dev",
     "build": "turbo build",
+    "build:contracts": "cd packages/api-contracts && npm run build",
     "lint": "turbo lint",
+    "pretest": "npm run build:contracts",
     "test": "turbo test",
     "dev:backend": "pnpm --filter @memalerts/backend dev",
     "dev:frontend": "pnpm --filter @memalerts/frontend dev",

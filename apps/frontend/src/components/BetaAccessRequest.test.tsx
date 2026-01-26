@@ -8,7 +8,7 @@ import { server } from '@/test/msw/server';
 import { renderWithProviders } from '@/test/test-utils';
 import { mockBetaRequestOk, mockBetaStatus } from '@/test/msw/handlers';
 
-import type { User } from '@/types';
+import type { User } from '@memalerts/api-contracts';
 import BetaAccessRequest from './BetaAccessRequest';
 
 vi.mock('react-hot-toast', () => ({
@@ -75,4 +75,5 @@ describe('BetaAccessRequest (integration)', () => {
     expect(screen.queryByRole('button', { name: /request beta access/i })).not.toBeInTheDocument();
   });
 });
+
 

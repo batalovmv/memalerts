@@ -1,6 +1,6 @@
 import type { Response } from 'express';
 import type { AuthRequest } from '../../middleware/auth.js';
-import type { Meme, MemeSubmission, Prisma } from '@prisma/client';
+import type { MemeSubmission, Prisma } from '@prisma/client';
 import type { z } from 'zod';
 import { ZodError } from 'zod';
 import { prisma } from '../../lib/prisma.js';
@@ -104,13 +104,11 @@ export const importMeme = async (req: AuthRequest, res: Response) => {
 
     let finalFilePath: string | null = null;
     let fileHash: string | null = null;
-    let contentHash: string | null = null;
     let detectedDurationMs: number | null = null;
     try {
       const prepared = await downloadAndPrepareImportFile(body.sourceUrl);
       finalFilePath = prepared.finalFilePath;
       fileHash = prepared.fileHash;
-      contentHash = prepared.contentHash;
       detectedDurationMs = prepared.detectedDurationMs;
       fileHashForCleanup = prepared.fileHashForCleanup;
       fileHashRefAdded = prepared.fileHashRefAdded;
@@ -151,23 +149,25 @@ export const importMeme = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    if (fileHash || contentHash) {
+    if (fileHash) {
       const existingAsset = await prisma.memeAsset.findFirst({
-        where: contentHash ? { contentHash } : { fileHash },
+        where: { fileHash },
         select: {
           id: true,
           type: true,
           fileUrl: true,
           fileHash: true,
-          contentHash: true,
           durationMs: true,
-          purgeRequestedAt: true,
-          purgedAt: true,
+          status: true,
+          deletedAt: true,
+          aiAutoDescription: true,
+          aiAutoTagNames: true,
+          aiSearchText: true,
         },
       });
 
       if (existingAsset) {
-        if (existingAsset.purgeRequestedAt || existingAsset.purgedAt) {
+        if (existingAsset.status !== 'active' || existingAsset.deletedAt) {
           if (fileHashRefAdded && fileHash) {
             try {
               await decrementFileHashReference(fileHash);
@@ -181,18 +181,17 @@ export const importMeme = async (req: AuthRequest, res: Response) => {
             error: 'This meme was deleted and cannot be imported again',
             requestId: req.requestId,
             details: {
-              legacyErrorCode: 'MEME_ASSET_DELETED',
               fileHash,
               memeAssetId: existingAsset.id,
-              purgeRequestedAt: existingAsset.purgeRequestedAt,
-              purgedAt: existingAsset.purgedAt,
+              status: existingAsset.status,
+              deletedAt: existingAsset.deletedAt,
             },
           });
         }
 
         const existingCm = await prisma.channelMeme.findUnique({
           where: { channelId_memeAssetId: { channelId: String(channelId), memeAssetId: existingAsset.id } },
-          select: { id: true, deletedAt: true, legacyMemeId: true, memeAssetId: true },
+          select: { id: true, deletedAt: true, memeAssetId: true },
         });
 
         if (existingCm && !existingCm.deletedAt) {
@@ -222,7 +221,6 @@ export const importMeme = async (req: AuthRequest, res: Response) => {
           }
 
           const defaultPrice = channel.defaultPriceCoins ?? 100;
-          const now = new Date();
 
           const restored = await prisma.$transaction(async (tx) => {
             const restored = await tx.channelMeme.update({
@@ -232,73 +230,33 @@ export const importMeme = async (req: AuthRequest, res: Response) => {
                 deletedAt: null,
                 title: finalTitle,
                 priceCoins: defaultPrice,
-                approvedByUserId: req.userId!,
-                approvedAt: now,
               },
-              select: { id: true, legacyMemeId: true, memeAssetId: true },
+              select: { id: true, memeAssetId: true },
             });
 
-            const legacyData: Prisma.MemeUncheckedCreateInput = {
-              channelId,
-              title: finalTitle,
-              type: existingAsset.type,
-              fileUrl: existingAsset.fileUrl ?? body.sourceUrl,
-              fileHash: existingAsset.fileHash,
-              durationMs: existingAsset.durationMs,
-              priceCoins: defaultPrice,
-              status: 'approved',
-              deletedAt: null,
-              createdByUserId: req.userId!,
-              approvedByUserId: req.userId!,
-            };
+            if (userProvidedTitle) {
+              const fallbackDesc = makeAutoDescription({ title: finalTitle, transcript: null, labels: [] });
+              const fallbackTags = generateTagNames({ title: finalTitle, transcript: null, labels: [] }).tagNames;
+              const fallbackSearchText = [finalTitle, fallbackTags.join(' '), fallbackDesc || '']
+                .map((s) => String(s || '').trim())
+                .filter(Boolean)
+                .join('\n')
+                .slice(0, 4000);
 
-            let legacy: Meme | null = null;
-            if (restored.legacyMemeId) {
-              try {
-                legacy = await tx.meme.update({
-                  where: { id: restored.legacyMemeId },
-                  data: legacyData,
-                });
-              } catch (error) {
-                const errorCode =
-                  typeof error === 'object' && error !== null ? (error as { code?: string }).code : null;
-                if (errorCode === 'P2025') {
-                  legacy = await tx.meme.create({ data: legacyData });
-                  await tx.channelMeme.update({
-                    where: { id: restored.id },
-                    data: { legacyMemeId: legacy.id },
-                  });
-                } else {
-                  throw error;
-                }
+              const hasAiDesc = !!existingAsset.aiAutoDescription;
+              const hasAiTags =
+                Array.isArray(existingAsset.aiAutoTagNames) && existingAsset.aiAutoTagNames.length > 0;
+              const updateData: Prisma.MemeAssetUpdateInput = {};
+              if (!hasAiDesc && fallbackDesc) updateData.aiAutoDescription = String(fallbackDesc).slice(0, 2000);
+              if (!hasAiTags && fallbackTags.length > 0) updateData.aiAutoTagNames = fallbackTags;
+              if (!existingAsset.aiSearchText && fallbackSearchText) updateData.aiSearchText = fallbackSearchText;
+
+              if (Object.keys(updateData).length > 0) {
+                await tx.memeAsset.update({ where: { id: existingAsset.id }, data: updateData });
               }
-            } else {
-              legacy = await tx.meme.create({ data: legacyData });
-              await tx.channelMeme.update({
-                where: { id: restored.id },
-                data: { legacyMemeId: legacy.id },
-              });
             }
 
             return restored;
-          });
-
-          const fallbackDesc = userProvidedTitle
-            ? makeAutoDescription({ title: finalTitle, transcript: null, labels: [] })
-            : null;
-          const fallbackTags = userProvidedTitle
-            ? generateTagNames({ title: finalTitle, transcript: null, labels: [] }).tagNames
-            : [];
-          const fallbackSearchText = fallbackDesc ? String(fallbackDesc).slice(0, 4000) : null;
-
-          const fallbackUpdate: Prisma.ChannelMemeUpdateArgs['data'] = {
-            aiAutoDescription: fallbackDesc ? String(fallbackDesc).slice(0, 2000) : null,
-            aiAutoTagNamesJson: fallbackTags,
-            searchText: fallbackSearchText,
-          };
-          await prisma.channelMeme.update({
-            where: { id: restored.id },
-            data: fallbackUpdate,
           });
 
           try {
@@ -377,7 +335,6 @@ export const importMeme = async (req: AuthRequest, res: Response) => {
         tagIds,
         finalFilePath,
         fileHash,
-        contentHash,
         detectedDurationMs,
         userProvidedTitle,
       });

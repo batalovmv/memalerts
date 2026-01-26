@@ -70,7 +70,7 @@ export function useVkvideoRewards({
       const { getRequestIdFromError } = await import('@/lib/api');
       const rid = getRequestIdFromError(error);
       setVkvideoLastErrorRequestId(rid);
-      toast.error(err.error || err.message);
+      toast.error(err.message);
     } finally {
       await ensureMinDuration(startedAt, 650);
       setSavingVkvideoReward(false);

@@ -57,7 +57,7 @@ export function useYoutubeLikeRewards({
         lastSavedYoutubeLikeRef.current = payload;
       } catch (error: unknown) {
         const err = toApiError(error, t('admin.failedToSaveSettings', { defaultValue: 'Failed to save settings' }));
-        toast.error(err.error || err.message);
+        toast.error(err.message);
       } finally {
         await ensureMinDuration(startedAt, 650);
         setSavingYoutubeLikeReward(false);

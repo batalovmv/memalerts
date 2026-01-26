@@ -17,11 +17,5 @@ export function createMemeRepository(client: DbClient): MemeRepository {
       updateMany: (args) => client.channelMeme.updateMany(args),
       upsert: (args) => client.channelMeme.upsert(args),
     },
-    meme: {
-      findUnique: (args) => client.meme.findUnique(args),
-      findFirst: (args) => client.meme.findFirst(args),
-      create: (args) => client.meme.create(args),
-      update: (args) => client.meme.update(args),
-    },
   };
 }

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation, useParams } from 'react-router-dom';
 
-import type { Wallet } from '@/types';
+import type { Wallet } from '@memalerts/api-contracts';
 
 import { useSocket } from '@/contexts/SocketContext';
 import { api } from '@/lib/api';
@@ -206,3 +206,4 @@ export function useHeaderWallet(channelSlug?: string, channelId?: string) {
     handleWalletUpdate,
   };
 }
+

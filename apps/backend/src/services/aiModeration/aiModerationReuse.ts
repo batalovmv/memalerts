@@ -12,18 +12,17 @@ import type { AiModerationSubmission } from './aiModerationTypes.js';
 export async function tryReuseAiResults(opts: {
   submission: AiModerationSubmission;
   fileHash: string;
-  contentHash?: string | null;
   now: Date;
 }): Promise<boolean> {
-  const { submission, fileHash, contentHash, now } = opts;
+  const { submission, fileHash, now } = opts;
 
   const existingAsset = await prisma.memeAsset.findFirst({
-    where: contentHash ? { contentHash, aiStatus: 'done' } : { fileHash, aiStatus: 'done' },
+    where: { fileHash, aiStatus: 'done' },
     select: {
       id: true,
       aiAutoTitle: true,
       aiAutoDescription: true,
-      aiAutoTagNamesJson: true,
+      aiAutoTagNames: true,
       aiTranscript: true,
       aiSearchText: true,
     },
@@ -33,7 +32,7 @@ export async function tryReuseAiResults(opts: {
 
   const hasReusableDescription = !isEffectivelyEmptyAiDescription(existingAsset.aiAutoDescription, submission.title);
   const hasReusableTags = hasReusableAiTags(
-    existingAsset.aiAutoTagNamesJson,
+    existingAsset.aiAutoTagNames,
     submission.title,
     existingAsset.aiAutoDescription
   );
@@ -41,20 +40,15 @@ export async function tryReuseAiResults(opts: {
     logger.info('ai_moderation.dedup.skip_reuse_placeholder', {
       submissionId: submission.id,
       fileHash,
-      contentHash: contentHash ?? null,
       memeAssetId: existingAsset.id,
       reason: 'placeholder_ai_fields',
     });
     return false;
   }
 
-  const tagNamesJson =
-    existingAsset.aiAutoTagNamesJson === null
-      ? Prisma.DbNull
-      : (existingAsset.aiAutoTagNamesJson as Prisma.InputJsonValue);
-  const assetAiAutoTagNamesNorm = Array.isArray(existingAsset.aiAutoTagNamesJson)
-    ? (existingAsset.aiAutoTagNamesJson as unknown[]).map((t) => normalizeAiText(String(t ?? ''))).filter(Boolean)
-    : null;
+  const tagNames = Array.isArray(existingAsset.aiAutoTagNames) ? existingAsset.aiAutoTagNames : [];
+  const assetAiAutoTagNamesNorm =
+    tagNames.length > 0 ? tagNames.map((t) => normalizeAiText(String(t ?? ''))).filter(Boolean) : null;
   const reuseModelVersions: Prisma.JsonObject = {
     pipelineVersion: 'v3-reuse-memeasset',
     reuse: {
@@ -73,7 +67,7 @@ export async function tryReuseAiResults(opts: {
       aiRiskScore: null,
       aiLabelsJson: Prisma.DbNull,
       aiTranscript: existingAsset.aiTranscript ?? null,
-      aiAutoTagNamesJson: tagNamesJson,
+      aiAutoTagNamesJson: tagNames.length > 0 ? tagNames : Prisma.DbNull,
       aiAutoDescription: existingAsset.aiAutoDescription ?? null,
       aiModelVersionsJson: reuseModelVersions,
       aiCompletedAt: now,
@@ -87,12 +81,10 @@ export async function tryReuseAiResults(opts: {
 
   const assetId = submission.memeAssetId ?? existingAsset.id;
   const fallbackSearchText = (() => {
-    const tagNames = Array.isArray(existingAsset.aiAutoTagNamesJson)
-      ? (existingAsset.aiAutoTagNamesJson as unknown[]).map((t) => normalizeAiText(String(t ?? ''))).filter(Boolean)
-      : [];
+    const normTagNames = tagNames.map((t) => normalizeAiText(String(t ?? ''))).filter(Boolean);
     const parts = [
       existingAsset.aiAutoTitle ? String(existingAsset.aiAutoTitle) : submission.title ? String(submission.title) : '',
-      tagNames.length > 0 ? tagNames.join(' ') : '',
+      normTagNames.length > 0 ? normTagNames.join(' ') : '',
       existingAsset.aiAutoDescription ? String(existingAsset.aiAutoDescription) : '',
       existingAsset.aiTranscript ? String(existingAsset.aiTranscript) : '',
     ]
@@ -101,15 +93,16 @@ export async function tryReuseAiResults(opts: {
     const merged = parts.join('\n');
     return merged ? merged.slice(0, 4000) : null;
   })();
-  await prisma.channelMeme.updateMany({
-    where: { channelId: submission.channelId, memeAssetId: assetId },
-    data: {
-      aiAutoDescription: existingAsset.aiAutoDescription ?? null,
-      aiAutoTagNamesJson: tagNamesJson,
-      searchText:
-        existingAsset.aiSearchText ?? fallbackSearchText,
-    },
-  });
+  if (assetId) {
+    await prisma.memeAsset.update({
+      where: { id: assetId },
+      data: {
+        aiAutoDescription: existingAsset.aiAutoDescription ?? null,
+        aiAutoTagNames: tagNames.length > 0 ? tagNames : undefined,
+        aiSearchText: existingAsset.aiSearchText ?? fallbackSearchText,
+      },
+    });
+  }
 
   if (existingAsset.aiAutoTitle) {
     await prisma.channelMeme.updateMany({

@@ -18,7 +18,7 @@ export async function recomputeMemeDailyStats(days: number): Promise<{ days: num
   // Upsert per (day,memeId) globally and per (channelId,day,memeId) for channel-scoped stats.
   const sql1 = `
       WITH base AS (
-        SELECT "channelId","memeId","coinsSpent","createdAt"
+        SELECT "channelId","memeId","priceCoins","createdAt"
         FROM "MemeActivation"
         WHERE "createdAt" >= $1
           AND status IN ('done','completed')
@@ -29,7 +29,7 @@ export async function recomputeMemeDailyStats(days: number): Promise<{ days: num
           date_trunc('day', b."createdAt") as day,
           b."memeId",
           COUNT(*)::int as cnt,
-          COALESCE(SUM(b."coinsSpent"), 0)::bigint as coins
+          COALESCE(SUM(b."priceCoins"), 0)::bigint as coins
         FROM base b
         GROUP BY b."channelId", day, b."memeId"
       )
@@ -54,7 +54,7 @@ export async function recomputeMemeDailyStats(days: number): Promise<{ days: num
 
   const sql2 = `
       WITH base AS (
-        SELECT "memeId","coinsSpent","createdAt"
+        SELECT "memeId","priceCoins","createdAt"
         FROM "MemeActivation"
         WHERE "createdAt" >= $1
           AND status IN ('done','completed')
@@ -64,7 +64,7 @@ export async function recomputeMemeDailyStats(days: number): Promise<{ days: num
           date_trunc('day', b."createdAt") as day,
           b."memeId",
           COUNT(*)::int as cnt,
-          COALESCE(SUM(b."coinsSpent"), 0)::bigint as coins
+          COALESCE(SUM(b."priceCoins"), 0)::bigint as coins
         FROM base b
         GROUP BY day, b."memeId"
       )

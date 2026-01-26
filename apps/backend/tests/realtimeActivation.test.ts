@@ -177,8 +177,7 @@ describe('realtime activation events', () => {
         .post(`/memes/${meme.id}/activate`)
         .set('Cookie', [`token=${encodeURIComponent(viewerToken)}`])
         .set('Host', 'example.com')
-        .send({});
-
+        .send({ channelId: channel.id });
       expect(res.status).toBe(200);
 
       const payload = await eventPromise;
@@ -223,8 +222,7 @@ describe('realtime activation events', () => {
         .post(`/memes/${meme.id}/activate`)
         .set('Cookie', [`token=${encodeURIComponent(viewerToken)}`])
         .set('Host', 'example.com')
-        .send({});
-
+        .send({ channelId: channel.id });
       expect(res.status).toBe(200);
       const activationId = String(res.body?.activation?.id || '');
       expect(activationId).toBeTruthy();

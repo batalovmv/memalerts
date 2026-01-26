@@ -2,7 +2,7 @@ import { useCallback, useEffect, useId, useMemo, useState } from 'react';
 
 import type { SettingsTab } from '@/features/settings/model/types';
 import type { UserMode } from '@/shared/lib/userMode';
-import type { User } from '@/types';
+import type { User } from '@memalerts/api-contracts';
 import type { Location, NavigateFunction } from 'react-router-dom';
 
 import { MORE_TABS, PRIMARY_TABS, TAB_QUERY_TABS, VIEWER_TABS } from '@/features/settings/model/constants';
@@ -120,3 +120,4 @@ export function useSettingsTabs({ user, authLoading, uiMode, location, navigate 
     handleTabKeyDown,
   };
 }
+
