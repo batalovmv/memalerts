@@ -555,11 +555,6 @@ jobs:
             exit 1
           fi
 
-          if [ -d "$FRONTEND_DIR/overlay/node_modules" ]; then
-            echo "Removing stale overlay/node_modules to avoid duplicate React copies"
-            sudo rm -rf "$FRONTEND_DIR/overlay/node_modules"
-          fi
-
           pnpm install --frozen-lockfile
           pnpm --filter @memalerts/api-contracts build
           pnpm --filter @memalerts/backend build
@@ -1302,11 +1297,6 @@ jobs:
             exit 1
           fi
 
-          if [ -d "$FRONTEND_DIR/overlay/node_modules" ]; then
-            echo "Removing stale overlay/node_modules to avoid duplicate React copies"
-            sudo rm -rf "$FRONTEND_DIR/overlay/node_modules"
-          fi
-
           pnpm install --frozen-lockfile
           pnpm --filter @memalerts/api-contracts build
           pnpm --filter @memalerts/backend build
@@ -1558,6 +1548,11 @@ jobs:
           export BUILD_DIR
           sudo rm -rf "$BUILD_DIR" "$OVERLAY_BUILD_DIR" "$FRONTEND_DIR/dist" "$FRONTEND_DIR/overlay/dist"
 
+          if [ -d "$FRONTEND_DIR/overlay/node_modules" ]; then
+            echo "Removing stale overlay/node_modules to avoid duplicate React copies"
+            sudo rm -rf "$FRONTEND_DIR/overlay/node_modules"
+          fi
+
           pnpm install --frozen-lockfile
           pnpm --filter @memalerts/api-contracts build
           pnpm --filter @memalerts/frontend lint
@@ -1679,6 +1674,11 @@ jobs:
           OVERLAY_BUILD_DIR="$APP_DIR/overlay/dist-next"
           export BUILD_DIR
           sudo rm -rf "$BUILD_DIR" "$OVERLAY_BUILD_DIR" "$FRONTEND_DIR/dist" "$FRONTEND_DIR/overlay/dist"
+
+          if [ -d "$FRONTEND_DIR/overlay/node_modules" ]; then
+            echo "Removing stale overlay/node_modules to avoid duplicate React copies"
+            sudo rm -rf "$FRONTEND_DIR/overlay/node_modules"
+          fi
 
           pnpm install --frozen-lockfile
           pnpm --filter @memalerts/api-contracts build
