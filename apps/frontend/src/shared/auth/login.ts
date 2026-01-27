@@ -1,18 +1,37 @@
 import { getRuntimeConfig } from '../config/runtimeConfig';
 
+function isBetaHost(hostname: string): boolean {
+  return hostname.includes('beta.');
+}
+
+function shouldIgnoreEnvApiUrl(envUrl: string): boolean {
+  if (!import.meta.env.PROD) return false;
+  try {
+    const envHost = new URL(envUrl).hostname;
+    const pageHost = window.location.hostname;
+    return isBetaHost(envHost) !== isBetaHost(pageHost);
+  } catch {
+    return false;
+  }
+}
+
 function getApiOrigin(): string {
   const runtime = getRuntimeConfig();
   const envUrl = import.meta.env.VITE_API_URL;
 
   // Prefer runtime config if available (enterprise pattern: runtime env, same build)
   if (runtime?.apiBaseUrl !== undefined) {
-    return runtime.apiBaseUrl === '' ? window.location.origin : runtime.apiBaseUrl;
+    if (runtime.apiBaseUrl === '') return window.location.origin;
+    if (runtime.apiBaseUrl && shouldIgnoreEnvApiUrl(runtime.apiBaseUrl)) return window.location.origin;
+    return runtime.apiBaseUrl;
   }
 
   // If VITE_API_URL is explicitly set (even if empty string), use it
   // Empty string means use relative URLs (same origin)
   if (envUrl !== undefined) {
-    return envUrl === '' ? window.location.origin : envUrl;
+    if (envUrl === '') return window.location.origin;
+    if (shouldIgnoreEnvApiUrl(envUrl)) return window.location.origin;
+    return envUrl;
   }
 
   // In production, use same origin; in development, use localhost
