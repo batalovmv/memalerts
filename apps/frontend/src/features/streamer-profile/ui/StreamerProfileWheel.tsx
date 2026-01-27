@@ -1,4 +1,3 @@
-import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import type { WheelSpin, WheelState } from '@memalerts/api-contracts';
@@ -46,15 +45,12 @@ export function StreamerProfileWheel({
   const freeAvailable = state?.freeSpinAvailable ?? false;
   const paidCost = state?.paidSpinCostCoins ?? 0;
 
-  const lastWinnerLabel = useMemo(() => {
-    if (lastSpinEvent?.displayName && lastSpinEvent.prize) {
-      return `${lastSpinEvent.displayName} · +${lastSpinEvent.prize.coins}`;
-    }
-    if (lastSpin?.prize) {
-      return `+${lastSpin.prize.coins}`;
-    }
-    return '';
-  }, [lastSpin?.prize, lastSpinEvent]);
+  const lastWinnerLabel =
+    lastSpinEvent?.displayName && lastSpinEvent.prize
+      ? `${lastSpinEvent.displayName} · +${lastSpinEvent.prize.coins}`
+      : lastSpin?.prize
+        ? `+${lastSpin.prize.coins}`
+        : '';
 
   const handleSpin = (mode: 'free' | 'paid') => {
     if (!isAuthed) {

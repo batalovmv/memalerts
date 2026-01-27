@@ -42,7 +42,7 @@ export function useStreamRecap({ user }: UseStreamRecapOptions) {
     }
     if (user.role !== 'streamer' && user.role !== 'admin') return;
     void loadRecap();
-  }, [loadRecap, user?.channelId, user?.role, user?.id]);
+  }, [loadRecap, user]);
 
   return {
     recap,
