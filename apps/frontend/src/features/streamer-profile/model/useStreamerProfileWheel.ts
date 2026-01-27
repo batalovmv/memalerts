@@ -1,5 +1,3 @@
-import { useCallback, useEffect, useState } from 'react';
-
 import {
   GetWheelStateResponseSchema,
   SpinWheelResponseSchema,
@@ -7,6 +5,7 @@ import {
   type WheelSpin,
   type WheelState,
 } from '@memalerts/api-contracts';
+import { useCallback, useEffect, useState } from 'react';
 
 import { useSocket } from '@/contexts/SocketContext';
 import { api } from '@/lib/api';

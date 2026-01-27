@@ -1,7 +1,5 @@
+import { GetLatestStreamRecapResponseSchema, type StreamRecap, type User } from '@memalerts/api-contracts';
 import { useCallback, useEffect, useState } from 'react';
-
-import type { StreamRecap, User } from '@memalerts/api-contracts';
-import { GetLatestStreamRecapResponseSchema } from '@memalerts/api-contracts';
 
 import { api } from '@/lib/api';
 

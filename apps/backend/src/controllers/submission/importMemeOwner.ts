@@ -32,6 +32,7 @@ export async function createOwnerImportMeme(params: {
     detectedDurationMs,
     userProvidedTitle,
   } = params;
+  void tagIds;
 
   const defaultPrice = channel.defaultPriceCoins ?? 100;
   const durationMsSafe = Math.max(0, Math.min(detectedDurationMs ?? 0, 15000));

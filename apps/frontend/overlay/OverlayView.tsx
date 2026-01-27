@@ -1,14 +1,14 @@
+import { GetActiveEventsResponseSchema, type Event, type VoteSession, type WheelPrize } from '@memalerts/api-contracts';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { io, Socket } from 'socket.io-client';
-import { GetActiveEventsResponseSchema, type Event, type VoteSession, type WheelPrize } from '@memalerts/api-contracts';
 
-import { clampFloat, clampInt } from './lib/math';
-import { useOverlayParams } from './model/useOverlayParams';
-import { getSocketBaseUrl, resolveMediaUrl } from './urls';
 import { EventConfetti } from './components/EventConfetti';
 import { VoteOverlay } from './components/VoteOverlay';
 import { WheelSpinOverlay } from './components/WheelSpinOverlay';
+import { clampFloat, clampInt } from './lib/math';
+import { useOverlayParams } from './model/useOverlayParams';
+import { getSocketBaseUrl, resolveMediaUrl } from './urls';
 
 import type {
   Activation,

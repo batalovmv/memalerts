@@ -1,6 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
-
 import { GetActiveEventsResponseSchema, type Event } from '@memalerts/api-contracts';
+import { useCallback, useEffect, useState } from 'react';
 
 import { api } from '@/lib/api';
 

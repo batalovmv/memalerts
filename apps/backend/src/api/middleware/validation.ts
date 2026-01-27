@@ -13,7 +13,7 @@ export function validateRequest<
   TQuery = Request['query'],
   TBody = Request['body']
 >(schemas: ValidationSchemas) {
-  return async (req: Request<TParams, any, TBody, TQuery>, res: Response, next: NextFunction) => {
+  return async (req: Request<TParams, unknown, TBody, TQuery>, res: Response, next: NextFunction) => {
     try {
       if (schemas.params) {
         req.params = schemas.params.parse(req.params) as TParams;

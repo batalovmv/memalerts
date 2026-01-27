@@ -54,7 +54,7 @@ export const createVote = async (req: AuthRequest, res: Response) => {
     }
 
     return res.json({ session });
-  } catch (error: unknown) {
+  } catch {
     return res.status(400).json({ errorCode: ERROR_CODES.BAD_REQUEST, error: 'Invalid vote payload' });
   }
 };
@@ -92,7 +92,7 @@ export const closeVote = async (req: AuthRequest, res: Response) => {
     }
 
     return res.json({ session: result.session });
-  } catch (error: unknown) {
+  } catch {
     return res.status(400).json({ errorCode: ERROR_CODES.BAD_REQUEST, error: 'Invalid vote close request' });
   }
 };

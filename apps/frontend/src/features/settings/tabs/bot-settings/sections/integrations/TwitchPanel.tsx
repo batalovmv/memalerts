@@ -2,11 +2,11 @@ import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 
 import { ToggleSwitch } from '../../components/ToggleSwitch';
+
 import type { UseBotSettingsResult } from '../../hooks/useBotSettings';
 
 import { HelpTooltip } from '@/shared/ui';
 import { SavingOverlay } from '@/shared/ui/StatusOverlays';
-
 type TwitchPanelProps = {
   settings: UseBotSettingsResult;
 };

@@ -3,14 +3,14 @@ import { memo, useState } from 'react';
 import type { RewardsPlatformId } from '@/features/settings/tabs/rewards/types';
 
 import { useChannelColors } from '@/contexts/ChannelColorsContext';
+import { useEconomySettings } from '@/features/settings/tabs/rewards/model/useEconomySettings';
 import { useRewardsSettingsLoader } from '@/features/settings/tabs/rewards/model/useRewardsSettingsLoader';
 import { useRewardsSettingsSaveRefs } from '@/features/settings/tabs/rewards/model/useRewardsSettingsSaveRefs';
 import { useRewardsSettingsState } from '@/features/settings/tabs/rewards/model/useRewardsSettingsState';
-import { useEconomySettings } from '@/features/settings/tabs/rewards/model/useEconomySettings';
-import { useWheelSettings } from '@/features/settings/tabs/rewards/model/useWheelSettings';
 import { useSubmissionsRewards } from '@/features/settings/tabs/rewards/model/useSubmissionsRewards';
 import { useTwitchRewards } from '@/features/settings/tabs/rewards/model/useTwitchRewards';
 import { useVkvideoRewards } from '@/features/settings/tabs/rewards/model/useVkvideoRewards';
+import { useWheelSettings } from '@/features/settings/tabs/rewards/model/useWheelSettings';
 import { EconomySettingsSection } from '@/features/settings/tabs/rewards/ui/EconomySettingsSection';
 import { RewardsPlatformTabs } from '@/features/settings/tabs/rewards/ui/RewardsPlatformTabs';
 import { RewardsSettingsHeader } from '@/features/settings/tabs/rewards/ui/RewardsSettingsHeader';

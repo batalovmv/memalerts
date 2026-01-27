@@ -8,7 +8,6 @@ import { authenticate } from '../src/middleware/auth.js';
 import { requireBetaAccess } from '../src/middleware/betaAccess.js';
 import { ownerRoutes } from '../src/routes/owner.js';
 import { createMemeAsset, createUser } from './factories/index.js';
-import { uniqueId } from './factories/utils.js';
 
 function makeJwt(payload: Record<string, unknown>): string {
   return jwt.sign(payload, process.env.JWT_SECRET!, { expiresIn: '5m' });

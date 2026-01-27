@@ -1,7 +1,5 @@
+import { GetChannelAchievementsResponseSchema, type AchievementSnapshot } from '@memalerts/api-contracts';
 import { useCallback, useEffect, useState } from 'react';
-
-import type { AchievementSnapshot } from '@memalerts/api-contracts';
-import { GetChannelAchievementsResponseSchema } from '@memalerts/api-contracts';
 
 import { api } from '@/lib/api';
 

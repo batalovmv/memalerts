@@ -88,6 +88,7 @@ export async function createMeme(overrides: TestMemeOverrides = {}): Promise<Tes
     status,
     ...channelOverrides
   } = overrides;
+  void _memeAssetId;
   const channelId = overrideChannelId ?? (await createChannel()).id;
   const asset = await createMemeAsset({
     type: type ?? 'video',

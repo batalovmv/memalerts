@@ -21,6 +21,7 @@ export async function approveSubmissionInternal(args: ApproveSubmissionInternalA
   channelMemeId: string | null;
 }> {
   const { tx, submissionId, approvedByUserId, resolved } = args;
+  void approvedByUserId;
 
   const buildAiSearchText = (args: {
     title: string | null | undefined;

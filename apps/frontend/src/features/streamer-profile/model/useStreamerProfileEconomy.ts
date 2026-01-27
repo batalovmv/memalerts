@@ -1,7 +1,3 @@
-import { useCallback, useState } from 'react';
-import toast from 'react-hot-toast';
-import { useTranslation } from 'react-i18next';
-
 import {
   ClaimDailyBonusResponseSchema,
   ClaimWatchBonusResponseSchema,
@@ -9,10 +5,13 @@ import {
   type ClaimDailyBonusResponse,
   type ClaimWatchBonusResponse,
 } from '@memalerts/api-contracts';
+import { useCallback, useState } from 'react';
+import toast from 'react-hot-toast';
+import { useTranslation } from 'react-i18next';
+
 import type { ChannelInfo } from '@/features/streamer-profile/model/types';
 
 import { api } from '@/lib/api';
-
 export function useStreamerProfileEconomy(params: {
   channelInfo: ChannelInfo | null;
   setChannelInfo: (next: ChannelInfo | null | ((prev: ChannelInfo | null) => ChannelInfo | null)) => void;

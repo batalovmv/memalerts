@@ -34,9 +34,9 @@ export function StreamerProfileAchievements({
 }: StreamerProfileAchievementsProps) {
   const { t } = useTranslation();
 
-  const globalList = achievements?.global ?? [];
-  const channelList = achievements?.channel ?? [];
-  const eventList = achievements?.events ?? [];
+  const globalList = useMemo(() => achievements?.global ?? [], [achievements?.global]);
+  const channelList = useMemo(() => achievements?.channel ?? [], [achievements?.channel]);
+  const eventList = useMemo(() => achievements?.events ?? [], [achievements?.events]);
 
   const hasAny = globalList.length > 0 || channelList.length > 0 || eventList.length > 0;
 

@@ -18,7 +18,7 @@ import { setupRoutes } from '../../src/routes/index.js';
 import { prisma } from '../../src/lib/prisma.js';
 import { getVideoMetadata } from '../../src/utils/videoValidator.js';
 import { processSubmissionUpload } from '../../src/services/submission/submissionCreateUpload.js';
-import { createChannel, createChannelMeme, createMeme, createMemeAsset, createWallet } from '../factories/index.js';
+import { createChannel, createChannelMeme, createMemeAsset, createWallet } from '../factories/index.js';
 import { calculateFileHash, findOrCreateFileHash, getFileStats } from '../../src/utils/fileHash.js';
 
 type LoginResult = {

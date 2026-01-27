@@ -2,8 +2,8 @@ import { createContext, useContext, useState, useEffect, ReactNode, useCallback,
 
 import { api } from '../lib/api';
 import { useAppSelector } from '../store/hooks';
-import type { ChannelEconomy } from '@memalerts/api-contracts';
 
+import type { ChannelEconomy } from '@memalerts/api-contracts';
 interface ChannelColors {
   primaryColor: string | null;
   secondaryColor: string | null;

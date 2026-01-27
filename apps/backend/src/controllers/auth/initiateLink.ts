@@ -7,7 +7,6 @@ import {
   buildRedirectWithError,
   getRedirectUrl,
   sanitizeRedirectTo,
-  DEFAULT_LINK_REDIRECT,
   sanitizeOrigin,
 } from './utils.js';
 

@@ -208,13 +208,6 @@ export function setupSocketIO(io: Server) {
     });
 
     socket.on('disconnect', () => {
-      try {
-        const socketData = socket.data as {
-          channelSlug?: string;
-        };
-      } catch {
-        // ignore
-      }
       // Explicitly drop per-socket listeners to keep the disconnect path lean.
       socket.removeAllListeners();
       debugLog('Client disconnected:', socket.id);

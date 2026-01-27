@@ -186,8 +186,6 @@ export async function ensureMemeAssetVariants(params: EnsureVariantsParams): Pro
   try {
     const metadata = await getVideoMetadata(localPath).catch(() => null);
     const durationMs = params.sourceDurationMs ?? toMs(metadata?.duration ?? null);
-    const width = metadata?.width;
-    const height = metadata?.height;
     const fileSizeBytes =
       metadata?.size ??
       (await fs.promises

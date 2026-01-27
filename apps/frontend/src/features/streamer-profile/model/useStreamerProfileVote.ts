@@ -1,11 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-
 import {
   CastVoteResponseSchema,
   CreateVoteResponseSchema,
   GetActiveVoteResponseSchema,
   type VoteSession,
 } from '@memalerts/api-contracts';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { useSocket } from '@/contexts/SocketContext';
 import { api } from '@/lib/api';
