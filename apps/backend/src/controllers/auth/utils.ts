@@ -63,9 +63,32 @@ function isAllowedOriginHost(hostname: string, req?: AuthRequest): boolean {
     }
   }
 
+  const envWebUrl = String(process.env.WEB_URL || '').trim();
+  if (envWebUrl) {
+    try {
+      const webHost = normalizeHost(new URL(envWebUrl).hostname);
+      const base = deriveBaseDomain(webHost);
+      if (base) {
+        allowed.add(base);
+        allowed.add(`www.${base}`);
+        allowed.add(`beta.${base}`);
+      }
+    } catch {
+      // ignore invalid WEB_URL
+    }
+  }
+
   if (req) {
     const reqHost = normalizeHost(req.get('host') || '');
     if (reqHost) allowed.add(reqHost);
+    if (!envDomain) {
+      const base = deriveBaseDomain(reqHost);
+      if (base) {
+        allowed.add(base);
+        allowed.add(`www.${base}`);
+        allowed.add(`beta.${base}`);
+      }
+    }
   }
 
   if (process.env.NODE_ENV !== 'production') {
