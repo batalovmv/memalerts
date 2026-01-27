@@ -1,5 +1,6 @@
 import type { Router } from 'express';
 import type { AuthRequest } from '../../middleware/auth.js';
+import { optionalAuthenticate } from '../../middleware/auth.js';
 import { requireBetaAccess } from '../../middleware/betaAccess.js';
 import { isDebugAuthEnabled, isDebugLogsEnabled } from '../../utils/debug.js';
 
@@ -46,6 +47,6 @@ export function registerBetaAccessMiddleware(app: Router) {
     if (isSkipped) {
       return next();
     }
-    void requireBetaAccess(req as AuthRequest, res, next);
+    return optionalAuthenticate(req as AuthRequest, res, () => requireBetaAccess(req as AuthRequest, res, next));
   });
 }
