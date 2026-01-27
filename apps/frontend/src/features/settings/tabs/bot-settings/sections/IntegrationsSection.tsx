@@ -1,5 +1,3 @@
-import { useTranslation } from 'react-i18next';
-
 import { TwitchPanel } from './integrations/TwitchPanel';
 import { VkPanel } from './integrations/VkPanel';
 import { YouTubePanel } from './integrations/YouTubePanel';
@@ -11,7 +9,6 @@ type IntegrationsSectionProps = {
 };
 
 export const IntegrationsSection = ({ settings }: IntegrationsSectionProps) => {
-  const { t } = useTranslation();
   const { botTab, setBotTab } = settings;
 
   return (
