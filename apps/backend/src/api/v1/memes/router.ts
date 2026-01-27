@@ -31,7 +31,12 @@ router.get<ListChannelMemesParams, ListChannelMemesResponse | ErrorResponse, unk
     unknown,
     ListChannelMemesQuery
   >,
-  validateRequest<ListChannelMemesParams, ListChannelMemesQuery>({
+  validateRequest<
+    ListChannelMemesParams,
+    ListChannelMemesQuery,
+    unknown,
+    ListChannelMemesResponse
+  >({
     params: ListChannelMemesParamsSchema,
     query: ListChannelMemesQuerySchema,
   }),
@@ -41,7 +46,7 @@ router.get<ListChannelMemesParams, ListChannelMemesResponse | ErrorResponse, unk
 router.get<GetMemeParams, GetMemeResponse | ErrorResponse>(
   `/memes/:memeId(${uuidPattern})`,
   optionalAuth as unknown as RequestHandler<GetMemeParams, GetMemeResponse | ErrorResponse>,
-  validateRequest<GetMemeParams>({
+  validateRequest<GetMemeParams, Request['query'], Request['body'], GetMemeResponse>({
     params: GetMemeParamsSchema,
   }),
   handlers.getMeme
@@ -50,7 +55,12 @@ router.get<GetMemeParams, GetMemeResponse | ErrorResponse>(
 router.post<ActivateMemeParams, ActivateMemeResponse | ErrorResponse, ActivateMemeBody>(
   `/memes/:memeId(${uuidPattern})/activate`,
   requireAuth as unknown as RequestHandler<ActivateMemeParams, ActivateMemeResponse | ErrorResponse, ActivateMemeBody>,
-  validateRequest<ActivateMemeParams, Request['query'], ActivateMemeBody>({
+  validateRequest<
+    ActivateMemeParams,
+    Request['query'],
+    ActivateMemeBody,
+    ActivateMemeResponse
+  >({
     params: ActivateMemeParamsSchema,
     body: ActivateMemeBodySchema,
   }),
