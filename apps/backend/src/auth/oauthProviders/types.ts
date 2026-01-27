@@ -34,6 +34,7 @@ export type OAuthCallbackParams = {
   statePreview?: string;
   stateCodeVerifier?: string | null;
   stateUserId?: string;
+  stateOrigin?: string;
 };
 
 export interface OAuthProvider {

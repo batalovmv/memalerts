@@ -27,6 +27,13 @@ async function safeUnlink(filePath: string): Promise<void> {
   }
 }
 
+function isBetaInstance(): boolean {
+  const instance = String(process.env.INSTANCE || '').trim().toLowerCase();
+  if (instance === 'beta') return true;
+  const domain = String(process.env.DOMAIN || '').trim().toLowerCase();
+  return domain.startsWith('beta.') || domain.includes('.beta.');
+}
+
 export class S3StorageProvider implements StorageProvider {
   kind: 's3' = 's3';
   private readonly cfg: S3Config;
@@ -78,6 +85,10 @@ export class S3StorageProvider implements StorageProvider {
   }
 
   async deleteByPublicPath(publicPath: string): Promise<void> {
+    if (isBetaInstance()) {
+      // Beta may share storage with prod; never delete shared objects from beta.
+      return;
+    }
     // Best-effort delete:
     // - If publicPath matches publicBaseUrl, strip it to get key
     // - Otherwise ignore (might be local path or unknown)
