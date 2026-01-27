@@ -1,4 +1,4 @@
-import type { NextFunction, Request, RequestHandler, Response } from 'express';
+import type { NextFunction, Request, RequestHandler } from 'express';
 import { ZodError, type ZodTypeAny } from 'zod';
 import type { ErrorResponse } from '@memalerts/api-contracts';
 
@@ -14,7 +14,7 @@ export function validateRequest<
   TBody = Request['body'],
   TResBody = unknown
 >(schemas: ValidationSchemas): RequestHandler<TParams, TResBody | ErrorResponse, TBody, TQuery> {
-  return async (req, res, next: NextFunction) => {
+  return (req, res, next: NextFunction) => {
     try {
       if (schemas.params) {
         req.params = schemas.params.parse(req.params) as TParams;
