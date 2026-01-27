@@ -24,16 +24,10 @@ export const botOutboxHandlers = {
       .toLowerCase();
     const id = String(params.id ?? '').trim();
     if (!id) return res.status(400).json({ error: 'Bad Request', message: 'Missing id' });
-    if (
-      provider !== 'twitch' &&
-      provider !== 'youtube' &&
-      provider !== 'vkvideo' &&
-      provider !== 'trovo' &&
-      provider !== 'kick'
-    ) {
+    if (provider !== 'twitch' && provider !== 'youtube' && provider !== 'vkvideo') {
       return res
         .status(400)
-        .json({ error: 'Bad Request', message: 'provider must be one of: twitch, youtube, vkvideo, trovo, kick' });
+        .json({ error: 'Bad Request', message: 'provider must be one of: twitch, youtube, vkvideo' });
     }
 
     try {
@@ -62,16 +56,6 @@ export const botOutboxHandlers = {
         });
       } else if (provider === 'vkvideo') {
         row = await prisma.vkVideoChatBotOutboxMessage.findFirst({
-          where: { id, channelId },
-          select,
-        });
-      } else if (provider === 'trovo') {
-        row = await prisma.trovoChatBotOutboxMessage.findFirst({
-          where: { id, channelId },
-          select,
-        });
-      } else if (provider === 'kick') {
-        row = await prisma.kickChatBotOutboxMessage.findFirst({
           where: { id, channelId },
           select,
         });
@@ -170,70 +154,6 @@ export const botOutboxHandlers = {
         if (!isPrismaErrorCode(error, 'P2021')) throw error;
       }
 
-      try {
-        try {
-          const gate = await prisma.botIntegrationSettings.findUnique({
-            where: { channelId_provider: { channelId, provider: 'trovo' } },
-            select: { enabled: true },
-          });
-          if (gate && gate.enabled === false) {
-            // explicitly disabled by gate => treat as disabled
-          } else {
-            const subTrovo = await prisma.trovoChatBotSubscription.findUnique({
-              where: { channelId },
-              select: { enabled: true, trovoChannelId: true },
-            });
-            const trovoEnabled = Boolean(subTrovo?.enabled && subTrovo?.trovoChannelId);
-            if (trovoEnabled) enabled.push('trovo');
-          }
-        } catch (error) {
-          if (isPrismaErrorCode(error, 'P2021')) {
-            const subTrovo = await prisma.trovoChatBotSubscription.findUnique({
-              where: { channelId },
-              select: { enabled: true, trovoChannelId: true },
-            });
-            const trovoEnabled = Boolean(subTrovo?.enabled && subTrovo?.trovoChannelId);
-            if (trovoEnabled) enabled.push('trovo');
-          } else {
-            throw error;
-          }
-        }
-      } catch (error) {
-        if (!isPrismaErrorCode(error, 'P2021')) throw error;
-      }
-
-      try {
-        try {
-          const gate = await prisma.botIntegrationSettings.findUnique({
-            where: { channelId_provider: { channelId, provider: 'kick' } },
-            select: { enabled: true },
-          });
-          if (gate && gate.enabled === false) {
-            // explicitly disabled by gate => treat as disabled
-          } else {
-            const subKick = await prisma.kickChatBotSubscription.findUnique({
-              where: { channelId },
-              select: { enabled: true, kickChannelId: true },
-            });
-            const kickEnabled = Boolean(subKick?.enabled && subKick?.kickChannelId);
-            if (kickEnabled) enabled.push('kick');
-          }
-        } catch (error) {
-          if (isPrismaErrorCode(error, 'P2021')) {
-            const subKick = await prisma.kickChatBotSubscription.findUnique({
-              where: { channelId },
-              select: { enabled: true, kickChannelId: true },
-            });
-            const kickEnabled = Boolean(subKick?.enabled && subKick?.kickChannelId);
-            if (kickEnabled) enabled.push('kick');
-          } else {
-            throw error;
-          }
-        }
-      } catch (error) {
-        if (!isPrismaErrorCode(error, 'P2021')) throw error;
-      }
-
       if (enabled.length === 0) {
         return res.status(400).json({ error: 'Bad Request', message: 'No chat bot is enabled for this channel' });
       }
@@ -316,96 +236,6 @@ export const botOutboxHandlers = {
         });
         void enqueueChatOutboxJob({ platform: 'vkvideo', outboxId: row.id, channelId });
         return res.json({ ok: true, provider: 'vkvideo', outbox: row });
-      } catch (error) {
-        if (isPrismaErrorCode(error, 'P2021')) {
-          return res.status(404).json({ error: 'Not Found', message: 'Feature not available' });
-        }
-        throw error;
-      }
-    }
-
-    if (provider === 'trovo') {
-      try {
-        try {
-          const gate = await prisma.botIntegrationSettings.findUnique({
-            where: { channelId_provider: { channelId, provider: 'trovo' } },
-            select: { enabled: true },
-          });
-          if (gate && !gate.enabled) {
-            return res
-              .status(400)
-              .json({ error: 'Bad Request', message: 'Trovo chat bot is not enabled for this channel' });
-          }
-        } catch (error) {
-          if (!isPrismaErrorCode(error, 'P2021')) throw error;
-        }
-
-        const sub = await prisma.trovoChatBotSubscription.findUnique({
-          where: { channelId },
-          select: { enabled: true, trovoChannelId: true },
-        });
-        if (!sub?.enabled || !sub.trovoChannelId) {
-          return res
-            .status(400)
-            .json({ error: 'Bad Request', message: 'Trovo chat bot is not enabled for this channel' });
-        }
-
-        const row = await prisma.trovoChatBotOutboxMessage.create({
-          data: {
-            channelId,
-            trovoChannelId: String(sub.trovoChannelId),
-            message,
-            status: 'pending',
-          },
-          select: { id: true, status: true, createdAt: true },
-        });
-        void enqueueChatOutboxJob({ platform: 'trovo', outboxId: row.id, channelId });
-        return res.json({ ok: true, provider: 'trovo', outbox: row });
-      } catch (error) {
-        if (isPrismaErrorCode(error, 'P2021')) {
-          return res.status(404).json({ error: 'Not Found', message: 'Feature not available' });
-        }
-        throw error;
-      }
-    }
-
-    if (provider === 'kick') {
-      try {
-        try {
-          const gate = await prisma.botIntegrationSettings.findUnique({
-            where: { channelId_provider: { channelId, provider: 'kick' } },
-            select: { enabled: true },
-          });
-          if (gate && !gate.enabled) {
-            return res
-              .status(400)
-              .json({ error: 'Bad Request', message: 'Kick chat bot is not enabled for this channel' });
-          }
-        } catch (error) {
-          if (!isPrismaErrorCode(error, 'P2021')) throw error;
-        }
-
-        const sub = await prisma.kickChatBotSubscription.findUnique({
-          where: { channelId },
-          select: { enabled: true, kickChannelId: true },
-        });
-        if (!sub?.enabled || !sub.kickChannelId) {
-          return res
-            .status(400)
-            .json({ error: 'Bad Request', message: 'Kick chat bot is not enabled for this channel' });
-        }
-
-        const row = await prisma.kickChatBotOutboxMessage.create({
-          data: {
-            channelId,
-            kickChannelId: String(sub.kickChannelId),
-            message,
-            status: 'pending',
-          },
-          select: { id: true, status: true, createdAt: true },
-        });
-        void enqueueChatOutboxJob({ platform: 'kick', outboxId: row.id, channelId });
-        return res.json({ ok: true, provider: 'kick', outbox: row });
       } catch (error) {
         if (isPrismaErrorCode(error, 'P2021')) {
           return res.status(404).json({ error: 'Not Found', message: 'Feature not available' });

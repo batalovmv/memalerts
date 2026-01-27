@@ -67,7 +67,6 @@ describe('streamer channel settings', () => {
       primaryColor: '#111111',
       secondaryColor: '#222222',
       accentColor: '#333333',
-      twitchAutoRewardsJson: null,
     });
     const streamer = await createUser({ role: 'streamer', channelId: channel.id });
 

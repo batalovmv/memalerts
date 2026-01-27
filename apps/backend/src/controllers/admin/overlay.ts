@@ -121,8 +121,8 @@ export const rotateOverlayToken = async (req: AuthRequest, res: Response) => {
           s.disconnect(true);
         }
       }
-    } catch (kickErr) {
-      const err = kickErr as Error;
+    } catch (socketErr) {
+      const err = socketErr as Error;
       logger.error('overlay.socket_disconnect_failed', { errorMessage: err.message });
     }
 

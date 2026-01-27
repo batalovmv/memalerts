@@ -8,19 +8,16 @@ import { setupRoutes } from '../src/routes/index.js';
 import {
   createChannel,
   createChannelEntitlement,
-  createKickBotIntegration,
-  createTrovoBotIntegration,
   createTwitchBotIntegration,
   createUser,
   createVkVideoBotIntegration,
   createYouTubeBotIntegration,
 } from './factories/index.js';
 
-const KICK_AUTHORIZE_URL = 'https://kick.example/oauth/authorize';
 const VKVIDEO_AUTHORIZE_URL = 'https://vkvideo.example/oauth/authorize';
 
 type ProviderConfig = {
-  key: 'twitch' | 'youtube' | 'vkvideo' | 'trovo' | 'kick';
+  key: 'twitch' | 'youtube' | 'vkvideo';
   statusPath: string;
   linkPath: string;
   unlinkPath: string;
@@ -54,22 +51,6 @@ const PROVIDERS: ProviderConfig[] = [
     authorizeBase: VKVIDEO_AUTHORIZE_URL,
     expectsCodeChallenge: true,
     createIntegration: ({ channelId }) => createVkVideoBotIntegration({ channelId }),
-  },
-  {
-    key: 'trovo',
-    statusPath: '/streamer/bots/trovo/bot',
-    linkPath: '/streamer/bots/trovo/bot/link',
-    unlinkPath: '/streamer/bots/trovo/bot',
-    authorizeBase: 'https://open.trovo.live/page/login.html',
-    createIntegration: ({ channelId }) => createTrovoBotIntegration({ channelId }),
-  },
-  {
-    key: 'kick',
-    statusPath: '/streamer/bots/kick/bot',
-    linkPath: '/streamer/bots/kick/bot/link',
-    unlinkPath: '/streamer/bots/kick/bot',
-    authorizeBase: KICK_AUTHORIZE_URL,
-    createIntegration: ({ channelId }) => createKickBotIntegration({ channelId }),
   },
 ];
 
@@ -108,16 +89,6 @@ describe('streamer bot integrations', () => {
     process.env.VKVIDEO_CLIENT_SECRET = 'vkvideo-client-secret';
     process.env.VKVIDEO_CALLBACK_URL = 'https://example.com/auth/vkvideo/callback';
     process.env.VKVIDEO_AUTHORIZE_URL = VKVIDEO_AUTHORIZE_URL;
-    process.env.TROVO_CLIENT_ID = 'trovo-client-id';
-    process.env.TROVO_CLIENT_SECRET = 'trovo-client-secret';
-    process.env.TROVO_CALLBACK_URL = 'https://example.com/auth/trovo/callback';
-    process.env.KICK_CLIENT_ID = 'kick-client-id';
-    process.env.KICK_CLIENT_SECRET = 'kick-client-secret';
-    process.env.KICK_CALLBACK_URL = 'https://example.com/auth/kick/callback';
-    process.env.KICK_AUTHORIZE_URL = KICK_AUTHORIZE_URL;
-    process.env.KICK_TOKEN_URL = 'https://kick.example/oauth/token';
-    process.env.KICK_REFRESH_URL = 'https://kick.example/oauth/refresh';
-    process.env.KICK_USERINFO_URL = 'https://kick.example/oauth/userinfo';
   });
 
   it('returns default status when no per-channel override exists', async () => {
@@ -239,18 +210,14 @@ describe('streamer bot integrations', () => {
       expect(res.body?.ok).toBe(true);
     }
 
-    const [twitch, youtube, vkvideo, trovo, kick] = await Promise.all([
+    const [twitch, youtube, vkvideo] = await Promise.all([
       prisma.twitchBotIntegration.findUnique({ where: { channelId: channel.id } }),
       prisma.youTubeBotIntegration.findUnique({ where: { channelId: channel.id } }),
       prisma.vkVideoBotIntegration.findUnique({ where: { channelId: channel.id } }),
-      prisma.trovoBotIntegration.findUnique({ where: { channelId: channel.id } }),
-      prisma.kickBotIntegration.findUnique({ where: { channelId: channel.id } }),
     ]);
 
     expect(twitch).toBeNull();
     expect(youtube).toBeNull();
     expect(vkvideo).toBeNull();
-    expect(trovo).toBeNull();
-    expect(kick).toBeNull();
   });
 });

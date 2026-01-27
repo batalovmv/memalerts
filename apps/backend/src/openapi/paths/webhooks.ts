@@ -21,13 +21,4 @@ export function registerWebhookPaths(ctx: OpenApiContext) {
     responseSchema: OkResponse,
     responseExample: { ok: true },
   });
-
-  registerJsonPath({
-    method: 'post',
-    path: '/webhooks/kick/events',
-    tags: ['Webhooks'],
-    security: [],
-    responseSchema: OkResponse,
-    responseExample: { ok: true },
-  });
 }

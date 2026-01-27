@@ -4,7 +4,7 @@ const prismaMock = vi.hoisted(() => ({
   $transaction: vi.fn(async (cb: (tx: unknown) => Promise<unknown>) => cb({})),
   channel: { findUnique: vi.fn() },
 }));
-const getStreamDurationSnapshot = vi.hoisted(() => vi.fn());
+const getStreamStatusSnapshot = vi.hoisted(() => vi.fn());
 const recordExternalRewardEventTx = vi.hoisted(() => vi.fn());
 const stableProviderEventId = vi.hoisted(() => vi.fn().mockReturnValue('stable-id'));
 const claimPendingCoinGrantsTx = vi.hoisted(() => vi.fn());
@@ -12,7 +12,7 @@ const resolveMemalertsUserIdFromChatIdentity = vi.hoisted(() => vi.fn());
 const loggerMock = vi.hoisted(() => ({ warn: vi.fn() }));
 
 vi.mock('../../src/lib/prisma.js', () => ({ prisma: prismaMock }));
-vi.mock('../../src/realtime/streamDurationStore.js', () => ({ getStreamDurationSnapshot }));
+vi.mock('../../src/realtime/streamStatusStore.js', () => ({ getStreamStatusSnapshot }));
 vi.mock('../../src/rewards/externalRewardEvents.js', () => ({ recordExternalRewardEventTx, stableProviderEventId }));
 vi.mock('../../src/rewards/pendingCoinGrants.js', () => ({ claimPendingCoinGrantsTx }));
 vi.mock('../../src/utils/chatIdentity.js', () => ({ resolveMemalertsUserIdFromChatIdentity }));
@@ -23,33 +23,6 @@ import { handleVkvideoRewardPush } from '../../src/bots/vkvideoRewardProcessor.j
 describe('vkvideo reward processor', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-  });
-
-  it('records follow rewards when offline', async () => {
-    getStreamDurationSnapshot.mockResolvedValue({ status: 'offline', totalMinutes: 0 });
-
-    const handled = handleVkvideoRewardPush({
-      vkvideoChannelId: 'vk-1',
-      channelId: 'channel-1',
-      channelSlug: 'slug-1',
-      autoRewardsCfg: { follow: { enabled: true, coins: 5, onlyWhenLive: true, onceEver: true } },
-      pushData: {
-        type: 'follow',
-        data: { event: { user: { id: 'u1' }, id: 'ev-1', created_at: '2025-01-01T00:00:00Z' } },
-      },
-    });
-
-    expect(handled).toBe(true);
-    await new Promise((r) => setTimeout(r, 0));
-
-    expect(recordExternalRewardEventTx).toHaveBeenCalledWith(
-      expect.objectContaining({
-        provider: 'vkvideo',
-        eventType: 'twitch_follow',
-        status: 'ignored',
-        reason: 'offline',
-      })
-    );
   });
 
   it('records channel points redemptions with coins', async () => {
@@ -68,7 +41,6 @@ describe('vkvideo reward processor', () => {
       vkvideoChannelId: 'vk-1',
       channelId: 'channel-1',
       channelSlug: 'slug-1',
-      autoRewardsCfg: null,
       pushData: {
         type: 'channel_points',
         data: {

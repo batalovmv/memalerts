@@ -15,13 +15,8 @@ import { nsKey, redisGetString, redisSetStringEx } from '../../../utils/redisCac
 import { normalizeDashboardCardOrder } from '../../../utils/dashboardCardOrder.js';
 import { buildCooldownPayload, getSourceType, loadLegacyTagsById, toChannelMemeListItemDto } from '../channelMemeListDto.js';
 import { applyViewerMemeState, buildChannelMemeVisibilityFilter, buildMemeAssetVisibilityFilter, loadViewerMemeState } from '../memeViewerState.js';
-import {
-  applyDynamicPricingToItems,
-  collectChannelMemeIds,
-  loadDynamicPricingSnapshot,
-  normalizeDynamicPricingSettings,
-} from '../../../services/meme/dynamicPricing.js';
 import type { ChannelMemeRow, ChannelResponse, ChannelWithOwner, PoolAssetRow } from './shared.js';
+import { buildEconomySnapshot } from '../../../services/economy/economyService.js';
 
 export const getChannelBySlug = async (req: AuthRequest, res: Response) => {
   const slug = String(req.params.slug || '').trim();
@@ -148,29 +143,19 @@ export const getChannelBySlug = async (req: AuthRequest, res: Response) => {
       rewardCost: channel.rewardCost ?? null,
       rewardCoins: channel.rewardCoins ?? null,
       rewardOnlyWhenLive: channel.rewardOnlyWhenLive ?? false,
-      kickRewardEnabled: channel.kickRewardEnabled ?? false,
-      kickRewardIdForCoins: channel.kickRewardIdForCoins ?? null,
-      kickCoinPerPointRatio: channel.kickCoinPerPointRatio ?? 1.0,
-      kickRewardCoins: channel.kickRewardCoins ?? null,
-      kickRewardOnlyWhenLive: channel.kickRewardOnlyWhenLive ?? false,
-      trovoManaCoinsPerUnit: channel.trovoManaCoinsPerUnit ?? 0,
-      trovoElixirCoinsPerUnit: channel.trovoElixirCoinsPerUnit ?? 0,
       vkvideoRewardEnabled: channel.vkvideoRewardEnabled ?? false,
       vkvideoRewardIdForCoins: channel.vkvideoRewardIdForCoins ?? null,
       vkvideoCoinPerPointRatio: channel.vkvideoCoinPerPointRatio ?? 1.0,
       vkvideoRewardCoins: channel.vkvideoRewardCoins ?? null,
       vkvideoRewardOnlyWhenLive: channel.vkvideoRewardOnlyWhenLive ?? false,
-      youtubeLikeRewardEnabled: channel.youtubeLikeRewardEnabled ?? false,
-      youtubeLikeRewardCoins: channel.youtubeLikeRewardCoins ?? 0,
-      youtubeLikeRewardOnlyWhenLive: channel.youtubeLikeRewardOnlyWhenLive ?? false,
       submissionRewardCoins: channel.submissionRewardCoins ?? 0,
       submissionRewardOnlyWhenLive: channel.submissionRewardOnlyWhenLive ?? false,
       submissionsEnabled: channel.submissionsEnabled ?? true,
       submissionsOnlyWhenLive: channel.submissionsOnlyWhenLive ?? false,
       autoApproveEnabled: channel.autoApproveEnabled ?? false,
-      dynamicPricingEnabled: channel.dynamicPricingEnabled ?? false,
-      dynamicPricingMinMult: channel.dynamicPricingMinMult ?? 0.5,
-      dynamicPricingMaxMult: channel.dynamicPricingMaxMult ?? 2,
+      wheelEnabled: channel.wheelEnabled ?? true,
+      wheelPaidSpinCostCoins: channel.wheelPaidSpinCostCoins ?? null,
+      wheelPrizeMultiplier: channel.wheelPrizeMultiplier ?? null,
       coinIconUrl: channel.coinIconUrl ?? null,
       primaryColor: channel.primaryColor ?? null,
       secondaryColor: channel.secondaryColor ?? null,
@@ -189,6 +174,20 @@ export const getChannelBySlug = async (req: AuthRequest, res: Response) => {
         usersCount: channel._count.users,
       },
     };
+
+    response.economy = await buildEconomySnapshot({
+      channel: {
+        id: channel.id,
+        slug: channel.slug,
+        defaultPriceCoins: channel.defaultPriceCoins,
+        economyMemesPerHour: channel.economyMemesPerHour,
+        economyRewardMultiplier: channel.economyRewardMultiplier,
+        economyApprovalBonusCoins: channel.economyApprovalBonusCoins,
+        submissionRewardCoinsUpload: channel.submissionRewardCoinsUpload,
+        submissionRewardCoins: channel.submissionRewardCoins,
+      },
+      userId: req.userId ?? null,
+    });
 
     if (includeMemes) {
       if (memeCatalogMode === 'pool_all') {
@@ -316,16 +315,6 @@ export const getChannelBySlug = async (req: AuthRequest, res: Response) => {
             });
             response.memes = applyViewerMemeState(response.memes as Array<Record<string, unknown>>, state);
           }
-          const dynamicSettings = normalizeDynamicPricingSettings(channel);
-          const snapshot = await loadDynamicPricingSnapshot({
-            channelId: channel.id,
-            channelMemeIds: collectChannelMemeIds(response.memes as Array<Record<string, unknown>>),
-            settings: dynamicSettings,
-          });
-          response.memes = applyDynamicPricingToItems(
-            response.memes as Array<Record<string, unknown>>,
-            snapshot
-          );
         }
         response.memesPage = {
           limit: memesLimit,
@@ -406,16 +395,6 @@ export const getChannelBySlug = async (req: AuthRequest, res: Response) => {
             });
             response.memes = applyViewerMemeState(response.memes as Array<Record<string, unknown>>, state);
           }
-          const dynamicSettings = normalizeDynamicPricingSettings(channel);
-          const snapshot = await loadDynamicPricingSnapshot({
-            channelId: channel.id,
-            channelMemeIds: collectChannelMemeIds(response.memes as Array<Record<string, unknown>>),
-            settings: dynamicSettings,
-          });
-          response.memes = applyDynamicPricingToItems(
-            response.memes as Array<Record<string, unknown>>,
-            snapshot
-          );
         }
         response.memesPage = {
           limit: memesLimit,

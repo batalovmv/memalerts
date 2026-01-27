@@ -14,7 +14,7 @@ export function registerStreamerPaths(ctx: OpenApiContext) {
     OverlayPresetsBody,
     OkResponse,
   } = ctx.schemas;
-  const { idParam, providerOutboxParam, providerParam, genericIdParam } = ctx.params;
+  const { idParam, providerOutboxParam, providerParam } = ctx.params;
 
   registerJsonPath({
     method: 'get',
@@ -236,6 +236,12 @@ export function registerStreamerPaths(ctx: OpenApiContext) {
 
   registerJsonPath({
     method: 'get',
+    path: '/streamer/stream-recap/latest',
+    tags: ['Streamer'],
+  });
+
+  registerJsonPath({
+    method: 'get',
     path: '/streamer/overlay/token',
     tags: ['Streamer'],
   });
@@ -277,60 +283,6 @@ export function registerStreamerPaths(ctx: OpenApiContext) {
         },
       },
     },
-  });
-
-  registerJsonPath({
-    method: 'get',
-    path: '/streamer/credits/token',
-    tags: ['Streamer'],
-  });
-
-  registerJsonPath({
-    method: 'get',
-    path: '/streamer/credits/state',
-    tags: ['Streamer'],
-  });
-
-  registerJsonPath({
-    method: 'get',
-    path: '/streamer/credits/reconnect-window',
-    tags: ['Streamer'],
-  });
-
-  registerJsonPath({
-    method: 'get',
-    path: '/streamer/credits/ignored-chatters',
-    tags: ['Streamer'],
-  });
-
-  registerJsonPath({
-    method: 'post',
-    path: '/streamer/credits/ignored-chatters',
-    tags: ['Streamer'],
-  });
-
-  registerJsonPath({
-    method: 'post',
-    path: '/streamer/credits/settings',
-    tags: ['Streamer'],
-  });
-
-  registerJsonPath({
-    method: 'post',
-    path: '/streamer/credits/token/rotate',
-    tags: ['Streamer'],
-  });
-
-  registerJsonPath({
-    method: 'post',
-    path: '/streamer/credits/reset',
-    tags: ['Streamer'],
-  });
-
-  registerJsonPath({
-    method: 'post',
-    path: '/streamer/credits/reconnect-window',
-    tags: ['Streamer'],
   });
 
   registerJsonPath({
@@ -427,42 +379,6 @@ export function registerStreamerPaths(ctx: OpenApiContext) {
   });
 
   registerJsonPath({
-    method: 'get',
-    path: '/streamer/bots/trovo/bot',
-    tags: ['Streamer'],
-  });
-
-  registerJsonPath({
-    method: 'get',
-    path: '/streamer/bots/trovo/bot/link',
-    tags: ['Streamer'],
-  });
-
-  registerJsonPath({
-    method: 'delete',
-    path: '/streamer/bots/trovo/bot',
-    tags: ['Streamer'],
-  });
-
-  registerJsonPath({
-    method: 'get',
-    path: '/streamer/bots/kick/bot',
-    tags: ['Streamer'],
-  });
-
-  registerJsonPath({
-    method: 'get',
-    path: '/streamer/bots/kick/bot/link',
-    tags: ['Streamer'],
-  });
-
-  registerJsonPath({
-    method: 'delete',
-    path: '/streamer/bots/kick/bot',
-    tags: ['Streamer'],
-  });
-
-  registerJsonPath({
     method: 'patch',
     path: '/streamer/bots/:provider',
     tags: ['Streamer'],
@@ -477,70 +393,7 @@ export function registerStreamerPaths(ctx: OpenApiContext) {
 
   registerJsonPath({
     method: 'get',
-    path: '/streamer/bot/commands',
-    tags: ['Streamer'],
-    responseSchema: genericArraySchema,
-  });
-
-  registerJsonPath({
-    method: 'post',
-    path: '/streamer/bot/commands',
-    tags: ['Streamer'],
-  });
-
-  registerJsonPath({
-    method: 'patch',
-    path: '/streamer/bot/commands/:id',
-    tags: ['Streamer'],
-    request: { params: genericIdParam },
-  });
-
-  registerJsonPath({
-    method: 'delete',
-    path: '/streamer/bot/commands/:id',
-    tags: ['Streamer'],
-    request: { params: genericIdParam },
-  });
-
-  registerJsonPath({
-    method: 'get',
     path: '/streamer/bot/subscription',
-    tags: ['Streamer'],
-  });
-
-  registerJsonPath({
-    method: 'get',
-    path: '/streamer/bot/follow-greetings',
-    tags: ['Streamer'],
-  });
-
-  registerJsonPath({
-    method: 'post',
-    path: '/streamer/bot/follow-greetings/enable',
-    tags: ['Streamer'],
-  });
-
-  registerJsonPath({
-    method: 'post',
-    path: '/streamer/bot/follow-greetings/disable',
-    tags: ['Streamer'],
-  });
-
-  registerJsonPath({
-    method: 'patch',
-    path: '/streamer/bot/follow-greetings',
-    tags: ['Streamer'],
-  });
-
-  registerJsonPath({
-    method: 'get',
-    path: '/streamer/bot/stream-duration',
-    tags: ['Streamer'],
-  });
-
-  registerJsonPath({
-    method: 'patch',
-    path: '/streamer/bot/stream-duration',
     tags: ['Streamer'],
   });
 }

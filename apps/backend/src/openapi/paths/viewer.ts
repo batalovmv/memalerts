@@ -3,7 +3,7 @@ import type { OpenApiContext } from '../context.js';
 export function registerViewerPaths(ctx: OpenApiContext) {
   const { registerJsonPath, genericArraySchema } = ctx.responses;
   const { UserPreferencesBody, PatchUserPreferencesBody } = ctx.schemas;
-  const { slugParam, genericIdParam, activateMemeQuery, channelIdParam } = ctx.params;
+  const { slugParam, genericIdParam, activateMemeQuery } = ctx.params;
 
   registerJsonPath({
     method: 'get',
@@ -49,12 +49,6 @@ export function registerViewerPaths(ctx: OpenApiContext) {
   });
 
   registerJsonPath({
-    method: 'post',
-    path: '/rewards/youtube/like/claim',
-    tags: ['Viewer'],
-  });
-
-  registerJsonPath({
     method: 'get',
     path: '/channels/:slug',
     tags: ['Viewer'],
@@ -65,6 +59,27 @@ export function registerViewerPaths(ctx: OpenApiContext) {
   registerJsonPath({
     method: 'get',
     path: '/channels/:slug/wallet',
+    tags: ['Viewer'],
+    request: { params: slugParam },
+  });
+
+  registerJsonPath({
+    method: 'post',
+    path: '/channels/:slug/bonuses/daily',
+    tags: ['Viewer'],
+    request: { params: slugParam },
+  });
+
+  registerJsonPath({
+    method: 'post',
+    path: '/channels/:slug/bonuses/watch',
+    tags: ['Viewer'],
+    request: { params: slugParam },
+  });
+
+  registerJsonPath({
+    method: 'get',
+    path: '/channels/:slug/achievements/me',
     tags: ['Viewer'],
     request: { params: slugParam },
   });
@@ -117,10 +132,4 @@ export function registerViewerPaths(ctx: OpenApiContext) {
     },
   });
 
-  registerJsonPath({
-    method: 'get',
-    path: '/channels/:channelId/boosty-access',
-    tags: ['Viewer'],
-    request: { params: channelIdParam },
-  });
 }

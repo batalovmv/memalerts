@@ -8,8 +8,6 @@ import { authenticate } from '../src/middleware/auth.js';
 import { requireBetaAccess } from '../src/middleware/betaAccess.js';
 import { ownerRoutes } from '../src/routes/owner.js';
 import {
-  createGlobalKickBotCredential,
-  createGlobalTrovoBotCredential,
   createGlobalTwitchBotCredential,
   createGlobalVkVideoBotCredential,
   createGlobalYouTubeBotCredential,
@@ -17,7 +15,7 @@ import {
 } from './factories/index.js';
 
 type ProviderConfig = {
-  key: 'twitch' | 'youtube' | 'vkvideo' | 'trovo' | 'kick';
+  key: 'twitch' | 'youtube' | 'vkvideo';
   statusPath: string;
   linkPath: string;
   unlinkPath: string;
@@ -55,24 +53,6 @@ const PROVIDERS: ProviderConfig[] = [
     expectsCodeChallenge: true,
     createCredential: createGlobalVkVideoBotCredential,
     countCredentials: () => prisma.globalVkVideoBotCredential.count(),
-  },
-  {
-    key: 'trovo',
-    statusPath: '/owner/bots/trovo/default/status',
-    linkPath: '/owner/bots/trovo/default/link',
-    unlinkPath: '/owner/bots/trovo/default',
-    authorizeBase: 'https://open.trovo.live/page/login.html',
-    createCredential: createGlobalTrovoBotCredential,
-    countCredentials: () => prisma.globalTrovoBotCredential.count(),
-  },
-  {
-    key: 'kick',
-    statusPath: '/owner/bots/kick/default/status',
-    linkPath: '/owner/bots/kick/default/link',
-    unlinkPath: '/owner/bots/kick/default',
-    authorizeBase: 'https://kick.example/oauth/authorize',
-    createCredential: createGlobalKickBotCredential,
-    countCredentials: () => prisma.globalKickBotCredential.count(),
   },
 ];
 
@@ -112,26 +92,10 @@ describe('owner default bots', () => {
     process.env.VKVIDEO_TOKEN_URL = 'https://vkvideo.example/oauth/token';
     process.env.VKVIDEO_BOT_SCOPES = 'chat';
 
-    process.env.TROVO_CLIENT_ID = 'trovo-client-id';
-    process.env.TROVO_CLIENT_SECRET = 'trovo-client-secret';
-    process.env.TROVO_CALLBACK_URL = 'https://example.com/auth/trovo/callback';
-    process.env.TROVO_BOT_SCOPES = 'chat';
-
-    process.env.KICK_CLIENT_ID = 'kick-client-id';
-    process.env.KICK_CLIENT_SECRET = 'kick-client-secret';
-    process.env.KICK_CALLBACK_URL = 'https://example.com/auth/kick/callback';
-    process.env.KICK_AUTHORIZE_URL = 'https://kick.example/oauth/authorize';
-    process.env.KICK_TOKEN_URL = 'https://kick.example/oauth/token';
-    process.env.KICK_REFRESH_URL = 'https://kick.example/oauth/refresh';
-    process.env.KICK_USERINFO_URL = 'https://kick.example/oauth/userinfo';
-    process.env.KICK_BOT_SCOPES = 'chat';
-
     await Promise.all([
       prisma.globalTwitchBotCredential.deleteMany({}),
       prisma.globalYouTubeBotCredential.deleteMany({}),
       prisma.globalVkVideoBotCredential.deleteMany({}),
-      prisma.globalTrovoBotCredential.deleteMany({}),
-      prisma.globalKickBotCredential.deleteMany({}),
     ]);
   });
 

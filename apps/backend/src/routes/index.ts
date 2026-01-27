@@ -6,7 +6,6 @@ import { registerDocsRoutes } from './setup/docsRoutes.js';
 import { registerHealthRoutes } from './setup/healthRoutes.js';
 import { registerInternalRoutes } from './setup/internalRoutes.js';
 import { registerMetricsRoutes } from './setup/metricsRoutes.js';
-import { registerOverlayRoutes } from './setup/overlayRoutes.js';
 import { registerPublicRoutes } from './setup/publicRoutes.js';
 import { registerRouterMounts } from './setup/routerMounts.js';
 import { registerViewerRoutes } from './setup/viewerRoutes.js';
@@ -17,7 +16,6 @@ export function setupRoutes(app: Router) {
   registerDocsRoutes(app);
   registerCspReportRoute(app);
   registerPublicRoutes(app);
-  registerOverlayRoutes(app);
   registerInternalRoutes(app);
   registerDebugRoutes(app);
   registerBetaAccessMiddleware(app);

@@ -1,20 +1,7 @@
 import { z } from 'zod';
 
 import { BotProviderSchema, MemeCatalogModeSchema } from '../common/enums';
-import {
-  KickAutoRewardsV1Schema,
-  TrovoAutoRewardsV1Schema,
-  TwitchAutoRewardsV1Schema,
-  VkVideoAutoRewardsV1Schema,
-  YouTubeAutoRewardsV1Schema,
-} from './autoRewards';
-
-export const CreditsEntrySchema = z.object({
-  displayName: z.string(),
-  amount: z.number().optional(),
-  message: z.string().optional(),
-});
-
+import { EconomySchema } from './economy';
 export const BotIntegrationSettingsSchema = z.object({
   provider: BotProviderSchema,
   enabled: z.boolean(),
@@ -44,16 +31,13 @@ export const ChannelSchema = z.object({
   submissionRewardCoins: z.number().optional(),
   autoApproveEnabled: z.boolean().optional(),
   overlayStyleJson: z.string().nullable().optional(),
-  creditsStyleJson: z.string().nullable().optional(),
+  wheelEnabled: z.boolean().optional(),
+  wheelPaidSpinCostCoins: z.number().nullable().optional(),
+  wheelPrizeMultiplier: z.number().optional(),
   botIntegrations: z.array(BotIntegrationSettingsSchema).optional(),
-  twitchAutoRewardsJson: TwitchAutoRewardsV1Schema.nullable().optional(),
-  kickAutoRewardsJson: KickAutoRewardsV1Schema.nullable().optional(),
-  trovoAutoRewardsJson: TrovoAutoRewardsV1Schema.nullable().optional(),
-  vkvideoAutoRewardsJson: VkVideoAutoRewardsV1Schema.nullable().optional(),
-  youtubeAutoRewardsJson: YouTubeAutoRewardsV1Schema.nullable().optional(),
+  economy: EconomySchema.optional(),
 });
 
-export type CreditsEntry = z.infer<typeof CreditsEntrySchema>;
 export type BotIntegrationSettings = z.infer<typeof BotIntegrationSettingsSchema>;
 export type EntitlementType = z.infer<typeof EntitlementTypeSchema>;
 export type ChannelEntitlement = z.infer<typeof ChannelEntitlementSchema>;

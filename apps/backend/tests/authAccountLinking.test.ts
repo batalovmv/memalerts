@@ -49,10 +49,9 @@ describe('auth account linking', () => {
     process.env.JWT_SECRET = process.env.JWT_SECRET || 'test-secret';
     process.env.REDIS_URL = '';
     process.env.AI_BULLMQ_ENABLED = '0';
-    process.env.DISCORD_CLIENT_ID = 'test-discord-client-id';
-    process.env.DISCORD_CLIENT_SECRET = 'test-discord-client-secret';
-    process.env.DISCORD_CALLBACK_URL = 'https://example.com/auth/discord/link/callback';
-    process.env.DISCORD_AUTO_JOIN_GUILD = '0';
+    process.env.VK_CLIENT_ID = 'test-vk-client-id';
+    process.env.VK_CLIENT_SECRET = 'test-vk-client-secret';
+    process.env.VK_CALLBACK_URL = 'https://example.com/auth/vk/link/callback';
   });
 
   it('lists linked accounts for the authenticated user', async () => {
@@ -66,8 +65,8 @@ describe('auth account linking', () => {
     });
     const account2 = await createExternalAccount({
       userId: user.id,
-      provider: 'discord',
-      providerAccountId: `discord_${randomUUID()}`,
+      provider: 'vk',
+      providerAccountId: `vk_${randomUUID()}`,
     });
     await createExternalAccount({
       userId: other.id,
@@ -111,8 +110,8 @@ describe('auth account linking', () => {
     });
     const account2 = await createExternalAccount({
       userId: user.id,
-      provider: 'discord',
-      providerAccountId: `discord_${randomUUID()}`,
+      provider: 'vk',
+      providerAccountId: '123457',
     });
 
     const res = await request(makeApp())
@@ -132,102 +131,106 @@ describe('auth account linking', () => {
 
   it('updates tokens when linking an already linked provider', async () => {
     const user = await createUser({ role: 'viewer', hasBetaAccess: true });
-    const providerAccountId = `discord_${randomUUID()}`;
+    const providerAccountId = '123458';
 
     await prisma.externalAccount.create({
       data: {
         userId: user.id,
-        provider: 'discord',
+        provider: 'vk',
         providerAccountId,
         accessToken: 'old-access',
-        refreshToken: 'old-refresh',
       },
     });
 
     mockServer.use(
-      http.post('https://discord.com/api/oauth2/token', () =>
+      http.get('https://oauth.vk.com/access_token', () =>
         HttpResponse.json({
           access_token: 'new-access',
-          refresh_token: 'new-refresh',
           expires_in: 3600,
-          scope: 'identify',
+          user_id: Number(providerAccountId),
         })
       ),
-      http.get('https://discord.com/api/users/@me', () =>
+      http.get('https://api.vk.com/method/users.get', () =>
         HttpResponse.json({
-          id: providerAccountId,
-          username: 'OverrideUser',
-          global_name: 'Override User',
-          discriminator: '0001',
-          avatar: 'overridehash',
+          response: [
+            {
+              id: Number(providerAccountId),
+              first_name: 'Override',
+              last_name: 'User',
+              screen_name: 'overrideuser',
+              photo_200: 'https://vk.com/photo_200.jpg',
+            },
+          ],
         })
       )
     );
 
     const { state } = await createOAuthState({
-      provider: 'discord',
+      provider: 'vk',
       kind: 'link',
       userId: user.id,
       origin: 'https://example.com',
     });
 
     const res = await request(makeApp())
-      .get(`/auth/discord/link/callback?code=test_code&state=${encodeURIComponent(state)}`)
+      .get(`/auth/vk/link/callback?code=test_code&state=${encodeURIComponent(state)}`)
       .set('Host', 'example.com');
 
     expect(res.status).toBe(302);
     expect(String(res.headers.location || '')).toContain('https://example.com/settings/accounts');
 
     const updated = await prisma.externalAccount.findUnique({
-      where: { provider_providerAccountId: { provider: 'discord', providerAccountId } },
-      select: { accessToken: true, refreshToken: true },
+      where: { provider_providerAccountId: { provider: 'vk', providerAccountId } },
+      select: { accessToken: true },
     });
     expect(updated?.accessToken).toBe('new-access');
-    expect(updated?.refreshToken).toBe('new-refresh');
   });
 
   it('rejects linking when provider account belongs to another user', async () => {
     const userA = await createUser({ role: 'viewer', hasBetaAccess: true });
     const userB = await createUser({ role: 'viewer', hasBetaAccess: true });
-    const providerAccountId = `discord_${randomUUID()}`;
+    const providerAccountId = '123459';
 
     await prisma.externalAccount.create({
       data: {
         userId: userA.id,
-        provider: 'discord',
+        provider: 'vk',
         providerAccountId,
       },
     });
 
     mockServer.use(
-      http.post('https://discord.com/api/oauth2/token', () =>
+      http.get('https://oauth.vk.com/access_token', () =>
         HttpResponse.json({
           access_token: 'new-access',
-          refresh_token: 'new-refresh',
           expires_in: 3600,
-          scope: 'identify',
+          user_id: Number(providerAccountId),
         })
       ),
-      http.get('https://discord.com/api/users/@me', () =>
+      http.get('https://api.vk.com/method/users.get', () =>
         HttpResponse.json({
-          id: providerAccountId,
-          username: 'ConflictUser',
-          global_name: 'Conflict User',
-          discriminator: '0001',
-          avatar: 'conflicthash',
+          response: [
+            {
+              id: Number(providerAccountId),
+              first_name: 'Conflict',
+              last_name: 'User',
+              screen_name: 'conflictuser',
+              photo_200: 'https://vk.com/conflict.jpg',
+            },
+          ],
         })
       )
     );
 
     const { state } = await createOAuthState({
-      provider: 'discord',
+      provider: 'vk',
       kind: 'link',
       userId: userB.id,
       origin: 'https://example.com',
     });
 
     const res = await request(makeApp())
-      .get(`/auth/discord/link/callback?code=test_code&state=${encodeURIComponent(state)}`)
+      .get(`/auth/vk/link/callback?code=test_code&state=${encodeURIComponent(state)}`)
       .set('Host', 'example.com');
 
     expect(res.status).toBe(302);

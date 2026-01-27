@@ -1,5 +1,6 @@
 import type { Prisma } from '@prisma/client';
 import type { CursorFieldSchema } from '../../../utils/pagination.js';
+import type { EconomySnapshot } from '../../../services/economy/economyService.js';
 
 export const makeCreatedCursorSchema = (direction: 'asc' | 'desc'): CursorFieldSchema[] => [
   { key: 'createdAt', direction, type: 'date' },
@@ -43,29 +44,19 @@ export type ChannelResponse = {
   rewardCost: number | null;
   rewardCoins: number | null;
   rewardOnlyWhenLive: boolean;
-  kickRewardEnabled: boolean;
-  kickRewardIdForCoins: string | null;
-  kickCoinPerPointRatio: number;
-  kickRewardCoins: number | null;
-  kickRewardOnlyWhenLive: boolean;
-  trovoManaCoinsPerUnit: number;
-  trovoElixirCoinsPerUnit: number;
   vkvideoRewardEnabled: boolean;
   vkvideoRewardIdForCoins: string | null;
   vkvideoCoinPerPointRatio: number;
   vkvideoRewardCoins: number | null;
   vkvideoRewardOnlyWhenLive: boolean;
-  youtubeLikeRewardEnabled: boolean;
-  youtubeLikeRewardCoins: number;
-  youtubeLikeRewardOnlyWhenLive: boolean;
   submissionRewardCoins: number;
   submissionRewardOnlyWhenLive: boolean;
   submissionsEnabled: boolean;
   submissionsOnlyWhenLive: boolean;
   autoApproveEnabled: boolean;
-  dynamicPricingEnabled?: boolean;
-  dynamicPricingMinMult?: number;
-  dynamicPricingMaxMult?: number;
+  wheelEnabled: boolean;
+  wheelPaidSpinCostCoins: number | null;
+  wheelPrizeMultiplier: number | null;
   coinIconUrl: string | null;
   primaryColor: string | null;
   secondaryColor: string | null;
@@ -74,6 +65,7 @@ export type ChannelResponse = {
   createdAt: Date;
   owner: { id: string; displayName: string | null; profileImageUrl: string | null } | null;
   stats: { memesCount: number; usersCount: number };
+  economy?: EconomySnapshot;
   memes?: Array<Record<string, unknown>>;
   memesPage?: { limit: number; offset: number; returned: number; total: number };
 };

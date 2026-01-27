@@ -4,6 +4,12 @@ import { TAG_VALIDATION_CONFIG } from '../../config/tagValidation.js';
 import { prisma } from '../../lib/prisma.js';
 import { normalizeTagName } from './tagMapping.js';
 
+function isTagAiValidationEnabled(): boolean {
+  const raw = String(process.env.TAG_AI_VALIDATION_ENABLED || '').trim().toLowerCase();
+  if (!raw) return true;
+  return !['0', 'false', 'off', 'no'].includes(raw);
+}
+
 export function isLikelyGarbage(tag: string): boolean {
   const normalized = normalizeTagName(tag);
   if (!normalized) return true;
@@ -31,6 +37,9 @@ export async function countUniqueUsersForTag(normalizedTag: string): Promise<num
 }
 
 export async function shouldValidateTag(suggestion: TagSuggestion): Promise<boolean> {
+  if (!isTagAiValidationEnabled()) {
+    return false;
+  }
   if (suggestion.count < TAG_VALIDATION_CONFIG.AI_VALIDATION_THRESHOLD) {
     return false;
   }

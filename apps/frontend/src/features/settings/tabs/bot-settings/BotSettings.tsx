@@ -1,6 +1,5 @@
 import { useTranslation } from 'react-i18next';
 
-import { useBotCommands } from './hooks/useBotCommands';
 import { useBotSettings } from './hooks/useBotSettings';
 import { IntegrationsSection } from './sections/IntegrationsSection';
 
@@ -10,7 +9,6 @@ import { Button } from '@/shared/ui';
 export function BotSettings() {
   const { t } = useTranslation();
   const settings = useBotSettings();
-  const commands = useBotCommands({ showMenus: settings.showMenus });
 
   const {
     subscriptionRequiredModalOpen,
@@ -60,7 +58,7 @@ export function BotSettings() {
       <h2 className="text-2xl font-bold mb-2 dark:text-white">{t('admin.botTitle', { defaultValue: 'Бот' })}</h2>
       <p className="text-sm text-gray-600 dark:text-gray-300 mb-5">
         {t('admin.botDescription', {
-          defaultValue: 'Здесь - общие команды/шаблоны и подключение ботов для платформ.',
+          defaultValue: 'Подключение ботов для платформ и управление отправителем сообщений.',
         })}
       </p>
 
@@ -103,7 +101,7 @@ export function BotSettings() {
         </div>
       ) : null}
 
-      <IntegrationsSection settings={settings} commands={commands} />
+      <IntegrationsSection settings={settings} />
     </div>
   );
 }

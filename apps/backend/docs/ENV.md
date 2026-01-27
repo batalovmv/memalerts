@@ -31,24 +31,6 @@ This table mirrors `ENV.example` and lists all supported environment variables f
 | VK_CLIENT_ID | no | -- | VK OAuth client id (linking) | secret |
 | VK_CLIENT_SECRET | no | -- | VK OAuth client secret (linking) | secret |
 | VK_CALLBACK_URL | no | -- | VK OAuth callback URL | non-secret |
-| TROVO_CLIENT_ID | no | -- | Trovo OAuth client id (linking) | secret |
-| TROVO_CLIENT_SECRET | no | -- | Trovo OAuth client secret (linking) | secret |
-| TROVO_CALLBACK_URL | no | -- | Trovo OAuth callback URL | non-secret |
-| TROVO_SCOPES | no | -- | Trovo OAuth scopes override | non-secret |
-| TROVO_TOKEN_URL | no | -- | Trovo token endpoint override | non-secret |
-| TROVO_REFRESH_URL | no | -- | Trovo refresh endpoint override | non-secret |
-| TROVO_USERINFO_URL | no | -- | Trovo userinfo endpoint override | non-secret |
-| KICK_CLIENT_ID | no | -- | Kick OAuth client id (linking) | secret |
-| KICK_CLIENT_SECRET | no | -- | Kick OAuth client secret (linking) | secret |
-| KICK_CALLBACK_URL | no | -- | Kick OAuth callback URL | non-secret |
-| KICK_AUTHORIZE_URL | no | -- | Kick OAuth authorize endpoint override | non-secret |
-| KICK_TOKEN_URL | no | -- | Kick OAuth token endpoint override | non-secret |
-| KICK_REFRESH_URL | no | -- | Kick OAuth refresh endpoint override | non-secret |
-| KICK_USERINFO_URL | no | -- | Kick OAuth userinfo endpoint override | non-secret |
-| KICK_SCOPES | no | -- | Kick OAuth scopes override | non-secret |
-| KICK_WEBHOOK_CALLBACK_URL | no | -- | Kick webhook callback URL | non-secret |
-| KICK_WEBHOOK_REPLAY_WINDOW_MS | no | 600000 | Kick webhook replay protection window | non-secret |
-| KICK_WEBHOOK_PUBLIC_KEY_PEM | no | -- | Kick webhook public key (PEM) | public |
 | MAX_FILE_SIZE | no | 52428800 | Max upload file size (bytes) | non-secret |
 | UPLOAD_DIR | no | ./uploads | Upload directory path | non-secret |
 | VIDEO_FFPROBE_CONCURRENCY | no | -- | FFprobe concurrency limit | non-secret |
@@ -99,27 +81,24 @@ This table mirrors `ENV.example` and lists all supported environment variables f
 | VKVIDEO_CHAT_OUTBOX_CHANNEL_RATE_LIMIT_MAX | no | 10 | VKVideo per-channel outbox rate limit max | non-secret |
 | VKVIDEO_CHAT_OUTBOX_CHANNEL_RATE_LIMIT_WINDOW_MS | no | 20000 | VKVideo per-channel outbox rate limit window (ms) | non-secret |
 | VKVIDEO_CHAT_OUTBOX_DEDUP_WINDOW_MS | no | 30000 | VKVideo outbox dedup window (ms) | non-secret |
-| TROVO_CHAT_OUTBOX_CONCURRENCY | no | 2 | Trovo outbox worker concurrency | non-secret |
-| TROVO_CHAT_OUTBOX_RATE_LIMIT_MAX | no | 20 | Trovo outbox rate limit max | non-secret |
-| TROVO_CHAT_OUTBOX_RATE_LIMIT_WINDOW_MS | no | 30000 | Trovo outbox rate limit window (ms) | non-secret |
-| TROVO_CHAT_OUTBOX_CHANNEL_RATE_LIMIT_MAX | no | 10 | Trovo per-channel outbox rate limit max | non-secret |
-| TROVO_CHAT_OUTBOX_CHANNEL_RATE_LIMIT_WINDOW_MS | no | 20000 | Trovo per-channel outbox rate limit window (ms) | non-secret |
-| TROVO_CHAT_OUTBOX_DEDUP_WINDOW_MS | no | 30000 | Trovo outbox dedup window (ms) | non-secret |
-| KICK_CHAT_OUTBOX_CONCURRENCY | no | 2 | Kick outbox worker concurrency | non-secret |
-| KICK_CHAT_OUTBOX_RATE_LIMIT_MAX | no | 20 | Kick outbox rate limit max | non-secret |
-| KICK_CHAT_OUTBOX_RATE_LIMIT_WINDOW_MS | no | 30000 | Kick outbox rate limit window (ms) | non-secret |
-| KICK_CHAT_OUTBOX_CHANNEL_RATE_LIMIT_MAX | no | 10 | Kick per-channel outbox rate limit max | non-secret |
-| KICK_CHAT_OUTBOX_CHANNEL_RATE_LIMIT_WINDOW_MS | no | 20000 | Kick per-channel outbox rate limit window (ms) | non-secret |
-| KICK_CHAT_OUTBOX_DEDUP_WINDOW_MS | no | 30000 | Kick outbox dedup window (ms) | non-secret |
 | AI_MODERATION_STUCK_MS | no | 900000 | Stuck job timeout (ms) | non-secret |
 | AI_MAX_RETRIES | no | 5 | AI retry count | non-secret |
 | AI_MODERATION_MEDIUM_THRESHOLD | no | 0.4 | Medium threshold | non-secret |
 | AI_MODERATION_HIGH_THRESHOLD | no | 0.7 | High threshold | non-secret |
 | AI_QUARANTINE_DAYS | no | 14 | Quarantine duration (days) | non-secret |
 | AI_LOW_AUTOPROVE_ENABLED | no | -- | Auto-approve low risk submissions | non-secret |
+| TAG_AI_VALIDATION_ENABLED | no | true | Enable AI tag auto-validation | non-secret |
+| TAG_AI_VALIDATION_MODEL | no | gpt-4o-mini | OpenAI model for tag validation | non-secret |
 | AI_PENDING_FILE_RETENTION_HOURS | no | 72 | Retain pending files (hours) | non-secret |
 | AI_PENDING_FILE_CLEANUP_INTERVAL_MS | no | 21600000 | Cleanup interval (ms) | non-secret |
 | AI_PENDING_FILE_CLEANUP_BATCH | no | 200 | Cleanup batch size | non-secret |
+| QUALITY_SCORE_ENABLED | no | true | Enable meme asset quality score scheduler | non-secret |
+| QUALITY_SCORE_WINDOW_DAYS | no | 30 | Quality score lookback window (days) | non-secret |
+| QUALITY_SCORE_RECENCY_DAYS | no | 20 | Quality score recency window (days) | non-secret |
+| QUALITY_SCORE_ENGAGEMENT_MULTIPLIER | no | 2 | Quality score engagement multiplier | non-secret |
+| QUALITY_SCORE_MAX_SCORE | no | 100 | Quality score max score | non-secret |
+| QUALITY_SCORE_INTERVAL_MS | no | 86400000 | Quality score recompute interval (ms) | non-secret |
+| QUALITY_SCORE_INITIAL_DELAY_MS | no | 60000 | Quality score initial delay (ms) | non-secret |
 | AI_METADATA_ENABLED | no | -- | Enable AI metadata generation | non-secret |
 | AI_VISION_ENABLED | no | -- | Enable AI vision frames | non-secret |
 | AI_VISION_MAX_FRAMES | no | 8 | Max vision frames | non-secret |
@@ -139,44 +118,26 @@ This table mirrors `ENV.example` and lists all supported environment variables f
 | CHAT_BOT_CHANNELS | no | -- | Twitch channel mapping (simple format) | non-secret |
 | CHAT_BOT_CHANNEL_MAP_JSON | no | -- | Twitch channel mapping (JSON) | non-secret |
 | CHATBOT_BACKEND_BASE_URL | no | -- | Internal relay base URL for chatbot runners | non-secret |
+| CHATBOT_BACKEND_BASE_URLS | no | -- | Internal relay base URLs for chatbot runners (comma-separated) | non-secret |
 | CHATBOT_SYNC_SECONDS | no | 30 | Sync interval for chatbot runners | non-secret |
+| CHATBOT_OUTBOX_POLL_MS | no | 1000 | Twitch outbox polling interval (ms) | non-secret |
 | YOUTUBE_CHATBOT_SYNC_SECONDS | no | 20 | YouTube chatbot sync interval | non-secret |
 | YOUTUBE_CHATBOT_LIVE_CHECK_SECONDS | no | 20 | YouTube live check interval | non-secret |
-| YOUTUBE_CHATBOT_COMMANDS_REFRESH_SECONDS | no | 30 | YouTube commands refresh interval | non-secret |
 | YOUTUBE_CHATBOT_OUTBOX_POLL_MS | no | 1000 | YouTube outbox polling interval (ms) | non-secret |
 | VKVIDEO_CHAT_BOT_ENABLED | no | -- | Enable VKVideo chatbot | non-secret |
 | VKVIDEO_API_BASE_URL | no | -- | VKVideo API base URL | non-secret |
 | VKVIDEO_PUBSUB_WS_URL | no | -- | VKVideo PubSub websocket URL | non-secret |
 | VKVIDEO_CHATBOT_SYNC_SECONDS | no | 30 | VKVideo chatbot sync interval | non-secret |
 | VKVIDEO_CHATBOT_OUTBOX_POLL_MS | no | 1000 | VKVideo outbox polling interval (ms) | non-secret |
-| VKVIDEO_CHATBOT_COMMANDS_REFRESH_SECONDS | no | 30 | VKVideo commands refresh interval | non-secret |
 | VKVIDEO_PUBSUB_REFRESH_SECONDS | no | 600 | VKVideo PubSub refresh interval (s) | non-secret |
-| VKVIDEO_USER_ROLES_CACHE_TTL_MS | no | 30000 | VKVideo user role cache TTL (ms) | non-secret |
-| VKVIDEO_CHANNEL_ROLES_USER_URL_TEMPLATE | no | -- | VKVideo roles lookup template URL | non-secret |
-| TROVO_CHAT_BOT_ENABLED | no | -- | Enable Trovo chatbot | non-secret |
-| TROVO_CHATBOT_SYNC_SECONDS | no | 30 | Trovo chatbot sync interval | non-secret |
-| TROVO_CHATBOT_OUTBOX_POLL_MS | no | 1000 | Trovo outbox polling interval (ms) | non-secret |
-| TROVO_CHATBOT_COMMANDS_REFRESH_SECONDS | no | 30 | Trovo commands refresh interval | non-secret |
-| TROVO_CHAT_WS_URL | no | -- | Trovo chat websocket URL | non-secret |
-| TROVO_CHAT_TOKEN_URL | no | -- | Trovo chat token URL | non-secret |
-| TROVO_SEND_CHAT_URL | no | -- | Trovo send chat URL | non-secret |
-| TROVO_BOT_SCOPES | no | -- | Trovo bot scopes override | non-secret |
-| KICK_CHAT_BOT_ENABLED | no | -- | Enable Kick chatbot | non-secret |
-| KICK_CHATBOT_SYNC_SECONDS | no | 30 | Kick chatbot sync interval | non-secret |
-| KICK_CHATBOT_OUTBOX_POLL_MS | no | 1000 | Kick outbox polling interval (ms) | non-secret |
-| KICK_CHATBOT_COMMANDS_REFRESH_SECONDS | no | 30 | Kick commands refresh interval | non-secret |
-| KICK_CHAT_POLL_URL_TEMPLATE | no | -- | Kick chat polling URL template | non-secret |
-| KICK_CHATBOT_INGEST_POLL_MS | no | 1000 | Kick ingest polling interval (ms) | non-secret |
-| KICK_SEND_CHAT_URL | no | -- | Kick send chat URL | non-secret |
-| KICK_BOT_SCOPES | no | -- | Kick bot scopes override | non-secret |
 | CHANNEL_DAILY_STATS_ROLLUP_DAYS | no | 45 | Channel daily rollup window (days) | non-secret |
-| CHANNEL_DAILY_STATS_ROLLUP_INTERVAL_MS | no | 300000 | Channel daily rollup interval (ms) | non-secret |
+| CHANNEL_DAILY_STATS_ROLLUP_INTERVAL_MS | no | 3600000 | Channel daily rollup interval (ms) | non-secret |
 | CHANNEL_DAILY_STATS_ROLLUP_INITIAL_DELAY_MS | no | 60000 | Channel daily rollup initial delay (ms) | non-secret |
 | TOP_STATS_30D_ROLLUP_DAYS | no | 30 | Top stats rollup window (days) | non-secret |
-| TOP_STATS_30D_ROLLUP_INTERVAL_MS | no | 300000 | Top stats rollup interval (ms) | non-secret |
+| TOP_STATS_30D_ROLLUP_INTERVAL_MS | no | 7200000 | Top stats rollup interval (ms) | non-secret |
 | TOP_STATS_30D_ROLLUP_INITIAL_DELAY_MS | no | 90000 | Top stats rollup initial delay (ms) | non-secret |
 | MEME_DAILY_STATS_ROLLUP_DAYS | no | 45 | Meme daily rollup window (days) | non-secret |
-| MEME_DAILY_STATS_ROLLUP_INTERVAL_MS | no | 300000 | Meme daily rollup interval (ms) | non-secret |
+| MEME_DAILY_STATS_ROLLUP_INTERVAL_MS | no | 3600000 | Meme daily rollup interval (ms) | non-secret |
 | MEME_DAILY_STATS_ROLLUP_INITIAL_DELAY_MS | no | 75000 | Meme daily rollup initial delay (ms) | non-secret |
 | DB_SLOW_MS | no | 500 | Slow DB query logging threshold (ms) | non-secret |
 | LOG_LEVEL | no | -- | Log verbosity (`debug`, etc) | non-secret |
@@ -202,40 +163,8 @@ This table mirrors `ENV.example` and lists all supported environment variables f
 | SEARCH_CACHE_MS | no | 30000 | Search cache TTL (ms) | non-secret |
 | MEME_STATS_CACHE_MS | no | 30000 | Meme stats cache TTL (ms) | non-secret |
 | PROMO_CACHE_MS | no | 5000 | Promo cache TTL (ms) | non-secret |
-| BOOSTY_REWARDS_MODE | no | discord_roles | Boosty rewards mode (`boosty_api` or `discord_roles`) | non-secret |
-| BOOSTY_REWARDS_SYNC_INTERVAL_MS | no | 300000 | Boosty rewards sync interval (ms) | non-secret |
-| BOOSTY_REWARDS_SYNC_INITIAL_DELAY_MS | no | 60000 | Boosty rewards initial delay (ms) | non-secret |
-| BOOSTY_REWARDS_SUBSCRIPTIONS_LIMIT | no | 200 | Boosty rewards subscriptions limit | non-secret |
-| BOOSTY_API_BASE_URL | no | -- | Boosty API base URL override | non-secret |
-| DISCORD_CLIENT_ID | no | -- | Discord OAuth client id | secret |
-| DISCORD_CLIENT_SECRET | no | -- | Discord OAuth client secret | secret |
-| DISCORD_CALLBACK_URL | no | -- | Discord OAuth callback URL | non-secret |
-| DISCORD_JOIN_SCOPES | no | identify | Discord OAuth scopes override | non-secret |
-| DISCORD_TOKEN_URL | no | -- | Discord OAuth token URL override | non-secret |
-| DISCORD_USERINFO_URL | no | -- | Discord OAuth userinfo URL override | non-secret |
-| DISCORD_DEFAULT_SUBSCRIPTIONS_GUILD_ID | no | -- | Discord guild id for subscriptions | non-secret |
-| DISCORD_SUBSCRIPTIONS_GUILD_ID | no | -- | Legacy Discord guild id for subscriptions | non-secret |
-| DISCORD_BOT_TOKEN | no | -- | Discord bot token | secret |
-| DISCORD_AUTO_JOIN_GUILD | no | -- | Auto-join users to guild when possible | non-secret |
-| DISCORD_MEMBER_CACHE_TTL_MS | no | 15000 | Discord member cache TTL (ms) | non-secret |
-| DISCORD_HTTP_TIMEOUT_MS | no | 10000 | Discord HTTP timeout (ms) | non-secret |
 | TWITCH_HTTP_TIMEOUT_MS | no | 10000 | Twitch HTTP timeout (ms) | non-secret |
 | YOUTUBE_HTTP_TIMEOUT_MS | no | 10000 | YouTube HTTP timeout (ms) | non-secret |
-| BOOSTY_HTTP_TIMEOUT_MS | no | 10000 | Boosty HTTP timeout (ms) | non-secret |
-| KICK_HTTP_TIMEOUT_MS | no | 10000 | Kick HTTP timeout (ms) | non-secret |
-| TROVO_HTTP_TIMEOUT_MS | no | 10000 | Trovo HTTP timeout (ms) | non-secret |
-| DISCORD_RETRY_MAX_ATTEMPTS | no | 3 | Discord retry max attempts | non-secret |
-| DISCORD_RETRY_BASE_DELAY_MS | no | 500 | Discord retry base delay (ms) | non-secret |
-| DISCORD_RETRY_MAX_DELAY_MS | no | 2000 | Discord retry max delay (ms) | non-secret |
-| BOOSTY_RETRY_MAX_ATTEMPTS | no | 3 | Boosty retry max attempts | non-secret |
-| BOOSTY_RETRY_BASE_DELAY_MS | no | 500 | Boosty retry base delay (ms) | non-secret |
-| BOOSTY_RETRY_MAX_DELAY_MS | no | 3000 | Boosty retry max delay (ms) | non-secret |
-| KICK_RETRY_MAX_ATTEMPTS | no | 3 | Kick retry max attempts | non-secret |
-| KICK_RETRY_BASE_DELAY_MS | no | 500 | Kick retry base delay (ms) | non-secret |
-| KICK_RETRY_MAX_DELAY_MS | no | 3000 | Kick retry max delay (ms) | non-secret |
-| TROVO_RETRY_MAX_ATTEMPTS | no | 3 | Trovo retry max attempts | non-secret |
-| TROVO_RETRY_BASE_DELAY_MS | no | 500 | Trovo retry base delay (ms) | non-secret |
-| TROVO_RETRY_MAX_DELAY_MS | no | 3000 | Trovo retry max delay (ms) | non-secret |
 | TWITCH_CIRCUIT_FAILURE_THRESHOLD | no | 5 | Twitch circuit breaker failure threshold | non-secret |
 | TWITCH_CIRCUIT_RESET_TIMEOUT_MS | no | 30000 | Twitch circuit breaker reset timeout (ms) | non-secret |
 | TWITCH_CIRCUIT_SUCCESS_THRESHOLD | no | 1 | Twitch circuit breaker success threshold | non-secret |

@@ -26,8 +26,6 @@ import type {
 } from './botSettingsPatchTypes.js';
 import { prepareTwitchPatch, applyTwitchPatch } from './botSettingsPatchTwitch.js';
 import { prepareYouTubePatch, applyYouTubePatch } from './botSettingsPatchYouTube.js';
-import { prepareTrovoPatch, applyTrovoPatch } from './botSettingsPatchTrovo.js';
-import { prepareKickPatch, applyKickPatch } from './botSettingsPatchKick.js';
 import { prepareVkVideoPatch, applyVkVideoPatch } from './botSettingsPatchVkVideo.js';
 
 type ProviderPatchHandler = {
@@ -43,14 +41,6 @@ const PATCH_HANDLERS: Record<string, ProviderPatchHandler> = {
   youtube: {
     prepare: prepareYouTubePatch,
     apply: applyYouTubePatch,
-  },
-  trovo: {
-    prepare: prepareTrovoPatch,
-    apply: applyTrovoPatch,
-  },
-  kick: {
-    prepare: prepareKickPatch,
-    apply: applyKickPatch,
   },
   vkvideo: {
     prepare: prepareVkVideoPatch,
@@ -128,16 +118,11 @@ export const botSettingsController = {
         updatedAt: null,
       };
       const youtube = byProvider.get('youtube') ?? { enabled: false, updatedAt: null };
-      const trovo = byProvider.get('trovo') ?? { enabled: false, updatedAt: null };
-      const kick = byProvider.get('kick') ?? { enabled: false, updatedAt: null };
-
       return res.json({
         items: [
           { provider: 'twitch', ...twitch },
           { provider: 'vkvideo', ...vkvideo },
           { provider: 'youtube', ...youtube },
-          { provider: 'trovo', ...trovo },
-          { provider: 'kick', ...kick },
         ],
       });
     } catch (error) {

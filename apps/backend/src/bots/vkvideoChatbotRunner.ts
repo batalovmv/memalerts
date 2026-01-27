@@ -7,13 +7,14 @@ import { logger } from '../utils/logger.js';
 import { prisma } from '../lib/prisma.js';
 import { type ChatOutboxJobData } from '../queues/chatOutboxQueue.js';
 import type { VkVideoPubSubClient } from './vkvideoPubsubClient.js';
-import { clampInt, parseBool, parseIntSafe } from './vkvideoChatbotShared.js';
+import { hasChannelEntitlement } from '../utils/entitlements.js';
 import {
-  createVkvideoChatCommands,
-  type StreamDurationCfg,
-  type VkvideoChatCommandState,
-  type VkvideoCommandItem,
-} from './vkvideoChatCommands.js';
+  fetchVkVideoChannel,
+  getVkVideoExternalAccount,
+  getValidVkVideoAccessTokenByExternalAccountId,
+  sendVkVideoChatMessage,
+} from '../utils/vkvideoApi.js';
+import { asRecord, clampInt, getErrorCode, parseBool, parseIntSafe, prismaAny } from './vkvideoChatbotShared.js';
 import { createVkvideoStreamEvents } from './vkvideoStreamEvents.js';
 import { createVkvideoChatOutbox } from './vkvideoChatOutbox.js';
 
@@ -44,7 +45,6 @@ async function start() {
   const backendBaseUrls = parseBaseUrls();
   const syncSeconds = Math.max(5, parseIntSafe(process.env.VKVIDEO_CHATBOT_SYNC_SECONDS, 30));
   const outboxPollMs = Math.max(250, parseIntSafe(process.env.VKVIDEO_CHATBOT_OUTBOX_POLL_MS, 1_000));
-  const commandsRefreshSeconds = Math.max(5, parseIntSafe(process.env.VKVIDEO_CHATBOT_COMMANDS_REFRESH_SECONDS, 30));
   const outboxBullmqEnabled = parseBool(process.env.CHAT_OUTBOX_BULLMQ_ENABLED);
   const outboxConcurrency = clampInt(parseInt(String(process.env.VKVIDEO_CHAT_OUTBOX_CONCURRENCY || ''), 10), 1, 10, 2);
   const outboxRateLimitMax = clampInt(
@@ -89,7 +89,6 @@ async function start() {
     60_000,
     1_000
   );
-  const userRolesCacheTtlMs = Math.max(5_000, parseIntSafe(process.env.VKVIDEO_USER_ROLES_CACHE_TTL_MS, 30_000));
 
   // Avoid pubsub reconnect churn: refresh connect/subscription tokens at most once per N seconds per channel.
   const pubsubRefreshSeconds = Math.max(30, parseIntSafe(process.env.VKVIDEO_PUBSUB_REFRESH_SECONDS, 600));
@@ -107,7 +106,6 @@ async function start() {
 
   let subscriptionsTimer: NodeJS.Timeout | null = null;
   let outboxTimer: NodeJS.Timeout | null = null;
-  let commandsTimer: NodeJS.Timeout | null = null;
   let outboxWorker: Worker<ChatOutboxJobData> | null = null;
 
   const vkvideoIdToSlug = new Map<string, string>();
@@ -115,33 +113,73 @@ async function start() {
   const vkvideoIdToOwnerUserId = new Map<string, string>();
   const vkvideoIdToChannelUrl = new Map<string, string>();
   const vkvideoIdToLastLiveStreamId = new Map<string, string | null>();
-  const streamDurationCfgByChannelId = new Map<string, { ts: number; cfg: StreamDurationCfg | null }>();
-  const commandsByChannelId = new Map<string, { ts: number; items: VkvideoCommandItem[] }>();
-  const autoRewardsByChannelId = new Map<string, { ts: number; cfg: unknown | null }>();
-  const userRolesCache = new Map<string, { ts: number; roleIds: string[] }>();
-
-  const chatState: VkvideoChatCommandState = {
+  const streamState = {
     vkvideoIdToSlug,
     vkvideoIdToChannelId,
     vkvideoIdToOwnerUserId,
     vkvideoIdToChannelUrl,
     vkvideoIdToLastLiveStreamId,
-    streamDurationCfgByChannelId,
-    commandsByChannelId,
-    autoRewardsByChannelId,
-    userRolesCache,
   };
 
   const pubsubByChannelId = new Map<string, VkVideoPubSubClient>();
   const pubsubCtxByChannelId = new Map<string, { tokenFetchedAt: number; wsChannelsKey: string }>();
   const wsChannelToVkvideoId = new Map<string, string>();
 
-  const chatCommands = createVkvideoChatCommands(chatState, {
-    backendBaseUrls,
-    commandsRefreshSeconds,
-    userRolesCacheTtlMs,
-    stoppedRef,
-  });
+  const sendToVkVideoChat = async (params: { vkvideoChannelId: string; text: string }): Promise<void> => {
+    const vkvideoChannelId = params.vkvideoChannelId;
+    const channelUrl = vkvideoIdToChannelUrl.get(vkvideoChannelId) || null;
+    const ownerUserId = vkvideoIdToOwnerUserId.get(vkvideoChannelId) || null;
+    const channelId = vkvideoIdToChannelId.get(vkvideoChannelId) || null;
+    if (!channelUrl || !ownerUserId) throw new Error('missing_channel_context');
+
+    let accessToken: string | null = null;
+
+    if (channelId) {
+      const canUseOverride = await hasChannelEntitlement(channelId, 'custom_bot');
+      if (canUseOverride) {
+        try {
+          const override = await prismaAny.vkVideoBotIntegration.findUnique({
+            where: { channelId },
+            select: { enabled: true, externalAccountId: true },
+          });
+          const overrideRec = asRecord(override);
+          const extId = overrideRec.enabled ? String(overrideRec.externalAccountId ?? '').trim() : '';
+          if (extId) accessToken = await getValidVkVideoAccessTokenByExternalAccountId(extId);
+        } catch (e: unknown) {
+          if (getErrorCode(e) !== 'P2021') throw e;
+        }
+      }
+
+      if (!accessToken) {
+        try {
+          const global = await prismaAny.globalVkVideoBotCredential.findFirst({
+            where: { enabled: true },
+            orderBy: { updatedAt: 'desc' },
+            select: { externalAccountId: true },
+          });
+          const globalRec = asRecord(global);
+          const extId = String(globalRec.externalAccountId ?? '').trim();
+          if (extId) accessToken = await getValidVkVideoAccessTokenByExternalAccountId(extId);
+        } catch (e: unknown) {
+          if (getErrorCode(e) !== 'P2021') throw e;
+        }
+      }
+    }
+
+    if (!accessToken) {
+      const account = await getVkVideoExternalAccount(ownerUserId);
+      accessToken = account?.accessToken || null;
+    }
+
+    if (!accessToken) throw new Error('missing_sender_access_token');
+
+    const ch = await fetchVkVideoChannel({ accessToken, channelUrl });
+    if (!ch.ok) throw new Error(ch.error || 'channel_fetch_failed');
+    if (!ch.streamId) throw new Error('no_active_stream');
+
+    const resp = await sendVkVideoChatMessage({ accessToken, channelUrl, streamId: ch.streamId, text: params.text });
+    if (!resp.ok) throw new Error(resp.error || 'send_failed');
+  };
 
   const chatOutbox = createVkvideoChatOutbox(
     { vkvideoIdToChannelId },
@@ -157,21 +195,19 @@ async function start() {
       outboxLockDelayMs,
       stoppedRef,
     },
-    chatCommands.sendToVkVideoChat
+    sendToVkVideoChat
   );
 
   const streamEvents = createVkvideoStreamEvents(
-    chatState,
+    streamState,
     { pubsubByChannelId, pubsubCtxByChannelId, wsChannelToVkvideoId },
-    { pubsubWsUrl, pubsubRefreshSeconds, stoppedRef },
-    { handleIncoming: chatCommands.handleIncoming }
+    { pubsubWsUrl, pubsubRefreshSeconds, stoppedRef }
   );
 
   const shutdown = async () => {
     stoppedRef.value = true;
     if (subscriptionsTimer) clearInterval(subscriptionsTimer);
     if (outboxTimer) clearInterval(outboxTimer);
-    if (commandsTimer) clearInterval(commandsTimer);
     heartbeat.stop();
     if (outboxWorker) {
       try {
@@ -196,16 +232,14 @@ async function start() {
 
   await prisma.$connect();
   await streamEvents.syncSubscriptions();
-  void chatCommands.refreshCommands();
   subscriptionsTimer = setInterval(() => void streamEvents.syncSubscriptions(), syncSeconds * 1000);
   if (outboxBullmqEnabled) {
     outboxWorker = chatOutbox.startOutboxWorker();
   } else {
     outboxTimer = setInterval(() => void chatOutbox.processOutboxOnce(), outboxPollMs);
   }
-  commandsTimer = setInterval(() => void chatCommands.refreshCommands(), commandsRefreshSeconds * 1000);
 
-  logger.info('vkvideo_chatbot.started', { syncSeconds, outboxPollMs, commandsRefreshSeconds });
+  logger.info('vkvideo_chatbot.started', { syncSeconds, outboxPollMs });
 }
 
 void start().catch((e: unknown) => {

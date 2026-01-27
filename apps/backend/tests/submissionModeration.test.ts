@@ -178,7 +178,7 @@ describe('submission moderation flow', () => {
     const wallet = await prisma.wallet.findUnique({
       where: { userId_channelId: { userId: submitter.id, channelId: channel.id } },
     });
-    expect(wallet?.balance).toBe(25);
+    expect(wallet?.balance).toBe(45);
 
     expect(await fileExists(expectedLocalPath)).toBe(true);
     expect(await fileExists(tempFilePath)).toBe(false);
@@ -188,7 +188,7 @@ describe('submission moderation flow', () => {
     expect(vi.mocked(relaySubmissionEventToPeer)).toHaveBeenCalled();
 
     const walletCalls = vi.mocked(emitWalletUpdated).mock.calls;
-    expect(walletCalls.some((call) => (call[1] as { delta?: number }).delta === 25)).toBe(true);
+    expect(walletCalls.some((call) => (call[1] as { delta?: number }).delta === 45)).toBe(true);
     expect(vi.mocked(relayWalletUpdatedToPeer)).toHaveBeenCalled();
   });
 

@@ -4,7 +4,6 @@ import { useTranslation } from 'react-i18next';
 import type { ChannelInfo } from '@/features/streamer-profile/model/types';
 import type { User } from '@memalerts/api-contracts';
 
-import { YouTubeLikeClaimButton } from '@/features/streamer-profile/ui/YouTubeLikeClaimButton';
 import { resolveMediaUrl } from '@/lib/urls';
 import { Button, HelpTooltip, Pill } from '@/shared/ui';
 
@@ -16,7 +15,6 @@ type StreamerProfileHeaderProps = {
   mix: (cssVar: '--primary-color' | '--secondary-color' | '--accent-color', percent: number) => string;
   onOpenSubmit: () => void;
   onOpenAuthModal: () => void;
-  onRefreshWallet: () => void;
 };
 
 export function StreamerProfileHeader({
@@ -27,7 +25,6 @@ export function StreamerProfileHeader({
   mix,
   onOpenSubmit,
   onOpenAuthModal,
-  onRefreshWallet,
 }: StreamerProfileHeaderProps) {
   const { t } = useTranslation();
 
@@ -48,10 +45,6 @@ export function StreamerProfileHeader({
     if (channelInfo?.submissionsEnabled === false) return;
     onOpenSubmit();
   }, [channelInfo?.submissionsEnabled, onOpenSubmit]);
-  const handleRewardAwarded = useCallback(() => {
-    void onRefreshWallet();
-  }, [onRefreshWallet]);
-
   if (loading) {
     return (
       <div className="mb-8 pb-6">
@@ -114,13 +107,6 @@ export function StreamerProfileHeader({
         {/* Submit Meme Button - only show when logged in and not owner */}
         {user && !isOwner ? (
           <div className="flex flex-col items-end gap-2">
-            {channelInfo?.youtubeLikeRewardEnabled && (channelInfo.youtubeLikeRewardCoins ?? 0) > 0 && (
-              <YouTubeLikeClaimButton
-                channelSlug={channelInfo.slug}
-                coins={channelInfo.youtubeLikeRewardCoins ?? 0}
-                onAwarded={handleRewardAwarded}
-              />
-            )}
             <HelpTooltip
               content={
                 channelInfo?.submissionsEnabled === false

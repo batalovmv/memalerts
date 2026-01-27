@@ -1,36 +1,27 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useTranslation } from 'react-i18next';
 
 import { toRecord } from '../types';
 
 import { useOverlayPreviewMemes } from './useOverlayPreviewMemes';
 import { useOverlayPreviewParams } from './useOverlayPreviewParams';
 
-import type { CreditsSettingsState } from './useCreditsSettings';
 import type { ObsLinkFormState } from './useObsLinkForm';
 
 export type OverlayPreviewState = ReturnType<typeof useOverlayPreview>;
 
 type UseOverlayPreviewOptions = {
   channelSlug: string;
-  overlayKind: 'memes' | 'credits';
   overlayToken: string;
   origin: string;
-  apiOrigin: string;
   overlayForm: ObsLinkFormState;
-  creditsSettings: CreditsSettingsState;
 };
 
 export function useOverlayPreview({
   channelSlug,
-  overlayKind,
   overlayToken,
   origin,
-  apiOrigin,
   overlayForm,
-  creditsSettings,
 }: UseOverlayPreviewOptions) {
-  const { i18n } = useTranslation();
   const [previewLoopEnabled, setPreviewLoopEnabled] = useState(true);
   const [previewBg, setPreviewBg] = useState<'twitch' | 'white'>('twitch');
   const [previewPosSeed, setPreviewPosSeed] = useState(1);
@@ -55,10 +46,8 @@ export function useOverlayPreview({
   }, [previewPosSeed]);
 
   const { activePreviewBaseUrl, activePreviewParams } = useOverlayPreviewParams({
-    overlayKind,
     overlayToken,
     origin,
-    apiOrigin,
     previewMemes,
     previewCount,
     previewSeed,
@@ -68,8 +57,6 @@ export function useOverlayPreview({
     previewShowSafeGuide,
     previewLoopEnabled,
     overlayForm,
-    creditsSettings,
-    i18nLanguage: i18n.language,
   });
 
   const latestPreviewParamsRef = useRef<Record<string, string>>(activePreviewParams);

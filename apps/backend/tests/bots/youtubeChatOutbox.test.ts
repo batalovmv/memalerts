@@ -7,10 +7,20 @@ const prismaMock = vi.hoisted(() => ({
     update: vi.fn(),
   },
 }));
+const getValidYouTubeAccessTokenByExternalAccountId = vi.hoisted(() => vi.fn());
+const getValidYouTubeBotAccessToken = vi.hoisted(() => vi.fn());
+const fetchLiveVideoIdByChannelId = vi.hoisted(() => vi.fn());
+const fetchActiveLiveChatIdByVideoId = vi.hoisted(() => vi.fn());
 const sendToYouTubeChat = vi.hoisted(() => vi.fn());
 const loggerMock = vi.hoisted(() => ({ warn: vi.fn(), info: vi.fn(), error: vi.fn() }));
 
 vi.mock('../../src/lib/prisma.js', () => ({ prisma: prismaMock }));
+vi.mock('../../src/utils/youtubeApi.js', () => ({
+  getValidYouTubeAccessTokenByExternalAccountId,
+  getValidYouTubeBotAccessToken,
+  fetchLiveVideoIdByChannelId,
+  fetchActiveLiveChatIdByVideoId,
+}));
 vi.mock('../../src/bots/youtubeChatSender.js', () => ({ sendToYouTubeChat }));
 vi.mock('../../src/utils/logger.js', () => ({ logger: loggerMock }));
 
@@ -23,13 +33,21 @@ describe('youtube chat outbox', () => {
     outboxConcurrency: 1,
     outboxRateLimitMax: 20,
     outboxRateLimitWindowMs: 30_000,
+    outboxChannelRateLimitMax: 5,
+    outboxChannelRateLimitWindowMs: 10_000,
+    outboxDedupWindowMs: 60_000,
     outboxLockTtlMs: 30_000,
     outboxLockDelayMs: 1_000,
+    liveCheckSeconds: 20,
     stoppedRef: { value: false },
   };
 
   beforeEach(() => {
     vi.clearAllMocks();
+    getValidYouTubeAccessTokenByExternalAccountId.mockReset();
+    getValidYouTubeBotAccessToken.mockReset();
+    fetchLiveVideoIdByChannelId.mockReset();
+    fetchActiveLiveChatIdByVideoId.mockReset();
   });
 
   it('defers messages when no live chat is active', async () => {
@@ -38,17 +56,9 @@ describe('youtube chat outbox', () => {
       userId: 'user-1',
       youtubeChannelId: 'yt-1',
       slug: 'slug-1',
-      creditsReconnectWindowMinutes: 10,
-      streamDurationCfg: null,
       liveChatId: null,
       isLive: false,
-      firstPollAfterLive: false,
-      pageToken: null,
       lastLiveCheckAt: 0,
-      lastPollAt: 0,
-      pollInFlight: false,
-      commandsTs: 0,
-      commands: [],
       botExternalAccountId: null,
     };
     const states = new Map<string, YouTubeChannelState>([[st.channelId, st]]);
@@ -82,17 +92,9 @@ describe('youtube chat outbox', () => {
       userId: 'user-1',
       youtubeChannelId: 'yt-1',
       slug: 'slug-1',
-      creditsReconnectWindowMinutes: 10,
-      streamDurationCfg: null,
       liveChatId: 'live-1',
       isLive: true,
-      firstPollAfterLive: false,
-      pageToken: null,
       lastLiveCheckAt: 0,
-      lastPollAt: 0,
-      pollInFlight: false,
-      commandsTs: 0,
-      commands: [],
       botExternalAccountId: null,
     };
     const states = new Map<string, YouTubeChannelState>([[st.channelId, st]]);

@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useEffect, ReactNode, useCallback,
 
 import { api } from '../lib/api';
 import { useAppSelector } from '../store/hooks';
+import type { ChannelEconomy } from '@memalerts/api-contracts';
 
 interface ChannelColors {
   primaryColor: string | null;
@@ -14,20 +15,14 @@ interface ChannelData {
   slug: string;
   name: string;
   coinPerPointRatio: number;
-  // YouTube Like → coins reward (channel setting).
-  youtubeLikeRewardEnabled?: boolean;
-  youtubeLikeRewardCoins?: number;
-  youtubeLikeRewardOnlyWhenLive?: boolean;
-  // Twitch auto-rewards config (new backend can return either key).
-  // Stored in DB as Channel.twitchAutoRewardsJson; updated via PATCH /streamer/channel/settings { twitchAutoRewards }.
-  twitchAutoRewards?: unknown | null;
-  twitchAutoRewardsJson?: unknown | null;
-  boostyBlogName?: string | null;
-  boostyCoinsPerSub?: number | null;
-  boostyTierCoins?: Array<{ tierKey: string; coins: number }> | null;
   overlayMode?: 'queue' | 'simultaneous';
   overlayShowSender?: boolean;
   overlayMaxConcurrent?: number;
+  defaultPriceCoins?: number;
+  economyMemesPerHour?: number;
+  economyRewardMultiplier?: number;
+  economyApprovalBonusCoins?: number;
+  economy?: ChannelEconomy;
   coinIconUrl?: string | null;
   primaryColor?: string | null;
   secondaryColor?: string | null;
@@ -38,18 +33,6 @@ interface ChannelData {
   rewardCost?: number | null;
   rewardCoins?: number | null;
   rewardOnlyWhenLive?: boolean;
-  dynamicPricingEnabled?: boolean;
-  dynamicPricingMinMult?: number;
-  dynamicPricingMaxMult?: number;
-  // Kick rewards → coins
-  kickRewardEnabled?: boolean;
-  kickRewardIdForCoins?: string | null;
-  kickCoinPerPointRatio?: number;
-  kickRewardCoins?: number | null;
-  kickRewardOnlyWhenLive?: boolean;
-  // Trovo rewards → coins (enabled if per-unit > 0)
-  trovoManaCoinsPerUnit?: number;
-  trovoElixirCoinsPerUnit?: number;
   // VKVideo rewards → coins
   vkvideoRewardEnabled?: boolean;
   vkvideoRewardIdForCoins?: string | null;

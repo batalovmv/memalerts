@@ -4,10 +4,8 @@ import { ZodError } from 'zod';
 import { prisma } from '../../lib/prisma.js';
 import { updateChannelSettingsSchema } from '../../shared/schemas.js';
 import { logger } from '../../utils/logger.js';
-import { handleKickRewardToggle } from './channelSettings/kickRewards.js';
 import { handleTwitchRewardSettings } from './channelSettings/twitchRewards.js';
 import { buildChannelUpdateData } from './channelSettings/updateData.js';
-import { ensureTwitchAutoRewardsEventSubs } from './channelSettings/twitchAutoRewardsEventSub.js';
 import {
   emitOverlayConfig,
   emitSubmissionsStatus,
@@ -59,14 +57,6 @@ export const updateChannelSettings = async (req: AuthRequest, res: Response) => 
 
     const channelRec = asRecord(channel);
 
-    let kickRewardsSubscriptionIdToSave: string | undefined = undefined;
-    try {
-      kickRewardsSubscriptionIdToSave = await handleKickRewardToggle({ req, userId, channel, bodyRec });
-    } catch (error) {
-      if (tryHandleStatusError(res, error)) return;
-      throw error;
-    }
-
     let rewardIdForCoinsOverride: string | null = null;
     let coinIconUrl: string | null = null;
     try {
@@ -83,7 +73,6 @@ export const updateChannelSettings = async (req: AuthRequest, res: Response) => 
       body,
       bodyRec,
       rewardIdForCoinsOverride,
-      kickRewardsSubscriptionIdToSave,
       coinIconUrl,
     });
 
@@ -93,8 +82,6 @@ export const updateChannelSettings = async (req: AuthRequest, res: Response) => 
     });
 
     invalidateCatalogCacheOnModeChange({ bodyRec, channelRec });
-
-    await ensureTwitchAutoRewardsEventSubs({ req, channel, updateData });
 
     const updatedChannelRec = asRecord(updatedChannel);
     invalidateChannelMetaCache({ updatedChannel: updatedChannelRec, channelRec });

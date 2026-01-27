@@ -125,7 +125,6 @@ updates:
 | TICKET-010 | Internal Relay | /internal/* | 3-4 ч | ✅ |
 | TICKET-011 | Rate Limiting | rateLimit.ts | 3-4 ч | ✅ |
 | TICKET-012 | OAuth Providers | providers/*.ts | 5-6 ч | ✅ |
-| TICKET-013 | Credits Overlay | creditsOverlay.ts | 4-5 ч | ✅ |
 
 ### Фаза 2: Вторичные потоки (70-80 ч)
 
@@ -152,10 +151,6 @@ updates:
 | TICKET-038 | Twitch API | twitchApi.ts | 4-5 ч | ✅ |
 | TICKET-039 | YouTube API | youtubeApi.ts | 4-5 ч | ✅ |
 | TICKET-040 | VKVideo API | vkvideoApi.ts | 4-5 ч | ✅ |
-| TICKET-041 | Trovo API | trovoApi.ts | 3-4 ч | ✅ |
-| TICKET-042 | Kick API | kickApi.ts | 3-4 ч | ✅ |
-| TICKET-043 | Discord API | discordApi.ts | 3-4 ч | ✅ |
-| TICKET-044 | Boosty API | boostyApi.ts | 3-4 ч | ✅ |
 | TICKET-045-058 | Bot integrations | bots/*.ts | 30-35 ч | ✅ |
 
 ### Фаза 4: Edge cases & Resilience (45-50 ч)

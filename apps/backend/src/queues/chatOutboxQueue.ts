@@ -2,7 +2,7 @@ import { Queue, type JobsOptions } from 'bullmq';
 import { logger } from '../utils/logger.js';
 import { getBullmqConnection, getBullmqPrefix } from './bullmqConnection.js';
 
-export type ChatOutboxPlatform = 'twitch' | 'youtube' | 'vkvideo' | 'trovo' | 'kick';
+export type ChatOutboxPlatform = 'twitch' | 'youtube' | 'vkvideo';
 
 export const CHAT_OUTBOX_JOB_NAME = 'chat-outbox';
 
@@ -10,8 +10,6 @@ const QUEUE_NAMES: Record<ChatOutboxPlatform, string> = {
   twitch: 'chat-outbox-twitch',
   youtube: 'chat-outbox-youtube',
   vkvideo: 'chat-outbox-vkvideo',
-  trovo: 'chat-outbox-trovo',
-  kick: 'chat-outbox-kick',
 };
 
 export type ChatOutboxJobData = {

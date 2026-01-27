@@ -1,6 +1,6 @@
 import type { ChannelInfo } from '@/features/streamer-profile/model/types';
 import type { MemePoolItem } from '@/shared/api/memes';
-import type { MemeDetail } from '@memalerts/api-contracts';
+import type { ChannelEconomy, MemeDetail } from '@memalerts/api-contracts';
 
 import { api } from '@/lib/api';
 import { getMemePrimaryId } from '@/shared/lib/memeIds';
@@ -185,6 +185,7 @@ export function normalizeChannelInfo(raw: unknown, fallbackSlug: string): Channe
   const statsRaw = toRecord(r.stats);
   const memesCount = typeof statsRaw?.memesCount === 'number' && Number.isFinite(statsRaw.memesCount) ? statsRaw.memesCount : 0;
   const usersCount = typeof statsRaw?.usersCount === 'number' && Number.isFinite(statsRaw.usersCount) ? statsRaw.usersCount : 0;
+  const economy = toRecord(r.economy) ? (r.economy as ChannelEconomy) : undefined;
 
   return {
     id,
@@ -192,30 +193,21 @@ export function normalizeChannelInfo(raw: unknown, fallbackSlug: string): Channe
     name,
     memeCatalogMode,
     coinPerPointRatio: typeof r.coinPerPointRatio === 'number' && Number.isFinite(r.coinPerPointRatio) ? r.coinPerPointRatio : 0,
-    youtubeLikeRewardEnabled: typeof r.youtubeLikeRewardEnabled === 'boolean' ? r.youtubeLikeRewardEnabled : undefined,
-    youtubeLikeRewardCoins:
-      typeof r.youtubeLikeRewardCoins === 'number' && Number.isFinite(r.youtubeLikeRewardCoins) ? r.youtubeLikeRewardCoins : undefined,
-    youtubeLikeRewardOnlyWhenLive: typeof r.youtubeLikeRewardOnlyWhenLive === 'boolean' ? r.youtubeLikeRewardOnlyWhenLive : undefined,
     coinIconUrl: typeof r.coinIconUrl === 'string' ? r.coinIconUrl : r.coinIconUrl === null ? null : null,
     rewardTitle: typeof r.rewardTitle === 'string' ? r.rewardTitle : r.rewardTitle === null ? null : null,
     primaryColor: typeof r.primaryColor === 'string' ? r.primaryColor : r.primaryColor === null ? null : null,
     secondaryColor: typeof r.secondaryColor === 'string' ? r.secondaryColor : r.secondaryColor === null ? null : null,
     accentColor: typeof r.accentColor === 'string' ? r.accentColor : r.accentColor === null ? null : null,
-    dynamicPricingEnabled: typeof r.dynamicPricingEnabled === 'boolean' ? r.dynamicPricingEnabled : undefined,
-    dynamicPricingMinMult:
-      typeof r.dynamicPricingMinMult === 'number' && Number.isFinite(r.dynamicPricingMinMult)
-        ? r.dynamicPricingMinMult
-        : undefined,
-    dynamicPricingMaxMult:
-      typeof r.dynamicPricingMaxMult === 'number' && Number.isFinite(r.dynamicPricingMaxMult)
-        ? r.dynamicPricingMaxMult
-        : undefined,
     submissionsEnabled: typeof r.submissionsEnabled === 'boolean' ? r.submissionsEnabled : undefined,
     submissionsOnlyWhenLive: typeof r.submissionsOnlyWhenLive === 'boolean' ? r.submissionsOnlyWhenLive : undefined,
+    wheelEnabled: typeof r.wheelEnabled === 'boolean' ? r.wheelEnabled : undefined,
+    wheelPaidSpinCostCoins: typeof r.wheelPaidSpinCostCoins === 'number' ? r.wheelPaidSpinCostCoins : r.wheelPaidSpinCostCoins === null ? null : undefined,
+    wheelPrizeMultiplier: typeof r.wheelPrizeMultiplier === 'number' ? r.wheelPrizeMultiplier : undefined,
     createdAt: typeof r.createdAt === 'string' ? r.createdAt : new Date().toISOString(),
     memes: [],
     owner,
     stats: { memesCount, usersCount },
+    economy,
   };
 }
 

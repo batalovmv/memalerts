@@ -1,5 +1,6 @@
 import { VkVideoPubSubClient } from './vkvideoPubsubClient.js';
-import { handleStreamOffline, handleStreamOnline } from '../realtime/streamDurationStore.js';
+import { handleStreamOffline, handleStreamOnline } from '../realtime/streamStatusStore.js';
+import { endStreamSession, startStreamSession } from '../services/economy/streamSessions.js';
 import {
   extractVkVideoChannelIdFromUrl,
   fetchVkVideoChannel,
@@ -9,16 +10,8 @@ import {
   getVkVideoExternalAccount,
 } from '../utils/vkvideoApi.js';
 import { logger } from '../utils/logger.js';
-import {
-  asRecord,
-  getErrorCode,
-  getErrorMessage,
-  normalizeLogin,
-  normalizeSlug,
-  prismaAny,
-} from './vkvideoChatbotShared.js';
+import { asRecord, getErrorCode, getErrorMessage, normalizeSlug, prismaAny } from './vkvideoChatbotShared.js';
 import { handleVkvideoRewardPush } from './vkvideoRewardProcessor.js';
-import type { VkvideoChatCommandState } from './vkvideoChatCommands.js';
 
 type SubRow = {
   channelId: string;
@@ -26,15 +19,6 @@ type SubRow = {
   vkvideoChannelId: string;
   vkvideoChannelUrl: string | null;
   slug: string;
-  creditsReconnectWindowMinutes: number;
-  streamDurationCommandJson: string | null;
-};
-
-type IncomingChat = {
-  text: string;
-  userId: string;
-  displayName: string;
-  senderLogin: string | null;
 };
 
 type VkvideoPubsubState = {
@@ -49,8 +33,12 @@ type VkvideoStreamEventsConfig = {
   stoppedRef: { value: boolean };
 };
 
-type VkvideoStreamEventHandlers = {
-  handleIncoming: (vkvideoChannelId: string, incoming: IncomingChat) => Promise<void>;
+export type VkvideoStreamState = {
+  vkvideoIdToSlug: Map<string, string>;
+  vkvideoIdToChannelId: Map<string, string>;
+  vkvideoIdToOwnerUserId: Map<string, string>;
+  vkvideoIdToChannelUrl: Map<string, string>;
+  vkvideoIdToLastLiveStreamId: Map<string, string | null>;
 };
 
 async function fetchEnabledVkVideoSubscriptions(): Promise<SubRow[]> {
@@ -63,7 +51,7 @@ async function fetchEnabledVkVideoSubscriptions(): Promise<SubRow[]> {
         userId: true,
         vkvideoChannelId: true,
         vkvideoChannelUrl: true,
-        channel: { select: { slug: true, creditsReconnectWindowMinutes: true, streamDurationCommandJson: true } },
+        channel: { select: { slug: true } },
       },
     });
   } catch (e: unknown) {
@@ -75,7 +63,7 @@ async function fetchEnabledVkVideoSubscriptions(): Promise<SubRow[]> {
           channelId: true,
           userId: true,
           vkvideoChannelId: true,
-          channel: { select: { slug: true, creditsReconnectWindowMinutes: true, streamDurationCommandJson: true } },
+          channel: { select: { slug: true } },
         },
       });
     } else {
@@ -113,11 +101,6 @@ async function fetchEnabledVkVideoSubscriptions(): Promise<SubRow[]> {
     const vkvideoChannelId = String(row.vkvideoChannelId ?? '').trim();
     const vkvideoChannelUrl = String(row.vkvideoChannelUrl ?? '').trim() || null;
     const slug = normalizeSlug(String(channel.slug ?? ''));
-    const creditsReconnectWindowMinutes = Number.isFinite(Number(channel.creditsReconnectWindowMinutes))
-      ? Number(channel.creditsReconnectWindowMinutes)
-      : 60;
-    const streamDurationCommandJson =
-      typeof channel.streamDurationCommandJson === 'string' ? channel.streamDurationCommandJson : null;
     if (!channelId || !vkvideoChannelId || !slug) continue;
 
     if (gate) {
@@ -131,62 +114,20 @@ async function fetchEnabledVkVideoSubscriptions(): Promise<SubRow[]> {
       vkvideoChannelId,
       vkvideoChannelUrl,
       slug,
-      creditsReconnectWindowMinutes,
-      streamDurationCommandJson,
     });
   }
   return out;
 }
 
-function extractTextFromParts(parts: unknown): string {
-  if (!Array.isArray(parts)) return '';
-  const chunks: string[] = [];
-  for (const p of parts) {
-    const rec = asRecord(p);
-    const textRec = asRecord(rec.text);
-    const t = String(textRec.content ?? '').trim();
-    if (t) chunks.push(t);
-  }
-  return chunks.join(' ').trim();
-}
-
-function extractIncomingMessage(pubData: unknown): IncomingChat | null {
-  // pubData may be either {type,data} or directly some message-like object.
-  const root = asRecord(pubData);
-  const rootData = asRecord(root.data);
-  const maybe = asRecord(rootData.message ?? rootData.chat_message ?? root);
-
-  const author = asRecord(maybe.author ?? maybe.user ?? rootData.user ?? root.user);
-  const userId = String(author.id ?? maybe.user_id ?? rootData.user_id ?? root.user_id ?? '').trim();
-  const displayName = String(author.nick ?? author.name ?? maybe.display_name ?? rootData.display_name ?? '').trim();
-
-  const parts = maybe.parts ?? rootData.parts ?? asRecord(maybe.data).parts ?? null;
-  const text = extractTextFromParts(parts) || String(maybe.text ?? rootData.text ?? '').trim();
-
-  if (!userId || !displayName || !text) return null;
-
-  const senderLogin = author.nick ? normalizeLogin(author.nick) : null;
-  return { text, userId, displayName, senderLogin: senderLogin || null };
-}
-
 export function createVkvideoStreamEvents(
-  state: VkvideoChatCommandState,
+  state: VkvideoStreamState,
   pubsubState: VkvideoPubsubState,
-  config: VkvideoStreamEventsConfig,
-  handlers: VkvideoStreamEventHandlers
+  config: VkvideoStreamEventsConfig
 ) {
-  const {
-    vkvideoIdToSlug,
-    vkvideoIdToChannelId,
-    vkvideoIdToOwnerUserId,
-    vkvideoIdToChannelUrl,
-    vkvideoIdToLastLiveStreamId,
-    streamDurationCfgByChannelId,
-    autoRewardsByChannelId,
-  } = state;
+  const { vkvideoIdToSlug, vkvideoIdToChannelId, vkvideoIdToOwnerUserId, vkvideoIdToChannelUrl, vkvideoIdToLastLiveStreamId } =
+    state;
   const { pubsubByChannelId, pubsubCtxByChannelId, wsChannelToVkvideoId } = pubsubState;
   const { pubsubWsUrl, pubsubRefreshSeconds, stoppedRef } = config;
-  const { handleIncoming } = handlers;
 
   let subscriptionsSyncing = false;
 
@@ -310,7 +251,7 @@ export function createVkvideoStreamEvents(
           continue;
         }
 
-        // Track VKVideo live status into streamDurationStore, so the "stream duration" smart command works for VKVideo too.
+        // Track VKVideo live status in Redis so "only when live" checks can work.
         // We treat presence of streamId as "online".
         try {
           const prevStreamId = vkvideoIdToLastLiveStreamId.get(s.vkvideoChannelId) ?? null;
@@ -321,11 +262,11 @@ export function createVkvideoStreamEvents(
           const isOnline = Boolean(nextStreamId);
 
           if (!wasOnline && isOnline) {
-            const cfg = streamDurationCfgByChannelId.get(s.channelId)?.cfg;
-            const breakCreditMinutes = cfg?.breakCreditMinutes ?? 60;
-            await handleStreamOnline(s.slug, breakCreditMinutes);
+            await handleStreamOnline(s.slug);
+            await startStreamSession(s.channelId, 'vkvideo');
           } else if (wasOnline && !isOnline) {
             await handleStreamOffline(s.slug);
+            await endStreamSession(s.channelId);
           }
         } catch (e: unknown) {
           logger.warn('vkvideo_chatbot.stream_duration_update_failed', {
@@ -399,19 +340,12 @@ export function createVkvideoStreamEvents(
 
             const channelId = vkvideoIdToChannelId.get(vkId) || null;
             const slug = vkvideoIdToSlug.get(vkId) || '';
-            const autoRewardsCfg = channelId ? (autoRewardsByChannelId.get(channelId)?.cfg ?? null) : null;
-            const handledReward = handleVkvideoRewardPush({
+            void handleVkvideoRewardPush({
               vkvideoChannelId: vkId,
               channelId,
               channelSlug: slug,
               pushData: push.data,
-              autoRewardsCfg,
             });
-            if (handledReward) return;
-
-            const incoming = extractIncomingMessage(push.data);
-            if (!incoming) return;
-            void handleIncoming(vkId, incoming);
           },
         });
         pubsubByChannelId.set(s.channelId, client);

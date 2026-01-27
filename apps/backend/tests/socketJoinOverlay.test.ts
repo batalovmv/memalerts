@@ -44,7 +44,6 @@ describe('Socket.IO join:overlay', () => {
       slug,
       name: 'Test channel',
       overlayTokenVersion: 2,
-      creditsTokenVersion: 3,
     });
 
     const httpServer = createServer();
@@ -147,40 +146,4 @@ describe('Socket.IO join:overlay', () => {
     }
   });
 
-  it('supports credits overlay kind=credits with creditsTokenVersion', async () => {
-    const channelId = randomUUID();
-    const slug = 'CreditsChan';
-    await createChannel({
-      id: channelId,
-      slug,
-      name: 'Credits channel',
-      creditsTokenVersion: 5,
-    });
-
-    const httpServer = createServer();
-    const io = new Server(httpServer, { cors: { origin: '*', credentials: true } });
-    setupSocketIO(io);
-    await new Promise<void>((resolve) => httpServer.listen(0, resolve));
-    const port = (httpServer.address() as AddressInfo).port;
-    const url = `http://127.0.0.1:${port}`;
-
-    const token = makeOverlayJwt({ kind: 'credits', channelId, tv: 5 });
-    const client = ioClient(url, { transports: ['websocket'], forceNew: true });
-
-    try {
-      await waitForEvent(client, 'connect', 4000);
-      client.emit('join:overlay', { token });
-
-      const cfg = await waitForEvent<unknown>(client, 'credits:config', 2000);
-      expect(cfg).toBeTruthy();
-
-      io.to(`channel:${slug.toLowerCase()}`).emit('test:event', { ok: true });
-      const got = await waitForEvent<TestEventPayload>(client, 'test:event', 2000);
-      expect(got.ok).toBe(true);
-    } finally {
-      client.disconnect();
-      await new Promise<void>((resolve) => io.close(() => resolve()));
-      await new Promise<void>((resolve) => httpServer.close(() => resolve()));
-    }
-  });
 });

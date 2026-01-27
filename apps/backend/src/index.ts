@@ -23,7 +23,6 @@ import { startChannelDailyStatsRollupScheduler } from './jobs/channelDailyStatsR
 import { startTopStats30dRollupScheduler } from './jobs/channelTopStats30dRollup.js';
 import { startMemeDailyStatsRollupScheduler } from './jobs/memeDailyStatsRollup.js';
 import { startMemeAssetPurgeScheduler } from './jobs/purgeMemeAssets.js';
-import { startBoostySubscriptionRewardsScheduler } from './jobs/boostySubscriptionRewards.js';
 import { startPendingSubmissionFilesCleanupScheduler } from './jobs/cleanupPendingSubmissionFiles.js';
 import { startOutboxCleanupScheduler } from './jobs/cleanupOutboxMessages.js';
 import { startTagAutoApprovalScheduler } from './jobs/tagAutoApprovalScheduler.js';
@@ -31,7 +30,6 @@ import { startMemeAssetQualityScoreScheduler } from './jobs/memeAssetQualityScor
 import { startDuplicateMergeScheduler } from './jobs/duplicateMerge.js';
 import { startHealthMonitorScheduler } from './jobs/healthMonitor.js';
 import { logger } from './utils/logger.js';
-import { startTwitchChatBot } from './bots/twitchChatBot.js';
 import { startAiModerationWorker } from './workers/aiModerationWorker.js';
 import { startTranscodeWorker } from './workers/transcodeWorker.js';
 import { startAiEnqueueScheduler } from './jobs/aiEnqueueScheduler.js';
@@ -120,7 +118,6 @@ const httpDrainTimeoutMs = Number.isFinite(HTTP_DRAIN_TIMEOUT_MS)
   ? Math.max(1_000, Math.min(HTTP_DRAIN_TIMEOUT_MS, shutdownTimeoutMs))
   : Math.min(10_000, shutdownTimeoutMs);
 
-let chatBotHandle: ReturnType<typeof startTwitchChatBot> | null = null;
 let aiModerationWorkerHandle: ReturnType<typeof startAiModerationWorker> = null;
 let transcodeWorkerHandle: ReturnType<typeof startTranscodeWorker> = null;
 
@@ -129,7 +126,6 @@ setupShutdownHandlers({
   io,
   shutdownTimeoutMs,
   httpDrainTimeoutMs,
-  getChatBotHandle: () => chatBotHandle,
   getAiModerationWorkerHandle: () => aiModerationWorkerHandle,
   getTranscodeWorkerHandle: () => transcodeWorkerHandle,
   closeBullmqConnection: () => closeBullmqConnection(),
@@ -491,8 +487,6 @@ async function startServer() {
     startMemeDailyStatsRollupScheduler();
     // Safety: delayed purge of globally hidden MemeAssets (quarantine-based).
     startMemeAssetPurgeScheduler();
-    // Boosty: award coins for active subscriptions (manual token linking).
-    startBoostySubscriptionRewardsScheduler(io);
     // Optional: BullMQ AI worker (horizontal scaling).
     aiModerationWorkerHandle = startAiModerationWorker();
     // Optional: background transcode worker.
@@ -512,15 +506,6 @@ async function startServer() {
     startDuplicateMergeScheduler();
     // Health monitoring + alerting.
     startHealthMonitorScheduler();
-
-    // Optional: Twitch chat bot (collects chatters for credits overlay).
-    // Enabled via env (see CHAT_BOT_* vars).
-    try {
-      chatBotHandle = startTwitchChatBot(io);
-    } catch (error) {
-      const err = error as { message?: string };
-      logger.error('chatbot.start_failed', { errorMessage: err?.message || String(error) });
-    }
   });
 }
 

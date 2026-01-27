@@ -201,11 +201,11 @@ pnpm migrate:beta-to-production
 
 - (опционально) YouTube runner: `memalerts-youtube-chatbot`
   - запускается отдельным процессом: `pnpm build && pnpm start:youtube-chatbot`
-  - пишет credits chatter события и доставляет outbox для YouTube
+  - доставляет сообщения из outbox для YouTube
 
 - (опционально) VKVideo runner: `memalerts-vkvideo-chatbot`
   - запускается отдельным процессом: `pnpm build && pnpm start:vkvideo-chatbot`
-  - слушает VKVideo pubsub и доставляет outbox/команды
+  - слушает VKVideo pubsub и доставляет сообщения из outbox
 
 ## Nginx / домены
 

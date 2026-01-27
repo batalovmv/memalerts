@@ -10,6 +10,12 @@ import { isDuplicateChatOutboxMessage } from '../queues/chatOutboxDedup.js';
 import { checkChatOutboxChannelRateLimit } from '../queues/chatOutboxRateLimit.js';
 import { recordChatOutboxQueueLatency } from '../utils/metrics.js';
 import { logger } from '../utils/logger.js';
+import {
+  fetchActiveLiveChatIdByVideoId,
+  fetchLiveVideoIdByChannelId,
+  getValidYouTubeAccessTokenByExternalAccountId,
+  getValidYouTubeBotAccessToken,
+} from '../utils/youtubeApi.js';
 import { asRecord, getErrorMessage, prismaAny, type YouTubeChannelState } from './youtubeChatbotShared.js';
 import { sendToYouTubeChat } from './youtubeChatSender.js';
 
@@ -27,6 +33,7 @@ type YouTubeChatOutboxConfig = {
   outboxDedupWindowMs: number;
   outboxLockTtlMs: number;
   outboxLockDelayMs: number;
+  liveCheckSeconds: number;
   stoppedRef: { value: boolean };
 };
 
@@ -41,9 +48,37 @@ export function createYouTubeChatOutbox(states: Map<string, YouTubeChannelState>
     outboxDedupWindowMs,
     outboxLockTtlMs,
     outboxLockDelayMs,
+    liveCheckSeconds,
     stoppedRef,
   } = config;
   let outboxInFlight = false;
+
+  const refreshLiveChatId = async (st: YouTubeChannelState) => {
+    const now = Date.now();
+    const minIntervalMs = Math.max(5, liveCheckSeconds) * 1000;
+    if (now - st.lastLiveCheckAt < minIntervalMs && st.liveChatId) return;
+    st.lastLiveCheckAt = now;
+
+    const token = st.botExternalAccountId
+      ? await getValidYouTubeAccessTokenByExternalAccountId(st.botExternalAccountId)
+      : await getValidYouTubeBotAccessToken();
+    if (!token) {
+      st.liveChatId = null;
+      st.isLive = false;
+      return;
+    }
+
+    const liveVideoId = await fetchLiveVideoIdByChannelId({ accessToken: token, youtubeChannelId: st.youtubeChannelId });
+    if (!liveVideoId) {
+      st.liveChatId = null;
+      st.isLive = false;
+      return;
+    }
+
+    const liveChatId = await fetchActiveLiveChatIdByVideoId({ accessToken: token, videoId: liveVideoId });
+    st.liveChatId = liveChatId;
+    st.isLive = Boolean(liveChatId);
+  };
 
   const processOutboxOnce = async () => {
     if (stoppedRef.value) return;
@@ -73,6 +108,14 @@ export function createYouTubeChatOutbox(states: Map<string, YouTubeChannelState>
         const row = asRecord(r);
         const st = states.get(String(row.channelId ?? '').trim());
         if (!st) continue;
+
+        if (!st.liveChatId) {
+          try {
+            await refreshLiveChatId(st);
+          } catch (e: unknown) {
+            logger.warn('youtube_chatbot.live_chat_refresh_failed', { errorMessage: getErrorMessage(e) });
+          }
+        }
 
         if (!st.liveChatId) {
           const nextAttempts = Number(row.attempts ?? 0) + 1;
@@ -202,6 +245,14 @@ export function createYouTubeChatOutbox(states: Map<string, YouTubeChannelState>
           });
           await job.moveToDelayed(Date.now() + outboxLockDelayMs);
           throw new DelayedError();
+        }
+
+        if (!st.liveChatId) {
+          try {
+            await refreshLiveChatId(st);
+          } catch (e: unknown) {
+            logger.warn('youtube_chatbot.live_chat_refresh_failed', { errorMessage: getErrorMessage(e) });
+          }
         }
 
         if (!st.liveChatId) {

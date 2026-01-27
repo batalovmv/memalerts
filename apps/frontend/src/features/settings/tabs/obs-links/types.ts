@@ -27,13 +27,6 @@ export type UrlAnim = 'fade' | 'zoom' | 'slide-up' | 'pop' | 'lift' | 'none';
 export type AnimEasingPreset = 'ios' | 'smooth' | 'snappy' | 'linear' | 'custom';
 export type ScaleMode = 'fixed' | 'range';
 export type SenderStroke = 'none' | 'glass' | 'solid';
-export type CreditsTextAlign = 'left' | 'center' | 'right';
-export type CreditsBackgroundMode = 'transparent' | 'card' | 'full';
-export type CreditsScrollDirection = 'up' | 'down';
-export type CreditsAnchorX = 'left' | 'center' | 'right';
-export type CreditsAnchorY = 'top' | 'center' | 'bottom';
-export type CreditsTitleTransform = 'none' | 'uppercase' | 'lowercase';
-
 export type PreviewMeme = {
   fileUrl: string;
   type: string;

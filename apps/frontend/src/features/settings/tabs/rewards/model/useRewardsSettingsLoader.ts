@@ -14,9 +14,6 @@ type UseRewardsSettingsLoaderParams = {
   getChannelData: (slug: string) => Promise<unknown>;
   getCachedChannelData: (slug: string) => unknown;
   setRewardSettings: Dispatch<SetStateAction<RewardSettingsState>>;
-  applyBoostySnapshot: (source: unknown) => void;
-  applyTwitchAutoRewardsSnapshot: (raw: unknown) => void;
-  loadTwitchAutoRewardsFromSettings: () => Promise<boolean>;
   saveRefs: RewardsSettingsSaveRefs;
 };
 
@@ -25,9 +22,6 @@ export function useRewardsSettingsLoader({
   getChannelData,
   getCachedChannelData,
   setRewardSettings,
-  applyBoostySnapshot,
-  applyTwitchAutoRewardsSnapshot,
-  loadTwitchAutoRewardsFromSettings,
   saveRefs,
 }: UseRewardsSettingsLoaderParams) {
   const channelSlug = user?.channel?.slug ?? null;
@@ -39,12 +33,7 @@ export function useRewardsSettingsLoader({
     }
 
     const applyFromSource = async (source: unknown) => {
-      const loaded = await loadTwitchAutoRewardsFromSettings();
       const sourceRec = toRecord(source);
-      if (!loaded) {
-        const tawRaw = sourceRec ? (sourceRec.twitchAutoRewards ?? sourceRec.twitchAutoRewardsJson ?? null) : null;
-        applyTwitchAutoRewardsSnapshot(tawRaw);
-      }
 
       if (!sourceRec) return;
       const data = sourceRec;
@@ -60,27 +49,25 @@ export function useRewardsSettingsLoader({
       const uploadCoins = asNumber(data.submissionRewardCoinsUpload) ?? legacyCoins;
       const poolCoins = asNumber(data.submissionRewardCoinsPool) ?? legacyCoins;
 
+      const economyRec = toRecord(data.economy);
+      const economySettings = toRecord(economyRec?.settings);
+      const economyMemesPerHour =
+        asNumber(economySettings?.memesPerHour) ?? asNumber(data.economyMemesPerHour) ?? 2;
+      const economyAvgMemePriceCoins =
+        asNumber(economySettings?.avgMemePriceCoins) ?? asNumber(data.defaultPriceCoins) ?? 100;
+      const economyRewardMultiplier =
+        asNumber(economySettings?.rewardMultiplier) ?? asNumber(data.economyRewardMultiplier) ?? 1;
+      const wheelEnabled = getBoolean(data, 'wheelEnabled') ?? true;
+      const wheelPaidSpinCostCoins = asNumber(data.wheelPaidSpinCostCoins);
+      const wheelPrizeMultiplier = asNumber(data.wheelPrizeMultiplier) ?? 1;
+
       setRewardSettings({
-        youtubeLikeRewardEnabled: getBoolean(data, 'youtubeLikeRewardEnabled') ?? false,
-        youtubeLikeRewardCoins:
-          typeof data.youtubeLikeRewardCoins === 'number' ? String(data.youtubeLikeRewardCoins) : '10',
-        youtubeLikeRewardOnlyWhenLive: getBoolean(data, 'youtubeLikeRewardOnlyWhenLive') ?? true,
         rewardIdForCoins: asString(data.rewardIdForCoins),
         rewardEnabled: asBoolean(data.rewardEnabled),
         rewardTitle: asString(data.rewardTitle),
         rewardCost: asNumberStringOrEmpty(data.rewardCost),
         rewardCoins: asNumberStringOrEmpty(data.rewardCoins),
         rewardOnlyWhenLive: getBoolean(data, 'rewardOnlyWhenLive') ?? false,
-        kickRewardEnabled: getBoolean(data, 'kickRewardEnabled') ?? false,
-        kickRewardIdForCoins: typeof data.kickRewardIdForCoins === 'string' ? String(data.kickRewardIdForCoins) : '',
-        kickCoinPerPointRatio:
-          typeof data.kickCoinPerPointRatio === 'number' ? String(data.kickCoinPerPointRatio) : '1',
-        kickRewardCoins: typeof data.kickRewardCoins === 'number' ? String(data.kickRewardCoins) : '',
-        kickRewardOnlyWhenLive: getBoolean(data, 'kickRewardOnlyWhenLive') ?? false,
-        trovoManaCoinsPerUnit:
-          typeof data.trovoManaCoinsPerUnit === 'number' ? String(data.trovoManaCoinsPerUnit) : '0',
-        trovoElixirCoinsPerUnit:
-          typeof data.trovoElixirCoinsPerUnit === 'number' ? String(data.trovoElixirCoinsPerUnit) : '0',
         vkvideoRewardEnabled: getBoolean(data, 'vkvideoRewardEnabled') ?? false,
         vkvideoRewardIdForCoins: typeof data.vkvideoRewardIdForCoins === 'string' ? String(data.vkvideoRewardIdForCoins) : '',
         vkvideoCoinPerPointRatio:
@@ -90,6 +77,12 @@ export function useRewardsSettingsLoader({
         submissionRewardCoinsUpload: String(uploadCoins ?? 0),
         submissionRewardCoinsPool: String(poolCoins ?? 0),
         submissionRewardOnlyWhenLive: getBoolean(data, 'submissionRewardOnlyWhenLive') ?? false,
+        economyMemesPerHour: String(economyMemesPerHour),
+        economyAvgMemePriceCoins: String(economyAvgMemePriceCoins),
+        economyRewardMultiplier: String(economyRewardMultiplier),
+        wheelEnabled,
+        wheelPaidSpinCostCoins: typeof wheelPaidSpinCostCoins === 'number' ? String(wheelPaidSpinCostCoins) : '',
+        wheelPrizeMultiplier: String(wheelPrizeMultiplier),
       });
 
       saveRefs.lastSavedTwitchRef.current = JSON.stringify({
@@ -100,26 +93,10 @@ export function useRewardsSettingsLoader({
         rewardCoins: asNumber(data.rewardCoins),
         rewardOnlyWhenLive: getBoolean(data, 'rewardOnlyWhenLive') ?? false,
       });
-      saveRefs.lastSavedYoutubeLikeRef.current = JSON.stringify({
-        youtubeLikeRewardEnabled: getBoolean(data, 'youtubeLikeRewardEnabled') ?? false,
-        youtubeLikeRewardCoins: typeof data.youtubeLikeRewardCoins === 'number' ? data.youtubeLikeRewardCoins : 0,
-        youtubeLikeRewardOnlyWhenLive: getBoolean(data, 'youtubeLikeRewardOnlyWhenLive') ?? true,
-      });
       saveRefs.lastSavedApprovedRef.current = JSON.stringify({
         submissionRewardCoinsUpload: uploadCoins ?? 0,
         submissionRewardCoinsPool: poolCoins ?? 0,
         submissionRewardOnlyWhenLive: getBoolean(data, 'submissionRewardOnlyWhenLive') ?? false,
-      });
-      saveRefs.lastSavedKickRef.current = JSON.stringify({
-        kickRewardEnabled: getBoolean(data, 'kickRewardEnabled') ?? false,
-        kickRewardIdForCoins: typeof data.kickRewardIdForCoins === 'string' ? String(data.kickRewardIdForCoins) : null,
-        kickCoinPerPointRatio: typeof data.kickCoinPerPointRatio === 'number' ? data.kickCoinPerPointRatio : 1,
-        kickRewardCoins: typeof data.kickRewardCoins === 'number' ? data.kickRewardCoins : null,
-        kickRewardOnlyWhenLive: getBoolean(data, 'kickRewardOnlyWhenLive') ?? false,
-      });
-      saveRefs.lastSavedTrovoRef.current = JSON.stringify({
-        trovoManaCoinsPerUnit: typeof data.trovoManaCoinsPerUnit === 'number' ? data.trovoManaCoinsPerUnit : 0,
-        trovoElixirCoinsPerUnit: typeof data.trovoElixirCoinsPerUnit === 'number' ? data.trovoElixirCoinsPerUnit : 0,
       });
       saveRefs.lastSavedVkvideoRef.current = JSON.stringify({
         vkvideoRewardEnabled: getBoolean(data, 'vkvideoRewardEnabled') ?? false,
@@ -129,8 +106,17 @@ export function useRewardsSettingsLoader({
         vkvideoRewardCoins: typeof data.vkvideoRewardCoins === 'number' ? data.vkvideoRewardCoins : null,
         vkvideoRewardOnlyWhenLive: getBoolean(data, 'vkvideoRewardOnlyWhenLive') ?? false,
       });
+      saveRefs.lastSavedEconomyRef.current = JSON.stringify({
+        economyMemesPerHour,
+        economyAvgMemePriceCoins,
+        economyRewardMultiplier,
+      });
+      saveRefs.lastSavedWheelRef.current = JSON.stringify({
+        wheelEnabled,
+        wheelPaidSpinCostCoins: typeof wheelPaidSpinCostCoins === 'number' ? wheelPaidSpinCostCoins : null,
+        wheelPrizeMultiplier,
+      });
 
-      applyBoostySnapshot(data);
       saveRefs.settingsLoadedRef.current = channelSlug;
     };
 
@@ -148,16 +134,7 @@ export function useRewardsSettingsLoader({
     } catch {
       saveRefs.settingsLoadedRef.current = null;
     }
-  }, [
-    applyBoostySnapshot,
-    applyTwitchAutoRewardsSnapshot,
-    getCachedChannelData,
-    getChannelData,
-    loadTwitchAutoRewardsFromSettings,
-    saveRefs,
-    setRewardSettings,
-    channelSlug,
-  ]);
+  }, [getCachedChannelData, getChannelData, saveRefs, setRewardSettings, channelSlug]);
 
   useEffect(() => {
     if (user?.channelId && channelSlug) {

@@ -19,7 +19,6 @@ type TwitchChatSubscriptionsConfig = {
   loginToChannelId: Map<string, string>;
   channelIdToOverrideExtId: Map<string, string>;
   stoppedRef: { value: boolean };
-  refreshCommands: () => Promise<void>;
 };
 
 async function fetchEnabledSubscriptions(): Promise<SubscriptionRow[]> {
@@ -68,15 +67,8 @@ async function fetchEnabledSubscriptions(): Promise<SubscriptionRow[]> {
 }
 
 export function createTwitchChatSubscriptions(config: TwitchChatSubscriptionsConfig) {
-  const {
-    defaultClientRef,
-    joinedDefault,
-    loginToSlug,
-    loginToChannelId,
-    channelIdToOverrideExtId,
-    stoppedRef,
-    refreshCommands,
-  } = config;
+  const { defaultClientRef, joinedDefault, loginToSlug, loginToChannelId, channelIdToOverrideExtId, stoppedRef } =
+    config;
   let subscriptionsSyncing = false;
 
   const syncSubscriptions = async () => {
@@ -111,8 +103,6 @@ export function createTwitchChatSubscriptions(config: TwitchChatSubscriptionsCon
       } catch (e: unknown) {
         if (getErrorCode(e) !== 'P2021') throw e;
       }
-
-      void refreshCommands();
 
       const toJoin = Array.from(desired).filter((l) => !joinedDefault.has(l));
       const toPart = Array.from(joinedDefault).filter((l) => !desired.has(l));

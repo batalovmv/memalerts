@@ -75,20 +75,34 @@ type TestMemeOverrides = Partial<Prisma.ChannelMemeUncheckedCreateInput> & {
 
 export async function createMeme(overrides: TestMemeOverrides = {}): Promise<TestMeme> {
   const seed = uniqueId('meme');
-  const channelId = overrides.channelId ?? (await createChannel()).id;
+  const {
+    type,
+    fileUrl,
+    durationMs,
+    fileHash,
+    createdByUserId,
+    channelId: overrideChannelId,
+    memeAssetId: _memeAssetId,
+    title,
+    priceCoins,
+    status,
+    ...channelOverrides
+  } = overrides;
+  const channelId = overrideChannelId ?? (await createChannel()).id;
   const asset = await createMemeAsset({
-    type: overrides.type ?? 'video',
-    fileUrl: overrides.fileUrl ?? `/uploads/memes/${seed}.webm`,
-    durationMs: overrides.durationMs ?? 1000,
-    fileHash: overrides.fileHash,
-    createdById: overrides.createdByUserId ?? undefined,
+    type: type ?? 'video',
+    fileUrl: fileUrl ?? `/uploads/memes/${seed}.webm`,
+    durationMs: durationMs ?? 1000,
+    fileHash,
+    createdById: createdByUserId ?? undefined,
   });
   const channelMeme = await createChannelMeme({
     channelId,
     memeAssetId: asset.id,
-    title: overrides.title ?? `Meme ${seed}`,
-    priceCoins: overrides.priceCoins ?? 100,
-    status: overrides.status ?? 'approved',
+    title: title ?? `Meme ${seed}`,
+    priceCoins: priceCoins ?? 100,
+    status: status ?? 'approved',
+    ...channelOverrides,
   });
 
   return {

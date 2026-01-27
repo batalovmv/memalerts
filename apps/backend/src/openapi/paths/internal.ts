@@ -20,19 +20,4 @@ export function registerInternalPaths(ctx: OpenApiContext) {
     security: [],
   });
 
-  registerJsonPath({
-    method: 'post',
-    path: '/internal/credits/chatter',
-    tags: ['Internal'],
-    description: 'Internal-only credits overlay chatter relay.',
-    security: [],
-  });
-
-  registerJsonPath({
-    method: 'post',
-    path: '/internal/credits/donor',
-    tags: ['Internal'],
-    description: 'Internal-only credits overlay donor relay.',
-    security: [],
-  });
 }

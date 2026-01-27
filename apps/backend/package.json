@@ -33,8 +33,6 @@
     "start:chatbot": "node dist/bots/chatbotRunner.js",
     "start:youtube-chatbot": "node dist/bots/youtubeChatbotRunner.js",
     "start:vkvideo-chatbot": "node dist/bots/vkvideoChatbotRunner.js",
-    "start:trovo-chatbot": "node dist/bots/trovoChatbotRunner.js",
-    "start:kick-chatbot": "node dist/bots/kickChatbotRunner.js",
     "youtube:bot-token": "tsx scripts/get-youtube-bot-refresh-token.ts",
     "ai:watchdog:once": "tsx scripts/ai-watchdog-once.ts",
     "ai:migrate:bullmq": "tsx scripts/migrate-ai-jobs-to-bullmq.ts",

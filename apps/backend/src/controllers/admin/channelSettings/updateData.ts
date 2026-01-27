@@ -7,10 +7,9 @@ export function buildChannelUpdateData(params: {
   body: UpdateChannelSettingsBody;
   bodyRec: Record<string, unknown>;
   rewardIdForCoinsOverride: string | null;
-  kickRewardsSubscriptionIdToSave: string | undefined;
   coinIconUrl: string | null;
 }) {
-  const { channel, body, bodyRec, rewardIdForCoinsOverride, kickRewardsSubscriptionIdToSave, coinIconUrl } = params;
+  const { channel, body, bodyRec, rewardIdForCoinsOverride, coinIconUrl } = params;
   const channelRec = asRecord(channel);
   const channelRewardIdForCoins = typeof channelRec.rewardIdForCoins === 'string' ? channelRec.rewardIdForCoins : null;
 
@@ -23,25 +22,6 @@ export function buildChannelUpdateData(params: {
     rewardCoins: body.rewardCoins !== undefined ? body.rewardCoins : channelRec.rewardCoins,
     rewardOnlyWhenLive:
       bodyRec.rewardOnlyWhenLive !== undefined ? bodyRec.rewardOnlyWhenLive : channelRec.rewardOnlyWhenLive,
-    kickRewardEnabled:
-      bodyRec.kickRewardEnabled !== undefined ? bodyRec.kickRewardEnabled : channelRec.kickRewardEnabled,
-    kickRewardsSubscriptionId:
-      kickRewardsSubscriptionIdToSave !== undefined
-        ? kickRewardsSubscriptionIdToSave
-        : channelRec.kickRewardsSubscriptionId,
-    kickRewardIdForCoins:
-      bodyRec.kickRewardIdForCoins !== undefined ? bodyRec.kickRewardIdForCoins : channelRec.kickRewardIdForCoins,
-    kickCoinPerPointRatio:
-      bodyRec.kickCoinPerPointRatio !== undefined ? bodyRec.kickCoinPerPointRatio : channelRec.kickCoinPerPointRatio,
-    kickRewardCoins: bodyRec.kickRewardCoins !== undefined ? bodyRec.kickRewardCoins : channelRec.kickRewardCoins,
-    kickRewardOnlyWhenLive:
-      bodyRec.kickRewardOnlyWhenLive !== undefined ? bodyRec.kickRewardOnlyWhenLive : channelRec.kickRewardOnlyWhenLive,
-    trovoManaCoinsPerUnit:
-      bodyRec.trovoManaCoinsPerUnit !== undefined ? bodyRec.trovoManaCoinsPerUnit : channelRec.trovoManaCoinsPerUnit,
-    trovoElixirCoinsPerUnit:
-      bodyRec.trovoElixirCoinsPerUnit !== undefined
-        ? bodyRec.trovoElixirCoinsPerUnit
-        : channelRec.trovoElixirCoinsPerUnit,
     vkvideoRewardEnabled:
       bodyRec.vkvideoRewardEnabled !== undefined ? bodyRec.vkvideoRewardEnabled : channelRec.vkvideoRewardEnabled,
     vkvideoRewardIdForCoins:
@@ -58,18 +38,6 @@ export function buildChannelUpdateData(params: {
       bodyRec.vkvideoRewardOnlyWhenLive !== undefined
         ? bodyRec.vkvideoRewardOnlyWhenLive
         : channelRec.vkvideoRewardOnlyWhenLive,
-    youtubeLikeRewardEnabled:
-      bodyRec.youtubeLikeRewardEnabled !== undefined
-        ? bodyRec.youtubeLikeRewardEnabled
-        : channelRec.youtubeLikeRewardEnabled,
-    youtubeLikeRewardCoins:
-      bodyRec.youtubeLikeRewardCoins !== undefined ? bodyRec.youtubeLikeRewardCoins : channelRec.youtubeLikeRewardCoins,
-    youtubeLikeRewardOnlyWhenLive:
-      bodyRec.youtubeLikeRewardOnlyWhenLive !== undefined
-        ? bodyRec.youtubeLikeRewardOnlyWhenLive
-        : channelRec.youtubeLikeRewardOnlyWhenLive,
-    twitchAutoRewardsJson:
-      bodyRec.twitchAutoRewards !== undefined ? bodyRec.twitchAutoRewards : channelRec.twitchAutoRewardsJson,
     submissionRewardCoins:
       body.submissionRewardCoins !== undefined ? body.submissionRewardCoins : channelRec.submissionRewardCoins,
     submissionRewardCoinsUpload:
@@ -92,18 +60,6 @@ export function buildChannelUpdateData(params: {
         : channelRec.submissionsOnlyWhenLive,
     autoApproveEnabled:
       bodyRec.autoApproveEnabled !== undefined ? bodyRec.autoApproveEnabled : channelRec.autoApproveEnabled,
-    dynamicPricingEnabled:
-      bodyRec.dynamicPricingEnabled !== undefined
-        ? bodyRec.dynamicPricingEnabled
-        : channelRec.dynamicPricingEnabled,
-    dynamicPricingMinMult:
-      bodyRec.dynamicPricingMinMult !== undefined
-        ? bodyRec.dynamicPricingMinMult
-        : channelRec.dynamicPricingMinMult,
-    dynamicPricingMaxMult:
-      bodyRec.dynamicPricingMaxMult !== undefined
-        ? bodyRec.dynamicPricingMaxMult
-        : channelRec.dynamicPricingMaxMult,
     primaryColor: body.primaryColor !== undefined ? body.primaryColor : channelRec.primaryColor,
     secondaryColor: body.secondaryColor !== undefined ? body.secondaryColor : channelRec.secondaryColor,
     accentColor: body.accentColor !== undefined ? body.accentColor : channelRec.accentColor,
@@ -112,20 +68,15 @@ export function buildChannelUpdateData(params: {
     overlayMaxConcurrent:
       body.overlayMaxConcurrent !== undefined ? body.overlayMaxConcurrent : channelRec.overlayMaxConcurrent,
     overlayStyleJson: body.overlayStyleJson !== undefined ? body.overlayStyleJson : channelRec.overlayStyleJson,
+    economyMemesPerHour:
+      bodyRec.economyMemesPerHour !== undefined ? bodyRec.economyMemesPerHour : channelRec.economyMemesPerHour,
+    economyRewardMultiplier:
+      bodyRec.economyRewardMultiplier !== undefined ? bodyRec.economyRewardMultiplier : channelRec.economyRewardMultiplier,
+    economyApprovalBonusCoins:
+      bodyRec.economyApprovalBonusCoins !== undefined ? bodyRec.economyApprovalBonusCoins : channelRec.economyApprovalBonusCoins,
+    defaultPriceCoins:
+      bodyRec.defaultPriceCoins !== undefined ? bodyRec.defaultPriceCoins : channelRec.defaultPriceCoins,
     memeCatalogMode: bodyRec.memeCatalogMode !== undefined ? bodyRec.memeCatalogMode : channelRec.memeCatalogMode,
-    boostyBlogName: bodyRec.boostyBlogName !== undefined ? bodyRec.boostyBlogName : channelRec.boostyBlogName,
-    boostyCoinsPerSub:
-      bodyRec.boostyCoinsPerSub !== undefined ? bodyRec.boostyCoinsPerSub : channelRec.boostyCoinsPerSub,
-    boostyTierCoinsJson:
-      bodyRec.boostyTierCoins !== undefined ? bodyRec.boostyTierCoins : channelRec.boostyTierCoinsJson,
-    boostyDiscordTierRolesJson:
-      bodyRec.boostyDiscordTierRoles !== undefined
-        ? bodyRec.boostyDiscordTierRoles
-        : channelRec.boostyDiscordTierRolesJson,
-    discordSubscriptionsGuildId:
-      bodyRec.discordSubscriptionsGuildId !== undefined
-        ? bodyRec.discordSubscriptionsGuildId
-        : channelRec.discordSubscriptionsGuildId,
   };
 
   if (bodyRec.dashboardCardOrder !== undefined) {
@@ -135,6 +86,18 @@ export function buildChannelUpdateData(params: {
 
   if (coinIconUrl !== null || body.rewardEnabled === false) {
     updateData.coinIconUrl = body.rewardEnabled === false ? null : coinIconUrl;
+  }
+
+  if (bodyRec.economyApprovalBonusCoins === undefined) {
+    const bonusCandidate =
+      typeof bodyRec.submissionRewardCoinsUpload === 'number'
+        ? bodyRec.submissionRewardCoinsUpload
+        : typeof bodyRec.submissionRewardCoins === 'number'
+          ? bodyRec.submissionRewardCoins
+          : undefined;
+    if (typeof bonusCandidate === 'number') {
+      updateData.economyApprovalBonusCoins = bonusCandidate;
+    }
   }
 
   return updateData;

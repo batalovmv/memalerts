@@ -1,6 +1,6 @@
 import '../config/loadEnv.js';
 import '../tracing/init.js';
-import tmi, { type ChatUserstate } from 'tmi.js';
+import tmi from 'tmi.js';
 import type { Worker } from 'bullmq';
 import { prisma } from '../lib/prisma.js';
 import {
@@ -21,14 +21,10 @@ import {
   type BotClient,
 } from './twitchChatbotShared.js';
 import { createReconnectBackoff } from './reconnectBackoff.js';
-import {
-  createTwitchChatCommands,
-  type TwitchChatCommandItem,
-  type TwitchStreamDurationCfg,
-} from './twitchChatCommands.js';
 import { createTwitchChatOutbox } from './twitchChatOutbox.js';
 import { createTwitchChatSubscriptions } from './twitchChatSubscriptions.js';
 import { resolveBotUserId, sayForChannel } from './twitchChatClients.js';
+import { registerVoteChatListener } from './voteChatListener.js';
 import { type ChatOutboxJobData } from '../queues/chatOutboxQueue.js';
 
 validateChatbotEnv();
@@ -102,7 +98,6 @@ async function start() {
     60_000,
     1_000
   );
-  const commandsRefreshSeconds = Math.max(5, parseIntSafe(process.env.CHATBOT_COMMANDS_REFRESH_SECONDS, 30));
   const backendBaseUrls = parseBaseUrls();
 
   if (!defaultBotLogin) {
@@ -119,9 +114,9 @@ async function start() {
 
   let subscriptionsTimer: NodeJS.Timeout | null = null;
   let outboxTimer: NodeJS.Timeout | null = null;
-  let commandsTimer: NodeJS.Timeout | null = null;
   let reconnectTimer: NodeJS.Timeout | null = null;
   let outboxWorker: Worker<ChatOutboxJobData> | null = null;
+  let detachVoteListener: (() => void) | null = null;
   const reconnectBackoff = createReconnectBackoff({ baseMs: 10_000, maxMs: 120_000 });
 
   const defaultClientRef: { value: BotClient | null } = { value: null };
@@ -131,8 +126,6 @@ async function start() {
   const loginToSlug = new Map<string, string>();
   const loginToChannelId = new Map<string, string>();
   const channelIdToOverrideExtId = new Map<string, string>();
-  const commandsByChannelId = new Map<string, { ts: number; items: TwitchChatCommandItem[] }>();
-  const streamDurationByChannelId = new Map<string, { ts: number; cfg: TwitchStreamDurationCfg | null }>();
 
   const sayForChannelFn = (params: { channelId: string | null; twitchLogin: string; message: string }) =>
     sayForChannel({
@@ -144,11 +137,6 @@ async function start() {
       message: params.message,
     });
 
-  const chatCommands = createTwitchChatCommands(
-    { loginToSlug, loginToChannelId, commandsByChannelId, streamDurationByChannelId },
-    { backendBaseUrls, commandsRefreshSeconds, stoppedRef, sayForChannel: sayForChannelFn }
-  );
-
   const subscriptions = createTwitchChatSubscriptions({
     defaultClientRef,
     joinedDefault,
@@ -156,7 +144,6 @@ async function start() {
     loginToChannelId,
     channelIdToOverrideExtId,
     stoppedRef,
-    refreshCommands: chatCommands.refreshCommands,
   });
 
   const chatOutbox = createTwitchChatOutbox({
@@ -226,6 +213,14 @@ async function start() {
       channels: [],
     });
     defaultClientRef.value = { kind: 'default', login: botLogin, client, joined: joinedDefault };
+    detachVoteListener?.();
+    detachVoteListener = registerVoteChatListener({
+      client,
+      backendBaseUrls,
+      loginToChannelId,
+      loginToSlug,
+      stoppedRef,
+    });
 
     client.on('connected', () => {
       logger.info('chatbot.connected', { botLogin });
@@ -239,10 +234,6 @@ async function start() {
         scheduleReconnect('auth_error', true);
       }
     });
-    client.on('message', async (channel: string, tags: ChatUserstate, message: string, self: boolean) => {
-      if (self) return;
-      await chatCommands.handleIncomingMessage({ channel, tags, message, client });
-    });
 
     try {
       await client.connect();
@@ -253,8 +244,6 @@ async function start() {
       } else {
         outboxTimer = setInterval(() => void chatOutbox.processOutboxOnce(), outboxPollMs);
       }
-      if (commandsTimer) clearInterval(commandsTimer);
-      commandsTimer = setInterval(() => void chatCommands.refreshCommands(), commandsRefreshSeconds * 1000);
     } catch (e: unknown) {
       const errorMessage = e instanceof Error ? e.message : String(e);
       const authError = isTwitchAuthError(e);
@@ -277,9 +266,12 @@ async function start() {
     stoppedRef.value = true;
     if (subscriptionsTimer) clearInterval(subscriptionsTimer);
     if (outboxTimer) clearInterval(outboxTimer);
-    if (commandsTimer) clearInterval(commandsTimer);
     if (reconnectTimer) clearTimeout(reconnectTimer);
     heartbeat.stop();
+    if (detachVoteListener) {
+      detachVoteListener();
+      detachVoteListener = null;
+    }
     if (outboxWorker) {
       try {
         await outboxWorker.close();

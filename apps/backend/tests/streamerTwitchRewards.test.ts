@@ -197,7 +197,7 @@ describe('streamer twitch rewards', () => {
     expect(res.body?.coinIconUrl).toBe('https://cdn.example/new.png');
   });
 
-  it('configures Twitch auto rewards EventSub subscriptions', async () => {
+  it('ignores legacy Twitch auto rewards payloads', async () => {
     const channel = await createChannel({
       slug: 'twitch-auto-rewards',
       name: 'Twitch Auto Rewards',
@@ -218,27 +218,7 @@ describe('streamer twitch rewards', () => {
       });
 
     expect(res.status).toBe(200);
-    expect(twitchApiMocks.getEventSubSubscriptions).toHaveBeenCalledWith(channel.twitchChannelId);
-    expect(twitchApiMocks.createEventSubSubscriptionOfType).toHaveBeenCalledTimes(1);
-    expect(twitchApiMocks.createEventSubSubscriptionOfType).toHaveBeenCalledWith(
-      expect.objectContaining({
-        type: 'channel.follow',
-        version: '2',
-        broadcasterId: channel.twitchChannelId,
-        webhookUrl: 'https://example.com/webhooks/twitch/eventsub',
-        condition: {
-          broadcaster_user_id: channel.twitchChannelId,
-          moderator_user_id: channel.twitchChannelId,
-        },
-      })
-    );
-
-    const stored = await prisma.channel.findUnique({
-      where: { id: channel.id },
-      select: { twitchAutoRewardsJson: true },
-    });
-    const storedConfig = stored?.twitchAutoRewardsJson as { v?: number; follow?: { enabled?: boolean } } | null;
-    expect(storedConfig?.v).toBe(1);
-    expect(storedConfig?.follow?.enabled).toBe(true);
+    expect(twitchApiMocks.getEventSubSubscriptions).not.toHaveBeenCalled();
+    expect(twitchApiMocks.createEventSubSubscriptionOfType).not.toHaveBeenCalled();
   });
 });

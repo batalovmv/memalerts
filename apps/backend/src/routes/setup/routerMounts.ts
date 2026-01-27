@@ -13,7 +13,6 @@ import { authenticate } from '../../middleware/auth.js';
 import { requireBetaAccess } from '../../middleware/betaAccess.js';
 import { createAdminQueuesRouter } from '../adminQueues.js';
 import { assertAdmin } from '../../utils/accessControl.js';
-import { viewerController } from '../../controllers/viewerController.js';
 
 export function registerRouterMounts(app: Router) {
   app.use(
@@ -33,12 +32,6 @@ export function registerRouterMounts(app: Router) {
     app.use('/test', testRoutes);
   }
 
-  app.get(
-    '/channels/:channelId/boosty-access',
-    authenticate,
-    requireBetaAccess,
-    viewerController.getBoostyAccessForChannel
-  );
   app.use('/channels', viewerRoutes);
   app.use('/submissions', submissionRoutes);
   app.use('/streamer', authenticate, requireBetaAccess, streamerRoutes);

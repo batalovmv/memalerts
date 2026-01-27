@@ -28,8 +28,6 @@ const OUTBOX_MODELS: Array<{ name: string; model: OutboxModel }> = [
   { name: 'chatBotOutbox', model: prisma.chatBotOutboxMessage },
   { name: 'youTubeChatBotOutbox', model: prisma.youTubeChatBotOutboxMessage },
   { name: 'vkVideoChatBotOutbox', model: prisma.vkVideoChatBotOutboxMessage },
-  { name: 'trovoChatBotOutbox', model: prisma.trovoChatBotOutboxMessage },
-  { name: 'kickChatBotOutbox', model: prisma.kickChatBotOutboxMessage },
 ];
 
 function daysToMs(days: number): number {

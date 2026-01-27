@@ -8,16 +8,26 @@ import type { MemeDetail } from '@memalerts/api-contracts';
 import Header from '@/components/Header';
 import { useSocket } from '@/contexts/SocketContext';
 import { useStreamerProfileChannel } from '@/features/streamer-profile/model/useStreamerProfileChannel';
+import { useStreamerProfileAchievements } from '@/features/streamer-profile/model/useStreamerProfileAchievements';
+import { useActiveEvents } from '@/features/streamer-profile/model/useActiveEvents';
+import { useStreamerProfileEconomy } from '@/features/streamer-profile/model/useStreamerProfileEconomy';
 import { useStreamerProfileMemes } from '@/features/streamer-profile/model/useStreamerProfileMemes';
 import { useStreamerProfilePersonalizedMemes } from '@/features/streamer-profile/model/useStreamerProfilePersonalizedMemes';
 import { useStreamerProfileSubmissionsStatus } from '@/features/streamer-profile/model/useStreamerProfileSubmissionsStatus';
 import { useStreamerProfileWallet } from '@/features/streamer-profile/model/useStreamerProfileWallet';
+import { useStreamerProfileVote } from '@/features/streamer-profile/model/useStreamerProfileVote';
+import { useStreamerProfileWheel } from '@/features/streamer-profile/model/useStreamerProfileWheel';
+import { StreamerProfileEconomy } from '@/features/streamer-profile/ui/StreamerProfileEconomy';
+import { StreamerProfileAchievements } from '@/features/streamer-profile/ui/StreamerProfileAchievements';
 import { StreamerProfileErrorState } from '@/features/streamer-profile/ui/StreamerProfileErrorState';
+import { StreamerProfileEventBanner } from '@/features/streamer-profile/ui/StreamerProfileEventBanner';
 import { StreamerProfileHeader } from '@/features/streamer-profile/ui/StreamerProfileHeader';
 import { StreamerProfileLeaderboard } from '@/features/streamer-profile/ui/StreamerProfileLeaderboard';
 import { StreamerProfileMemesSection } from '@/features/streamer-profile/ui/StreamerProfileMemesSection';
 import { StreamerProfileModals } from '@/features/streamer-profile/ui/StreamerProfileModals';
 import { StreamerProfileSearch } from '@/features/streamer-profile/ui/StreamerProfileSearch';
+import { StreamerProfileVote } from '@/features/streamer-profile/ui/StreamerProfileVote';
+import { StreamerProfileWheel } from '@/features/streamer-profile/ui/StreamerProfileWheel';
 import { login } from '@/lib/auth';
 import ChannelThemeProvider from '@/shared/lib/ChannelThemeProvider';
 import { useAutoplayMemes } from '@/shared/lib/hooks';
@@ -61,11 +71,48 @@ const StreamerProfile = memo(function StreamerProfile() {
     reloadNonce,
   });
 
-  const { wallet, refreshWallet, syncWalletFromUser } = useStreamerProfileWallet({
+  const { wallet, syncWalletFromUser, refreshWallet } = useStreamerProfileWallet({
     user,
     channelInfo,
     dispatch,
   });
+
+  const { claimDailyBonus, claimWatchBonus, claimingDaily, claimingWatch } = useStreamerProfileEconomy({
+    channelInfo,
+    setChannelInfo,
+    onWalletRefresh: refreshWallet,
+  });
+  const {
+    events,
+    loading: eventsLoading,
+    error: eventsError,
+    reload: reloadEvents,
+  } = useActiveEvents();
+  const {
+    session: voteSession,
+    myVoteIndex,
+    loading: voteLoading,
+    voting: voteCasting,
+    creating: voteCreating,
+    closing: voteClosing,
+    castVote,
+    createVote,
+    closeVote,
+  } = useStreamerProfileVote({ slug: normalizedSlug });
+  const {
+    state: wheelState,
+    lastSpin,
+    lastSpinEvent,
+    loading: wheelLoading,
+    spinning: wheelSpinning,
+    spinWheel,
+  } = useStreamerProfileWheel({ slug: normalizedSlug });
+  const {
+    achievements,
+    loading: achievementsLoading,
+    error: achievementsError,
+    reload: reloadAchievements,
+  } = useStreamerProfileAchievements({ slug: normalizedSlug, isAuthed });
 
   const { autoplayMemesEnabled } = useAutoplayMemes();
 
@@ -165,6 +212,11 @@ const StreamerProfile = memo(function StreamerProfile() {
     onCloseSubmitModal: handleCloseSubmitModal,
   });
 
+  useEffect(() => {
+    if (!socket || !isConnected || !normalizedSlug) return;
+    socket.emit('join:public', normalizedSlug);
+  }, [isConnected, normalizedSlug, socket]);
+
   // Helpers: use CSS variables (set by ChannelThemeProvider) to build subtle tints safely.
   // We avoid Tailwind color opacity modifiers here because theme colors are CSS vars (hex), and
   // utilities like `border-secondary/30` may not render as expected with `var(--color)`.
@@ -203,6 +255,7 @@ const StreamerProfile = memo(function StreamerProfile() {
         ).unwrap();
         toast.success(t('toast.memeActivated'));
         syncWalletFromUser();
+        reloadAchievements();
       } catch (error: unknown) {
         const apiError = error as { message?: string; code?: string; details?: unknown };
         if (apiError.code === 'MEME_COOLDOWN_ACTIVE') {
@@ -225,7 +278,7 @@ const StreamerProfile = memo(function StreamerProfile() {
         toast.error(apiError.message || t('toast.failedToActivate'));
       }
     },
-    [channelInfo?.id, channelInfo?.memeCatalogMode, dispatch, syncWalletFromUser, t, user],
+    [channelInfo?.id, channelInfo?.memeCatalogMode, dispatch, reloadAchievements, syncWalletFromUser, t, user],
   );
   const handleLogin = useCallback(() => login(`/channel/${normalizedSlug}`), [normalizedSlug]);
   const handleRequestBeta = useCallback(() => {
@@ -316,6 +369,52 @@ const StreamerProfile = memo(function StreamerProfile() {
     setSelectedMeme(null);
   }, []);
 
+  const handleVoteCreate = useCallback(async () => {
+    try {
+      await createVote();
+      toast.success(t('vote.started', { defaultValue: 'Vote started' }));
+    } catch (error: unknown) {
+      const apiError = error as { response?: { data?: { error?: string } } };
+      toast.error(apiError.response?.data?.error || t('vote.startFailed', { defaultValue: 'Failed to start vote' }));
+    }
+  }, [createVote, t]);
+
+  const handleVoteClose = useCallback(async () => {
+    try {
+      await closeVote();
+      toast.success(t('vote.closed', { defaultValue: 'Vote closed' }));
+    } catch (error: unknown) {
+      const apiError = error as { response?: { data?: { error?: string } } };
+      toast.error(apiError.response?.data?.error || t('vote.closeFailed', { defaultValue: 'Failed to close vote' }));
+    }
+  }, [closeVote, t]);
+
+  const handleCastVote = useCallback(
+    async (index: number) => {
+      try {
+        await castVote(index);
+        toast.success(t('vote.voteCast', { defaultValue: 'Vote submitted' }));
+      } catch (error: unknown) {
+        const apiError = error as { response?: { data?: { error?: string } } };
+        toast.error(apiError.response?.data?.error || t('vote.voteFailed', { defaultValue: 'Failed to vote' }));
+      }
+    },
+    [castVote, t],
+  );
+
+  const handleWheelSpin = useCallback(
+    async (mode: 'free' | 'paid') => {
+      try {
+        await spinWheel(mode);
+        refreshWallet();
+      } catch (error: unknown) {
+        const apiError = error as { response?: { data?: { error?: string } } };
+        toast.error(apiError.response?.data?.error || t('wheel.spinFailed', { defaultValue: 'Failed to spin wheel' }));
+      }
+    },
+    [refreshWallet, spinWheel, t],
+  );
+
   // Show error state when channel info didn't load
   if (!loading && !channelInfo) {
     return (
@@ -365,7 +464,57 @@ const StreamerProfile = memo(function StreamerProfile() {
           mix={mix}
           onOpenSubmit={handleOpenSubmitModal}
           onOpenAuthModal={handleOpenAuthModal}
-          onRefreshWallet={refreshWallet}
+        />
+
+        <StreamerProfileEventBanner
+          events={events}
+          loading={eventsLoading}
+          error={eventsError}
+          onReload={reloadEvents}
+        />
+
+        <StreamerProfileEconomy
+          economy={channelInfo?.economy}
+          isAuthed={isAuthed}
+          onClaimDaily={claimDailyBonus}
+          onClaimWatch={claimWatchBonus}
+          claimingDaily={claimingDaily}
+          claimingWatch={claimingWatch}
+          onRequireAuth={handleOpenAuthModal}
+        />
+
+        <StreamerProfileWheel
+          state={wheelState}
+          lastSpin={lastSpin}
+          lastSpinEvent={lastSpinEvent}
+          loading={wheelLoading}
+          spinning={wheelSpinning}
+          isAuthed={isAuthed}
+          onSpin={handleWheelSpin}
+          onRequireAuth={handleOpenAuthModal}
+        />
+
+        <StreamerProfileVote
+          session={voteSession}
+          myVoteIndex={myVoteIndex}
+          loading={voteLoading}
+          voting={voteCasting}
+          creating={voteCreating}
+          closing={voteClosing}
+          isOwner={isOwner}
+          isAuthed={isAuthed}
+          onVote={handleCastVote}
+          onCreate={handleVoteCreate}
+          onClose={handleVoteClose}
+          onRequireAuth={handleOpenAuthModal}
+        />
+
+        <StreamerProfileAchievements
+          achievements={achievements}
+          loading={achievementsLoading}
+          error={achievementsError}
+          isAuthed={isAuthed}
+          onReload={reloadAchievements}
         />
 
         <StreamerProfileSearch

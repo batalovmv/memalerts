@@ -7,17 +7,11 @@ const loggerMock = vi.hoisted(() => ({
 }));
 const startServiceHeartbeat = vi.hoisted(() => vi.fn(() => ({ stop: vi.fn() })));
 const prismaMock = vi.hoisted(() => ({ $connect: vi.fn(), $disconnect: vi.fn() }));
-const chatCommands = vi.hoisted(() => ({
-  refreshCommands: vi.fn(),
-  sendToVkVideoChat: vi.fn(),
-  handleIncoming: vi.fn(),
-}));
 const streamEvents = vi.hoisted(() => ({ syncSubscriptions: vi.fn() }));
 const chatOutbox = vi.hoisted(() => ({
   startOutboxWorker: vi.fn(() => ({ close: vi.fn() })),
   processOutboxOnce: vi.fn(),
 }));
-const createVkvideoChatCommands = vi.hoisted(() => vi.fn(() => chatCommands));
 const createVkvideoStreamEvents = vi.hoisted(() => vi.fn(() => streamEvents));
 const createVkvideoChatOutbox = vi.hoisted(() => vi.fn(() => chatOutbox));
 
@@ -27,7 +21,6 @@ vi.mock('../../src/bots/env.js', () => ({ validateVkvideoChatbotEnv: vi.fn() }))
 vi.mock('../../src/utils/serviceHeartbeat.js', () => ({ startServiceHeartbeat }));
 vi.mock('../../src/utils/logger.js', () => ({ logger: loggerMock }));
 vi.mock('../../src/lib/prisma.js', () => ({ prisma: prismaMock }));
-vi.mock('../../src/bots/vkvideoChatCommands.js', () => ({ createVkvideoChatCommands }));
 vi.mock('../../src/bots/vkvideoStreamEvents.js', () => ({ createVkvideoStreamEvents }));
 vi.mock('../../src/bots/vkvideoChatOutbox.js', () => ({ createVkvideoChatOutbox }));
 
@@ -69,13 +62,11 @@ describe('vkvideo chatbot runner', () => {
 
     expect(prismaMock.$connect).toHaveBeenCalled();
     expect(streamEvents.syncSubscriptions).toHaveBeenCalled();
-    expect(chatCommands.refreshCommands).toHaveBeenCalled();
     expect(loggerMock.info).toHaveBeenCalledWith(
       'vkvideo_chatbot.started',
       expect.objectContaining({
         syncSeconds: expect.any(Number),
         outboxPollMs: expect.any(Number),
-        commandsRefreshSeconds: expect.any(Number),
       })
     );
   });

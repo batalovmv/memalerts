@@ -111,7 +111,7 @@ export function startMemeDailyStatsRollupScheduler() {
 
   const days = Number.isFinite(daysRaw) && daysRaw > 0 ? daysRaw : 45;
   const initialDelay = Number.isFinite(initialDelayRaw) ? Math.max(0, initialDelayRaw) : 75_000;
-  const intervalMs = Number.isFinite(intervalRaw) ? Math.max(60_000, intervalRaw) : 5 * 60_000;
+  const intervalMs = Number.isFinite(intervalRaw) ? Math.max(60_000, intervalRaw) : 60 * 60_000;
 
   let running = false;
   const lockId = 421339n;

@@ -3,22 +3,12 @@ import { useState } from 'react';
 import type { RewardSettingsState } from '@/features/settings/tabs/rewards/types';
 
 const DEFAULT_REWARD_SETTINGS: RewardSettingsState = {
-  youtubeLikeRewardEnabled: false,
-  youtubeLikeRewardCoins: '10',
-  youtubeLikeRewardOnlyWhenLive: true,
   rewardIdForCoins: '',
   rewardEnabled: false,
   rewardTitle: '',
   rewardCost: '',
   rewardCoins: '',
   rewardOnlyWhenLive: false,
-  kickRewardEnabled: false,
-  kickRewardIdForCoins: '',
-  kickCoinPerPointRatio: '1',
-  kickRewardCoins: '',
-  kickRewardOnlyWhenLive: false,
-  trovoManaCoinsPerUnit: '0',
-  trovoElixirCoinsPerUnit: '0',
   vkvideoRewardEnabled: false,
   vkvideoRewardIdForCoins: '',
   vkvideoCoinPerPointRatio: '1',
@@ -27,6 +17,12 @@ const DEFAULT_REWARD_SETTINGS: RewardSettingsState = {
   submissionRewardCoinsUpload: '0',
   submissionRewardCoinsPool: '0',
   submissionRewardOnlyWhenLive: false,
+  economyMemesPerHour: '2',
+  economyAvgMemePriceCoins: '100',
+  economyRewardMultiplier: '1',
+  wheelEnabled: true,
+  wheelPaidSpinCostCoins: '',
+  wheelPrizeMultiplier: '1',
 };
 
 export function useRewardsSettingsState() {

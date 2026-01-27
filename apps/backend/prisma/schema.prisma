@@ -21,40 +21,17 @@ model Channel {
   rewardCoins                   Int? // Coins granted per redemption
   // If true, coins for the Twitch channel points reward are granted only when stream is online.
   rewardOnlyWhenLive            Boolean  @default(false)
-  // Kick rewards -> coins (non-Twitch provider).
-  kickRewardEnabled             Boolean  @default(false)
-  kickRewardIdForCoins          String?
-  kickCoinPerPointRatio         Float    @default(1.0)
-  kickRewardCoins               Int?
-  kickRewardOnlyWhenLive        Boolean  @default(false)
-  // Kick webhook event subscription id (used for auto-subscribe / re-create flows).
-  kickRewardsSubscriptionId     String?
-  // Trovo spells -> coins.
-  // Interpretation: coins granted per 1 unit of the currency; 0 disables.
-  trovoManaCoinsPerUnit         Int      @default(0)
-  trovoElixirCoinsPerUnit       Int      @default(0)
   // VKVideo channel points -> coins.
   vkvideoRewardEnabled          Boolean  @default(false)
   vkvideoRewardIdForCoins       String?
   vkvideoCoinPerPointRatio      Float    @default(1.0)
   vkvideoRewardCoins            Int?
   vkvideoRewardOnlyWhenLive     Boolean  @default(false)
-  // YouTube "like stream" -> coins (viewer claim).
-  youtubeLikeRewardEnabled      Boolean  @default(false)
-  youtubeLikeRewardCoins        Int      @default(0)
-  youtubeLikeRewardOnlyWhenLive Boolean  @default(false)
-  // Twitch "auto rewards" (follows/subs/bits/raids/chat activity etc). Stored as JSONB object.
-  // Null/empty => disabled (frontend-configured).
-  twitchAutoRewardsJson         Json?    @db.JsonB
   coinIconUrl                   String? // Custom coin icon URL from Twitch reward
   primaryColor                  String? // Hex color for primary theme
   secondaryColor                String? // Hex color for secondary theme
   accentColor                   String? // Hex color for accent
   defaultPriceCoins             Int?     @default(100) // Default price for memes in this channel
-  // Smart Pricing (dynamic meme pricing; opt-in per channel)
-  dynamicPricingEnabled         Boolean  @default(false)
-  dynamicPricingMinMult         Float    @default(0.5)
-  dynamicPricingMaxMult         Float    @default(2.0)
   // Which meme catalog is visible/usable on the channel page:
   // - "channel": only approved ChannelMeme items (current behavior)
   // - "pool_all": entire global pool (MemeAsset) becomes available for the channel
@@ -87,42 +64,17 @@ model Channel {
   overlayPresetsJson            String?  @db.Text
   // Increment to invalidate previously issued overlay tokens.
   overlayTokenVersion           Int      @default(1)
-  // OBS credits overlay (titres) settings (stored as JSON string)
-  creditsStyleJson              String?  @db.Text
-  // Credits overlay: ignore chatters by name (case-insensitive). Stored as JSON array of strings.
-  creditsIgnoredChattersJson    Json     @default(dbgenerated("'[]'::jsonb")) @db.JsonB
-  // Increment to invalidate previously issued credits tokens.
-  creditsTokenVersion           Int      @default(1)
-  // Credits session reconnect window in minutes (keep session alive after stream goes offline / bot disconnects).
-  creditsReconnectWindowMinutes Int      @default(60)
-  // Unified chat rewards config (all platforms: twitch, kick, trovo, vkvideo, youtube).
-  // Only logged-in users receive rewards. Stored as JSONB for extensibility.
-  // Example: { "firstMessage": { "enabled": true, "coins": 10, "onlyWhenLive": true } }
-  chatRewardsJson               Json?    @db.JsonB
-  // Chat bot "smart" command: stream duration settings (stored as JSON string; validated by API).
-  streamDurationCommandJson     String?  @db.Text
-  // Chat bot follow greeting settings
-  followGreetingsEnabled        Boolean  @default(false)
-  followGreetingTemplate        String?  @db.Text
   // Streamer dashboard layout (cross-device). Null => use frontend default order.
   // Stored as JSON array of card ids (strings). Normalized/validated by API.
   dashboardCardOrder            Json?    @db.JsonB
-  // Boosty integration (manual token linking; subscription sync awards coins).
-  // Streamer sets their Boosty blog name (e.g. "some-blog-name") and reward amount.
-  boostyBlogName                String?
-  boostyCoinsPerSub             Int      @default(0)
-  // Boosty tiers -> coins mapping for boosty_api mode.
-  // Stored as JSON array of objects: [{ tierKey: "...", coins: 100 }, ...]
-  boostyTierCoinsJson           Json?    @db.JsonB
-  // Legacy (initial rollout): single role id that represents subscription.
-  // Kept for backward compatibility; prefer `boostyDiscordTierRolesJson`.
-  boostyDiscordRoleId           String?
-  // Boosty via Discord roles (tiers): mapping of Boosty tier -> Discord role id in the platform guild.
-  // Stored as JSON array of objects: [{ tier: "tier1", roleId: "123" }, ...]
-  boostyDiscordTierRolesJson    Json?    @db.JsonB
-  // Subscriptions guild for Boosty rewards via Discord roles.
-  // If null, backend falls back to DISCORD_DEFAULT_SUBSCRIPTIONS_GUILD_ID (or legacy DISCORD_SUBSCRIPTIONS_GUILD_ID).
-  discordSubscriptionsGuildId   String?
+  // Economy settings (dynamic bonuses)
+  economyMemesPerHour           Int      @default(2) // 1-10
+  economyRewardMultiplier       Float    @default(1.0) // 0.5 - 2.0
+  economyApprovalBonusCoins     Int      @default(0) // 0-100 (added to base approval reward)
+  // Wheel of fortune settings
+  wheelEnabled                  Boolean  @default(true)
+  wheelPaidSpinCostCoins        Int?     // null => auto (50% of avg meme price)
+  wheelPrizeMultiplier          Float    @default(1.0) // 0.5 - 2.0
   createdAt                     DateTime @default(now())
 
   users                        User[]
@@ -144,86 +96,38 @@ model Channel {
   memeDailyStats               ChannelMemeDailyStats[]
   chatBotSubscriptions         ChatBotSubscription[]
   chatBotOutboxMessages        ChatBotOutboxMessage[]
-  chatBotCommands              ChatBotCommand[]
   chatBotEventDedups           ChatBotEventDedup[]
   vkVideoChatBotSubscriptions  VkVideoChatBotSubscription[]
   vkVideoChatBotOutboxMessages VkVideoChatBotOutboxMessage[]
   botIntegrations              BotIntegrationSettings[]
   youTubeChatBotSubscriptions  YouTubeChatBotSubscription[]
   youTubeChatBotOutboxMessages YouTubeChatBotOutboxMessage[]
-  youTubeLikeRewardClaims      YouTubeLikeRewardClaim[]
-  trovoChatBotSubscriptions    TrovoChatBotSubscription[]
-  trovoChatBotOutboxMessages   TrovoChatBotOutboxMessage[]
-  kickChatBotSubscriptions     KickChatBotSubscription[]
-  kickChatBotOutboxMessages    KickChatBotOutboxMessage[]
   youTubeBotIntegration        YouTubeBotIntegration?
   vkVideoBotIntegration        VkVideoBotIntegration?
   twitchBotIntegration         TwitchBotIntegration?
-  trovoBotIntegration          TrovoBotIntegration?
-  kickBotIntegration           KickBotIntegration?
   entitlements                 ChannelEntitlement[]
-  boostySubscriptionRewards    BoostySubscriptionReward[]
-  boostyDiscordRewardsV1       BoostyDiscordSubscriptionReward[]
-  boostyDiscordRewardsV2       BoostyDiscordSubscriptionRewardV2[]
-}
-
-// Dedupe table: coins granted for a "liked live stream video" claim.
-// Exactly-once invariant: one grant per (channel, user, videoId).
-model YouTubeLikeRewardClaim {
-  id            String   @id @default(uuid())
-  channelId      String
-  userId         String
-  videoId        String
-  coinsGranted   Int      @default(0)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  lastCheckedAt  DateTime?
-  lastRating     String?
-  lastError      String?  @db.Text
-  awardedAt      DateTime?
-
-  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
-  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([channelId, userId, videoId])
-  @@index([channelId])
-  @@index([userId])
-  @@index([videoId])
-  @@index([awardedAt])
-  @@index([lastCheckedAt])
+  streamSessions               StreamSession[]
+  viewerEconomyStates          ChannelViewerEconomy[]
+  achievements                 UserAchievement[]
+  voteSessions                 MemeVoteSession[]
+  wheelSpins                   WheelSpin[]
+  submissionStreaks            ChannelSubmissionStreak[]
+  eventAchievementGrants       UserEventAchievement[]
 }
 
 enum ExternalRewardProvider {
-  kick
-  trovo
   vkvideo
   twitch
 }
 
 enum ExternalRewardEventType {
-  kick_reward_redemption
-  trovo_spell
   vkvideo_channel_points_redemption
-  twitch_follow
-  twitch_subscribe
-  twitch_resub_message
-  twitch_gift_sub
-  twitch_cheer
-  twitch_raid
   twitch_channel_points_redemption
-  twitch_chat_first_message
-  twitch_chat_messages_threshold
-  twitch_chat_daily_streak
 }
 
 enum ExternalRewardCurrency {
-  kick_channel_points
-  trovo_mana
-  trovo_elixir
   vkvideo_channel_points
   twitch_channel_points
-  twitch_bits
-  twitch_units
 }
 
 enum ExternalRewardEventStatus {
@@ -266,7 +170,7 @@ model ExternalRewardEvent {
   @@index([receivedAt])
 }
 
-// Delivery-level dedupe for external webhooks (e.g., Kick retries).
+// Delivery-level dedupe for external webhooks.
 // This is separate from ExternalRewardEvent dedupe (providerEventId), because providers may retry the same delivery.
 model ExternalWebhookDeliveryDedup {
   id              String               @id @default(uuid())
@@ -330,8 +234,6 @@ enum BotIntegrationProvider {
   vkplaylive
   vkvideo
   youtube
-  trovo
-  kick
 }
 
 // Per-channel bot integration toggles (survive restarts/deploys).
@@ -359,10 +261,12 @@ enum ExternalAccountProvider {
   vk
   vkvideo
   vkplay
-  kick
-  trovo
-  boosty
-  discord
+}
+
+enum StreamProvider {
+  twitch
+  vkvideo
+  unknown
 }
 
 // VK Video Live chat bot subscriptions (global bot account joins many channels).
@@ -414,97 +318,6 @@ model VkVideoChatBotOutboxMessage {
   @@index([createdAt])
 }
 
-// Trovo chat bot subscriptions (per-channel, uses the streamer's linked Trovo account).
-// Each MemAlerts Channel maps to a Trovo channel id used by Trovo Chat APIs / websocket.
-model TrovoChatBotSubscription {
-  id             String   @id @default(uuid())
-  channelId      String
-  userId         String
-  trovoChannelId String
-  enabled        Boolean  @default(true)
-  createdAt      DateTime @default(now())
-
-  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
-  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([channelId])
-  @@index([enabled])
-  @@index([trovoChannelId])
-  @@index([userId])
-  @@index([channelId])
-}
-
-// Trovo chat bot outbox for sending messages via the separate trovoChatbotRunner process.
-model TrovoChatBotOutboxMessage {
-  id             String @id @default(uuid())
-  channelId      String
-  trovoChannelId String
-  message        String @db.Text
-
-  status    String  @default("pending") // pending | processing | sent | failed
-  attempts  Int     @default(0)
-  lastError String? @db.Text
-
-  processingAt DateTime?
-  sentAt       DateTime?
-  failedAt     DateTime?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-
-  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
-
-  @@index([status, createdAt])
-  @@index([channelId, status, createdAt])
-  @@index([trovoChannelId, status, createdAt])
-  @@index([createdAt])
-}
-
-// Kick chat bot subscriptions (per-channel, uses the streamer's linked Kick account).
-// Each MemAlerts Channel maps to a Kick channel id used by Kick Chat APIs / events.
-model KickChatBotSubscription {
-  id            String   @id @default(uuid())
-  channelId     String
-  userId        String
-  kickChannelId String
-  enabled       Boolean  @default(true)
-  createdAt     DateTime @default(now())
-
-  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
-  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([channelId])
-  @@index([enabled])
-  @@index([kickChannelId])
-  @@index([userId])
-  @@index([channelId])
-}
-
-// Kick chat bot outbox for sending messages via the separate kickChatbotRunner process.
-model KickChatBotOutboxMessage {
-  id            String @id @default(uuid())
-  channelId     String
-  kickChannelId String
-  message       String @db.Text
-
-  status    String  @default("pending") // pending | processing | sent | failed
-  attempts  Int     @default(0)
-  lastError String? @db.Text
-  // Simple backoff scheduling for retries (e.g., after 429 Too Many Requests).
-  nextAttemptAt DateTime @default(now())
-
-  processingAt DateTime?
-  sentAt       DateTime?
-  failedAt     DateTime?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-
-  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
-
-  @@index([status, nextAttemptAt, createdAt])
-  @@index([channelId, status, createdAt])
-  @@index([kickChannelId, status, createdAt])
-  @@index([createdAt])
-}
 
 enum OAuthStateKind {
   login
@@ -600,38 +413,6 @@ model ChatBotOutboxMessage {
   @@index([createdAt])
 }
 
-// Per-channel chat bot commands (trigger -> response).
-model ChatBotCommand {
-  id                    String   @id @default(uuid())
-  channelId             String
-  trigger               String
-  triggerNormalized     String
-  response              String   @db.Text
-  enabled               Boolean  @default(true)
-  // If true, bot replies only when stream is online.
-  onlyWhenLive          Boolean  @default(false)
-  // Command audience:
-  // - if both arrays are empty => everyone can trigger the command
-  // - if allowedUsers contains sender login => allowed
-  // - else if allowedRoles contains sender role => allowed
-  // NOTE: "follower" role is currently not resolvable from IRC tags; see chatbotRunner.ts.
-  allowedRoles          Json     @default(dbgenerated("'[]'::jsonb")) @db.JsonB
-  allowedUsers          Json     @default(dbgenerated("'[]'::jsonb")) @db.JsonB
-  // VKVideo-specific role ids (from VKVideo Channel Roles API).
-  // Stored separately because Twitch allowedRoles are a fixed enum.
-  vkvideoAllowedRoleIds Json     @default(dbgenerated("'[]'::jsonb")) @db.JsonB
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
-
-  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
-
-  @@unique([channelId, triggerNormalized])
-  @@index([channelId])
-  @@index([enabled])
-  @@index([channelId, enabled])
-  @@index([triggerNormalized])
-}
-
 // Dedupe table for chat-bot-triggering events (e.g., EventSub follow) to prevent duplicate greetings.
 model ChatBotEventDedup {
   id        String   @id @default(uuid())
@@ -683,15 +464,9 @@ model User {
   externalAccounts            ExternalAccount[]
   oauthStates                 OAuthState[]
   youTubeChatBotSubscriptions YouTubeChatBotSubscription[]
-  youTubeLikeRewardClaims     YouTubeLikeRewardClaim[]
   vkVideoChatBotSubscriptions VkVideoChatBotSubscription[]
-  trovoChatBotSubscriptions   TrovoChatBotSubscription[]
-  kickChatBotSubscriptions    KickChatBotSubscription[]
   wallets                     Wallet[]
   pendingCoinGrantsClaimed    PendingCoinGrant[]         @relation("PendingCoinGrantClaimedBy")
-  boostySubscriptionRewards   BoostySubscriptionReward[]
-  boostyDiscordRewardsV1      BoostyDiscordSubscriptionReward[]
-  boostyDiscordRewardsV2      BoostyDiscordSubscriptionRewardV2[]
   memeAssetsCreated           MemeAsset[]
   submissions                 MemeSubmission[]
   redemptions                 Redemption[]
@@ -709,6 +484,13 @@ model User {
   memeFavorites               UserMemeFavorite[]
   memeBlocklist               UserMemeBlocklist[]
   channelBlocklistCreated     ChannelMemeBlocklist[]       @relation("ChannelBlocklistCreatedBy")
+  viewerEconomyStates         ChannelViewerEconomy[]
+  achievements                UserAchievement[]
+  voteSessionsCreated         MemeVoteSession[]
+  voteBallots                 MemeVoteBallot[]
+  wheelSpins                  WheelSpin[]
+  submissionStreaks           ChannelSubmissionStreak[]
+  eventAchievements           UserEventAchievement[]
 
   @@index([twitchUserId])
   @@index([channelId])
@@ -748,7 +530,7 @@ model ExternalAccount {
   // OAuth tokens (optional; some providers may not return refresh tokens etc.)
   accessToken    String?
   refreshToken   String?
-  // Some providers (e.g. Boosty reverse-engineered clients) use refresh token + device id.
+  // Some providers use refresh token + device id.
   deviceId       String?
   tokenExpiresAt DateTime?
   scopes         String?
@@ -763,80 +545,11 @@ model ExternalAccount {
   globalVkVideoBotCredential GlobalVkVideoBotCredential?
   twitchBotIntegration       TwitchBotIntegration?
   globalTwitchBotCredential  GlobalTwitchBotCredential?
-  trovoBotIntegration        TrovoBotIntegration?
-  globalTrovoBotCredential   GlobalTrovoBotCredential?
-  kickBotIntegration         KickBotIntegration?
-  globalKickBotCredential    GlobalKickBotCredential?
 
   @@unique([provider, providerAccountId])
   @@index([userId])
   @@index([provider])
   @@index([providerAccountId])
-}
-
-// Dedupe table: coins granted for a Boosty subscription for a specific channel.
-// We currently grant coins once per subscription id (first time we observe it as active).
-model BoostySubscriptionReward {
-  id                   String   @id @default(uuid())
-  channelId             String
-  userId                String
-  boostyBlogName        String
-  boostySubscriptionId  String
-  // Best-effort tier key observed at the time of grant (used to support upgrades via delta).
-  boostyTierKey         String?
-  // Amount already granted for this subscription (source of truth; do NOT recompute from current config).
-  coinsGranted          Int      @default(0)
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
-
-  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
-  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([channelId, userId, boostySubscriptionId])
-  @@index([channelId])
-  @@index([userId])
-  @@index([boostyBlogName])
-  @@index([createdAt])
-}
-
-// Dedupe table: coins granted for a Boosty subscription detected via Discord role membership.
-// We currently grant coins once per (channel, user, roleId) when we first observe the role as present.
-model BoostyDiscordSubscriptionReward {
-  id           String   @id @default(uuid())
-  channelId    String
-  userId       String
-  discordRoleId String
-  coinsGranted Int
-  createdAt    DateTime @default(now())
-
-  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
-  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([channelId, userId, discordRoleId])
-  @@index([channelId])
-  @@index([userId])
-  @@index([discordRoleId])
-  @@index([createdAt])
-}
-
-// V2: dedupe by (channelId, userId) regardless of tier/role, as the reward is "any active subscription".
-model BoostyDiscordSubscriptionRewardV2 {
-  id            String   @id @default(uuid())
-  channelId      String
-  userId         String
-  // Best-effort info for audit/debug
-  discordRoleId  String?
-  discordTier    String?
-  coinsGranted   Int
-  createdAt      DateTime @default(now())
-
-  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
-  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([channelId, userId])
-  @@index([channelId])
-  @@index([userId])
-  @@index([createdAt])
 }
 
 model OAuthState {
@@ -972,74 +685,6 @@ model GlobalTwitchBotCredential {
   @@index([externalAccountId])
 }
 
-// Optional per-channel Trovo "bot account" override.
-// If present, Trovo chat messages for the channel are sent using this ExternalAccount tokens.
-// If absent, backend falls back to the global Trovo bot credential.
-model TrovoBotIntegration {
-  id                String   @id @default(uuid())
-  channelId         String   @unique
-  externalAccountId String   @unique
-  enabled           Boolean  @default(true)
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-
-  channel         Channel         @relation(fields: [channelId], references: [id], onDelete: Cascade)
-  externalAccount ExternalAccount @relation(fields: [externalAccountId], references: [id], onDelete: Cascade)
-
-  @@index([enabled])
-  @@index([channelId])
-  @@index([externalAccountId])
-}
-
-// Global shared Trovo bot credential (single default MemAlerts bot account).
-// Linked by admin once; used as sender for Trovo chat messages when a channel has no override.
-model GlobalTrovoBotCredential {
-  id                String   @id @default(uuid())
-  externalAccountId String   @unique
-  enabled           Boolean  @default(true)
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-
-  externalAccount ExternalAccount @relation(fields: [externalAccountId], references: [id], onDelete: Cascade)
-
-  @@index([enabled])
-  @@index([externalAccountId])
-}
-
-// Optional per-channel Kick "bot account" override.
-// If present, Kick chat messages for the channel are sent using this ExternalAccount tokens.
-// If absent, backend falls back to the global Kick bot credential.
-model KickBotIntegration {
-  id                String   @id @default(uuid())
-  channelId         String   @unique
-  externalAccountId String   @unique
-  enabled           Boolean  @default(true)
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-
-  channel         Channel         @relation(fields: [channelId], references: [id], onDelete: Cascade)
-  externalAccount ExternalAccount @relation(fields: [externalAccountId], references: [id], onDelete: Cascade)
-
-  @@index([enabled])
-  @@index([channelId])
-  @@index([externalAccountId])
-}
-
-// Global shared Kick bot credential (single default MemAlerts bot account).
-// Linked by admin once; used as sender for Kick chat messages when a channel has no override.
-model GlobalKickBotCredential {
-  id                String   @id @default(uuid())
-  externalAccountId String   @unique
-  enabled           Boolean  @default(true)
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-
-  externalAccount ExternalAccount @relation(fields: [externalAccountId], references: [id], onDelete: Cascade)
-
-  @@index([enabled])
-  @@index([externalAccountId])
-}
-
 // Lightweight heartbeat table for background workers (bots/AI).
 // No foreign keys to keep it expand-only and deployment-safe.
 model ServiceHeartbeat {
@@ -1064,6 +709,55 @@ model Wallet {
   @@unique([userId, channelId])
   @@index([userId])
   @@index([channelId])
+}
+
+// Stream sessions for economy calculations (best-effort, based on online/offline signals).
+model StreamSession {
+  id        String    @id @default(uuid())
+  channelId String
+  provider  StreamProvider @default(unknown)
+  startedAt DateTime
+  endedAt   DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  viewerEconomyStates ChannelViewerEconomy[]
+
+  @@index([channelId, startedAt])
+  @@index([channelId, endedAt])
+  @@index([provider, startedAt])
+}
+
+// Per-channel viewer economy state (daily/watch bonuses and start bonus).
+model ChannelViewerEconomy {
+  id                     String   @id @default(uuid())
+  channelId              String
+  userId                 String
+  dailyBonusLastClaimAt  DateTime?
+  watchBonusLastClaimAt  DateTime?
+  loginStreakLastClaimAt DateTime?
+  loginStreakCount       Int      @default(0)
+  watchBonusClaimCount   Int      @default(0)
+  watchBonusSessionId    String?
+  wheelFreeSpinLastAt    DateTime?
+  linkedProviders        String[] @default([])
+  startBonusGrantedAt    DateTime?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  channel    Channel       @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  user       User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  watchBonusSession StreamSession? @relation(fields: [watchBonusSessionId], references: [id], onDelete: SetNull)
+
+  @@unique([channelId, userId])
+  @@index([userId])
+  @@index([channelId])
+  @@index([watchBonusSessionId])
+  @@index([dailyBonusLastClaimAt])
+  @@index([watchBonusLastClaimAt])
+  @@index([loginStreakLastClaimAt])
+  @@index([wheelFreeSpinLastAt])
 }
 
 // Global media file shared across channels.
@@ -1169,6 +863,7 @@ model ChannelMeme {
   // Cooldown
   cooldownMinutes Int?     // null = no cooldown
   lastActivatedAt DateTime?
+  timingBonusLastAt DateTime?
 
   // Status
   status          String   @default("approved") // 'approved' | 'pending' | 'rejected' | 'disabled'
@@ -1181,6 +876,10 @@ model ChannelMeme {
   tags            ChannelMemeTag[]
   stats30d        ChannelMemeStats30d[]
   dailyStats      ChannelMemeDailyStats[]
+  voteOptions     MemeVoteOption[]
+  voteBallots     MemeVoteBallot[]
+  voteWins        MemeVoteSession[]
+  viralBonuses    MemeViralBonus[]
 
   // Timestamps
   createdAt       DateTime @default(now())
@@ -1299,6 +998,107 @@ model MemeActivation {
   @@index([channelId, createdAt])
 }
 
+model MemeVoteSession {
+  id                 String   @id @default(uuid())
+  channelId          String
+  status             String   @default("active") // active | ended | cancelled
+  startedAt          DateTime @default(now())
+  endsAt             DateTime?
+  endedAt            DateTime?
+  createdByUserId    String?
+  winnerChannelMemeId String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  channel      Channel      @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  createdBy    User?        @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
+  winnerMeme   ChannelMeme? @relation(fields: [winnerChannelMemeId], references: [id], onDelete: SetNull)
+  options      MemeVoteOption[]
+  ballots      MemeVoteBallot[]
+
+  @@index([channelId, status])
+  @@index([startedAt])
+  @@index([endsAt])
+}
+
+model MemeVoteOption {
+  id            String   @id @default(uuid())
+  sessionId     String
+  channelMemeId String
+  optionIndex   Int
+
+  session      MemeVoteSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  channelMeme  ChannelMeme     @relation(fields: [channelMemeId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, optionIndex])
+  @@index([sessionId])
+  @@index([channelMemeId])
+}
+
+model MemeVoteBallot {
+  id            String   @id @default(uuid())
+  sessionId     String
+  userId        String
+  channelMemeId String
+  createdAt     DateTime @default(now())
+
+  session     MemeVoteSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  channelMeme ChannelMeme     @relation(fields: [channelMemeId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, userId])
+  @@index([sessionId])
+  @@index([channelMemeId])
+}
+
+model WheelSpin {
+  id         String   @id @default(uuid())
+  channelId  String
+  userId     String
+  isFree     Boolean  @default(false)
+  costCoins  Int      @default(0)
+  prizeTier  String
+  prizeCoins Int
+  prizeLabel String?
+  createdAt  DateTime @default(now())
+
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([channelId, createdAt])
+  @@index([userId, createdAt])
+}
+
+model ChannelSubmissionStreak {
+  id             String   @id @default(uuid())
+  channelId      String
+  userId         String
+  streakCount    Int      @default(0)
+  lastApprovedAt DateTime?
+  lastRejectedAt DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([channelId, userId])
+  @@index([channelId])
+  @@index([userId])
+}
+
+model MemeViralBonus {
+  id            String   @id @default(uuid())
+  channelMemeId String
+  threshold     Int
+  awardedAt     DateTime @default(now())
+
+  channelMeme ChannelMeme @relation(fields: [channelMemeId], references: [id], onDelete: Cascade)
+
+  @@unique([channelMemeId, threshold])
+  @@index([channelMemeId])
+}
+
 model UserMemeFavorite {
   id          String   @id @default(uuid())
   userId      String
@@ -1335,6 +1135,25 @@ model UserMemeBlocklist {
   @@index([channelId])
   @@index([memeAssetId])
   @@index([channelId, userId])
+}
+
+model UserAchievement {
+  id         String   @id @default(uuid())
+  userId     String
+  channelId  String?
+  key        String
+  achievedAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  channel Channel? @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, channelId, key])
+  @@index([userId])
+  @@index([channelId])
+  @@index([key])
+  @@index([achievedAt])
 }
 
 model ChannelMemeBlocklist {
@@ -1502,6 +1321,57 @@ model Promotion {
   @@index([channelId])
   @@index([isActive])
   @@index([startDate, endDate])
+}
+
+model SeasonalEvent {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  title       String
+  description String?  @db.Text
+  startsAt    DateTime
+  endsAt      DateTime
+  themeJson   String?  @db.Text
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  achievements EventAchievement[]
+
+  @@index([startsAt, endsAt])
+}
+
+model EventAchievement {
+  id               String   @id @default(uuid())
+  eventId          String
+  key              String
+  title            String
+  description      String?  @db.Text
+  targetActivations Int?
+  rewardCoins      Int?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  event   SeasonalEvent        @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  grants  UserEventAchievement[]
+
+  @@unique([eventId, key])
+  @@index([eventId])
+}
+
+model UserEventAchievement {
+  id                  String   @id @default(uuid())
+  eventAchievementId  String
+  userId              String
+  channelId           String?
+  achievedAt          DateTime @default(now())
+
+  eventAchievement EventAchievement @relation(fields: [eventAchievementId], references: [id], onDelete: Cascade)
+  user            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  channel         Channel?          @relation(fields: [channelId], references: [id], onDelete: SetNull)
+
+  @@unique([eventAchievementId, userId])
+  @@index([eventAchievementId])
+  @@index([userId])
+  @@index([channelId])
+  @@index([achievedAt])
 }
 
 model FileHash {

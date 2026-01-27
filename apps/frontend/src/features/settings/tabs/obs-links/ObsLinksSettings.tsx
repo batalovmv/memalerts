@@ -5,21 +5,14 @@ import { LinksList } from './components/LinksList';
 import { useObsLinks } from './hooks/useObsLinks';
 
 const LinkEditor = lazy(() => import('./components/LinkEditor'));
-const CreditsEditor = lazy(() => import('./components/CreditsEditor'));
 
 export function ObsLinksSettings() {
   const { t } = useTranslation();
   const {
-    overlayKind,
-    setOverlayKind,
-    creditsEnabled,
     overlayForm,
     overlaySettings,
-    creditsSettings,
-    creditsSession,
     preview,
     overlayUrlWithDefaults,
-    creditsUrlWithDefaults,
   } = useObsLinks();
 
   const {
@@ -28,13 +21,6 @@ export function ObsLinksSettings() {
     rotatingOverlayToken,
     handleRotateOverlayToken,
   } = overlaySettings;
-  const {
-    creditsToken,
-    loadingCreditsToken,
-    rotatingCreditsToken,
-    handleRotateCreditsToken,
-  } = creditsSettings;
-
   return (
     <div className="space-y-6">
       <h2 className="text-2xl font-bold mb-4 dark:text-white">{t('admin.obsLinksTitle', { defaultValue: 'OBS links' })}</h2>
@@ -44,34 +30,18 @@ export function ObsLinksSettings() {
 
       <div className="space-y-6">
         <LinksList
-          overlayKind={overlayKind}
-          setOverlayKind={setOverlayKind}
-          creditsEnabled={creditsEnabled}
           overlayUrlWithDefaults={overlayUrlWithDefaults}
-          creditsUrlWithDefaults={creditsUrlWithDefaults}
           overlayToken={overlayToken}
-          creditsToken={creditsToken}
           loadingToken={loadingToken}
-          loadingCreditsToken={loadingCreditsToken}
           rotatingOverlayToken={rotatingOverlayToken}
-          rotatingCreditsToken={rotatingCreditsToken}
           onRotateOverlayToken={handleRotateOverlayToken}
-          onRotateCreditsToken={handleRotateCreditsToken}
         />
 
-        {overlayKind === 'memes' ? (
-          <Suspense
-            fallback={<div className="glass p-4 text-sm text-gray-700 dark:text-gray-200">{t('common.loading', { defaultValue: 'Loading:' })}</div>}
-          >
-            <LinkEditor overlayForm={overlayForm} overlaySettings={overlaySettings} preview={preview} />
-          </Suspense>
-        ) : (
-          <Suspense
-            fallback={<div className="glass p-4 text-sm text-gray-700 dark:text-gray-200">{t('common.loading', { defaultValue: 'Loading:' })}</div>}
-          >
-            <CreditsEditor creditsSettings={creditsSettings} creditsSession={creditsSession} preview={preview} />
-          </Suspense>
-        )}
+        <Suspense
+          fallback={<div className="glass p-4 text-sm text-gray-700 dark:text-gray-200">{t('common.loading', { defaultValue: 'Loading:' })}</div>}
+        >
+          <LinkEditor overlayForm={overlayForm} overlaySettings={overlaySettings} preview={preview} />
+        </Suspense>
 
         <div className="glass p-4">
           <div className="font-semibold text-gray-900 dark:text-white mb-2">

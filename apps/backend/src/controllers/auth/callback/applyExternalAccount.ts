@@ -10,6 +10,7 @@ import { claimPendingCoinGrantsTx } from '../../../rewards/pendingCoinGrants.js'
 import { logger } from '../../../utils/logger.js';
 import { getErrorMessage } from '../utils.js';
 import type { WalletUpdatedEvent } from '../../../realtime/walletBridge.js';
+import { ECONOMY_CONSTANTS, grantAccountLinkBonusTx } from '../../../services/economy/economyService.js';
 
 type AuthenticatedUserWithRelations = NonNullable<Awaited<ReturnType<typeof prisma.user.findUnique>>>;
 
@@ -37,15 +38,31 @@ type ApplyExternalAccountResult = {
   claimedWalletEvents: WalletUpdatedEvent[];
 };
 
+function resolveLinkBonusChannelId(user: AuthenticatedUserWithRelations): string | null {
+  const direct = String(user.channelId || '').trim();
+  if (direct) return direct;
+
+  const wallets = Array.isArray((user as { wallets?: unknown }).wallets)
+    ? ((user as { wallets: Array<{ channelId: string; updatedAt?: Date }> }).wallets || [])
+    : [];
+  if (wallets.length === 0) return null;
+
+  const sorted = [...wallets].sort((a, b) => {
+    const aTime = a.updatedAt instanceof Date ? a.updatedAt.getTime() : 0;
+    const bTime = b.updatedAt instanceof Date ? b.updatedAt.getTime() : 0;
+    return bTime - aTime;
+  });
+  const top = sorted[0];
+  return top?.channelId ? String(top.channelId) : null;
+}
+
 export async function applyExternalAccount(params: ApplyExternalAccountParams): Promise<ApplyExternalAccountResult> {
   const botLinkChannelId = params.stateKind === 'bot_link' ? String(params.stateChannelId || '').trim() : '';
   const isBotLinkProvider =
     params.stateKind === 'bot_link' &&
     (params.provider === 'youtube' ||
       params.provider === 'vkvideo' ||
-      params.provider === 'twitch' ||
-      params.provider === 'trovo' ||
-      params.provider === 'kick');
+      params.provider === 'twitch');
 
   let botLinkSubscriptionDenied = false;
   let botLinkSubscriptionDeniedProvider: string | null = null;
@@ -56,9 +73,7 @@ export async function applyExternalAccount(params: ApplyExternalAccountParams): 
     const isGlobalSentinel =
       (params.provider === 'youtube' && botLinkChannelId === '__global_youtube_bot__') ||
       (params.provider === 'vkvideo' && botLinkChannelId === '__global_vkvideo_bot__') ||
-      (params.provider === 'twitch' && botLinkChannelId === '__global_twitch_bot__') ||
-      (params.provider === 'trovo' && botLinkChannelId === '__global_trovo_bot__') ||
-      (params.provider === 'kick' && botLinkChannelId === '__global_kick_bot__');
+      (params.provider === 'twitch' && botLinkChannelId === '__global_twitch_bot__');
 
     if (!isGlobalSentinel) {
       allowPerChannelBotOverride = await hasChannelEntitlement(botLinkChannelId, 'custom_bot');
@@ -156,11 +171,7 @@ export async function applyExternalAccount(params: ApplyExternalAccountParams): 
     }
 
     if (
-      (params.provider === 'youtube' ||
-        params.provider === 'vkvideo' ||
-        params.provider === 'twitch' ||
-        params.provider === 'trovo' ||
-        params.provider === 'kick') &&
+      (params.provider === 'youtube' || params.provider === 'vkvideo' || params.provider === 'twitch') &&
       params.stateKind === 'bot_link'
     ) {
       const channelId = String(params.stateChannelId || '').trim();
@@ -219,47 +230,48 @@ export async function applyExternalAccount(params: ApplyExternalAccountParams): 
         }
       }
 
-      if (params.provider === 'trovo') {
-        if (channelId === '__global_trovo_bot__') {
-          await tx.globalTrovoBotCredential.deleteMany({});
-          await tx.globalTrovoBotCredential.create({
-            data: { externalAccountId: upserted.id, enabled: true },
-            select: { id: true },
-          });
-        } else if (allowPerChannelBotOverride) {
-          await tx.trovoBotIntegration.upsert({
-            where: { channelId },
-            create: { channelId, externalAccountId: upserted.id, enabled: true },
-            update: { externalAccountId: upserted.id, enabled: true },
-            select: { id: true },
-          });
-        }
-      }
+    }
 
-      if (params.provider === 'kick') {
-        if (channelId === '__global_kick_bot__') {
-          await tx.globalKickBotCredential.deleteMany({});
-          await tx.globalKickBotCredential.create({
-            data: { externalAccountId: upserted.id, enabled: true },
-            select: { id: true },
+    if (
+      params.stateKind === 'link' &&
+      (params.provider === 'youtube' || params.provider === 'vkvideo')
+    ) {
+      try {
+        const channelId = resolveLinkBonusChannelId(params.user);
+        if (channelId) {
+          const bonus = await grantAccountLinkBonusTx({
+            tx,
+            userId: params.user.id,
+            channelId,
+            provider: params.provider,
+            bonusCoins: ECONOMY_CONSTANTS.accountLinkBonusCoins,
           });
-        } else if (allowPerChannelBotOverride) {
-          await tx.kickBotIntegration.upsert({
-            where: { channelId },
-            create: { channelId, externalAccountId: upserted.id, enabled: true },
-            update: { externalAccountId: upserted.id, enabled: true },
-            select: { id: true },
-          });
+          if (bonus.granted && typeof bonus.balance === 'number') {
+            const channel = await tx.channel.findUnique({
+              where: { id: channelId },
+              select: { slug: true },
+            });
+            claimedWalletEvents.push({
+              userId: params.user.id,
+              channelId,
+              balance: bonus.balance,
+              delta: ECONOMY_CONSTANTS.accountLinkBonusCoins,
+              reason: 'account_link_bonus',
+              channelSlug: channel?.slug ?? undefined,
+            });
+          }
         }
+      } catch (error: unknown) {
+        logger.warn('account_link_bonus.failed', {
+          provider: params.provider,
+          errorMessage: getErrorMessage(error),
+        });
       }
     }
 
     if (
       params.stateKind !== 'bot_link' &&
-      (params.provider === 'kick' ||
-        params.provider === 'trovo' ||
-        params.provider === 'vkvideo' ||
-        params.provider === 'twitch')
+      (params.provider === 'vkvideo' || params.provider === 'twitch')
     ) {
       try {
         const events = await claimPendingCoinGrantsTx({

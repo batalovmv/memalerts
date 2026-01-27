@@ -184,7 +184,7 @@ export function startTopStats30dRollupScheduler() {
 
   const days = Number.isFinite(daysRaw) && daysRaw > 0 ? daysRaw : 30;
   const initialDelay = Number.isFinite(initialDelayRaw) ? Math.max(0, initialDelayRaw) : 90_000;
-  const intervalMs = Number.isFinite(intervalRaw) ? Math.max(60_000, intervalRaw) : 5 * 60_000;
+  const intervalMs = Number.isFinite(intervalRaw) ? Math.max(60_000, intervalRaw) : 2 * 60 * 60_000;
 
   let running = false;
   const lockId = 421338n;

@@ -152,7 +152,7 @@ describe('integration user journeys', () => {
       where: { userId_channelId: { userId: viewerLogin.userId, channelId: channel.id } },
       select: { balance: true },
     });
-    expect(wallet?.balance).toBe(400);
+    expect(wallet?.balance).toBe(420);
   });
 
   it('streamer logs in, uploads a meme, and updates channel settings', async () => {

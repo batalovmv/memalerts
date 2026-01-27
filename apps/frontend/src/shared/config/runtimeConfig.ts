@@ -38,10 +38,9 @@ export type RuntimeConfig = {
    */
   maxUploadSizeMb?: number;
   /**
-   * Feature flags for AI and Credits overlay.
+   * Feature flag for AI features.
    */
   aiEnabled?: boolean;
-  creditsOverlayEnabled?: boolean;
   /**
    * Optional Socket.IO transports override.
    * Example: ["websocket"] to force WebSocket-only (recommended for production to avoid polling load).

@@ -11,12 +11,6 @@ import {
 } from '../channelMemeListDto.js';
 import { applyViewerMemeState, buildChannelMemeVisibilityFilter, buildMemeAssetVisibilityFilter, loadViewerMemeState } from '../memeViewerState.js';
 import {
-  applyDynamicPricingToItems,
-  collectChannelMemeIds,
-  loadDynamicPricingSnapshot,
-  normalizeDynamicPricingSettings,
-} from '../../../services/meme/dynamicPricing.js';
-import {
   PaginationError,
   buildCursorFilter,
   encodeCursorFromItem,
@@ -72,9 +66,6 @@ export const getChannelMemesPublic = async (req: AuthRequest, res: Response) => 
       slug: true,
       memeCatalogMode: true,
       defaultPriceCoins: true,
-      dynamicPricingEnabled: true,
-      dynamicPricingMinMult: true,
-      dynamicPricingMaxMult: true,
     },
   });
 
@@ -231,13 +222,6 @@ export const getChannelMemesPublic = async (req: AuthRequest, res: Response) => 
       };
     });
     items = await attachViewerState(items as Array<Record<string, unknown>>);
-    const dynamicSettings = normalizeDynamicPricingSettings(channel);
-    const snapshot = await loadDynamicPricingSnapshot({
-      channelId: channel.id,
-      channelMemeIds: collectChannelMemeIds(items as Array<Record<string, unknown>>),
-      settings: dynamicSettings,
-    });
-    items = applyDynamicPricingToItems(items as Array<Record<string, unknown>>, snapshot);
   } else {
     const baseWhere = {
       channelId: channel.id,
@@ -308,13 +292,6 @@ export const getChannelMemesPublic = async (req: AuthRequest, res: Response) => 
       return tags && tags.length > 0 ? { ...item, tags } : item;
     });
     items = await attachViewerState(items as Array<Record<string, unknown>>);
-    const dynamicSettings = normalizeDynamicPricingSettings(channel);
-    const snapshot = await loadDynamicPricingSnapshot({
-      channelId: channel.id,
-      channelMemeIds: collectChannelMemeIds(items as Array<Record<string, unknown>>),
-      settings: dynamicSettings,
-    });
-    items = applyDynamicPricingToItems(items as Array<Record<string, unknown>>, snapshot);
   }
 
   const nextCursor = hasMore && items.length > 0 ? encodeCursorFromItem(items[items.length - 1], cursorSchema) : null;

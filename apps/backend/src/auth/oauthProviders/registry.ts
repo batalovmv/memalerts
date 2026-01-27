@@ -1,7 +1,4 @@
 import type { OAuthProvider } from './types.js';
-import { discordOAuthProvider } from './providers/discord.js';
-import { kickOAuthProvider } from './providers/kick.js';
-import { trovoOAuthProvider } from './providers/trovo.js';
 import { twitchOAuthProvider } from './providers/twitch.js';
 import { vkOAuthProvider } from './providers/vk.js';
 import { vkVideoOAuthProvider } from './providers/vkvideo.js';
@@ -12,9 +9,6 @@ const providers: OAuthProvider[] = [
   youtubeOAuthProvider,
   vkOAuthProvider,
   vkVideoOAuthProvider,
-  trovoOAuthProvider,
-  kickOAuthProvider,
-  discordOAuthProvider,
 ];
 
 const providerById = new Map<string, OAuthProvider>();

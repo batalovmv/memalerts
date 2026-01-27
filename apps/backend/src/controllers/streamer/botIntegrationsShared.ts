@@ -3,12 +3,12 @@ import { prisma } from '../../lib/prisma.js';
 import type { AuthRequest } from '../../middleware/auth.js';
 
 type BotProvider = 'twitch' | 'vkplaylive' | 'youtube';
-export type BotProviderV2 = BotProvider | 'vkvideo' | 'trovo' | 'kick';
+export type BotProviderV2 = BotProvider | 'vkvideo';
 // NOTE: vkplaylive is deprecated (we use vkvideo instead) but may still exist in DB for legacy installs.
 // Do not expose it to the frontend and do not allow enabling it via API.
 type BotProviderDeprecated = 'vkplaylive';
 export type BotProviderActive = Exclude<BotProviderV2, BotProviderDeprecated>;
-export const PROVIDERS: BotProviderActive[] = ['twitch', 'vkvideo', 'youtube', 'trovo', 'kick'];
+export const PROVIDERS: BotProviderActive[] = ['twitch', 'vkvideo', 'youtube'];
 const PROVIDERS_SET = new Set<string>(PROVIDERS);
 
 const DEFAULT_LINK_REDIRECT = '/settings/accounts';
@@ -19,8 +19,6 @@ const REDIRECT_ALLOWLIST = new Set<string>([
   '/settings/bot/youtube',
   '/settings/bot/vk',
   '/settings/bot/vkvideo',
-  '/settings/bot/trovo',
-  '/settings/bot/kick',
   '/dashboard',
   '/',
 ]);
@@ -40,8 +38,6 @@ export type BotIntegrationPatchBody = {
   enabled: boolean;
   vkvideoChannelId?: string;
   vkvideoChannelUrl?: string | null;
-  trovoChannelId?: string;
-  kickChannelId?: string;
 };
 
 type VkVideoChannelCandidate = { url?: string };

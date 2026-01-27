@@ -1,15 +1,10 @@
 import { prisma } from '../../lib/prisma.js';
-import { getStreamDurationSnapshot } from '../../realtime/streamDurationStore.js';
+import { getStreamStatusSnapshot } from '../../realtime/streamStatusStore.js';
 import { twitchRedemptionEventSchema } from '../../shared/schemas.js';
 import { resolveMemalertsUserIdFromChatIdentity } from '../../utils/chatIdentity.js';
 import { logger } from '../../utils/logger.js';
 import { emitWalletEvents, recordAndMaybeClaim } from './twitchEventSubRewards.js';
-import {
-  parseTwitchAutoRewards,
-  safeNum,
-  type ChannelForRedemption,
-  type EventSubContext,
-} from './twitchEventSubShared.js';
+import { safeNum, type ChannelForRedemption, type EventSubContext } from './twitchEventSubShared.js';
 
 export async function handleTwitchRedemptionEvent(ctx: EventSubContext): Promise<boolean> {
   if (ctx.subscriptionType !== 'channel.channel_points_custom_reward_redemption.add') return false;
@@ -25,7 +20,6 @@ export async function handleTwitchRedemptionEvent(ctx: EventSubContext): Promise
         rewardIdForCoins: true,
         coinPerPointRatio: true,
         rewardOnlyWhenLive: true,
-        twitchAutoRewardsJson: true,
       },
     })) as ChannelForRedemption | null;
 
@@ -34,24 +28,13 @@ export async function handleTwitchRedemptionEvent(ctx: EventSubContext): Promise
       return true;
     }
 
-    const cfg = parseTwitchAutoRewards(channel.twitchAutoRewardsJson);
-    const channelPoints = cfg?.channelPoints;
-    const byRewardIdCoins = safeNum(channelPoints?.byRewardId?.[event.reward.id]);
-    const ruleEnabled = Boolean(channelPoints?.enabled);
-    const mappedCoins = Number.isFinite(byRewardIdCoins) && byRewardIdCoins > 0 ? Math.floor(byRewardIdCoins) : 0;
-
     const legacyEnabled = Boolean(channel.rewardIdForCoins && channel.rewardIdForCoins === event.reward.id);
-    const legacyCoins = legacyEnabled ? Math.floor(event.reward.cost * safeNum(channel.coinPerPointRatio ?? 1)) : 0;
-
-    const coinsGranted = ruleEnabled ? mappedCoins : legacyCoins;
-    const shouldCheckLive =
-      channelPoints?.onlyWhenLive !== undefined
-        ? Boolean(channelPoints.onlyWhenLive)
-        : Boolean(channel.rewardOnlyWhenLive);
+    const coinsGranted = legacyEnabled ? Math.floor(event.reward.cost * safeNum(channel.coinPerPointRatio ?? 1)) : 0;
+    const shouldCheckLive = Boolean(channel.rewardOnlyWhenLive);
 
     if (coinsGranted > 0) {
       if (shouldCheckLive) {
-        const snap = await getStreamDurationSnapshot(String(channel.slug || '').toLowerCase());
+        const snap = await getStreamStatusSnapshot(String(channel.slug || '').toLowerCase());
         if (snap.status !== 'online') {
           await recordAndMaybeClaim(ctx.rawBody, {
             channelId: channel.id,

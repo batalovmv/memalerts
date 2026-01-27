@@ -71,14 +71,6 @@ export async function initiateLink(req: AuthRequest, res: Response) {
   const redirectTo = sanitizeRedirectTo(rawRedirectTo);
   const origin = sanitizeOrigin(req.query.origin, req);
 
-  if (providerInput === 'boosty') {
-    const redirectUrl = getRedirectUrl(req, origin || undefined);
-    const url = new URL(`${redirectUrl}${redirectTo || DEFAULT_LINK_REDIRECT}`);
-    url.searchParams.set('provider', 'boosty');
-    url.searchParams.set('mode', 'manual');
-    return res.redirect(url.toString());
-  }
-
   const oauthProvider = resolveOAuthProvider(providerInput);
   if (!oauthProvider || !oauthProvider.supportsLink) {
     const redirectUrl = getRedirectUrl(req);

@@ -27,14 +27,6 @@ const text = buf.toString('utf8');
 
 const required: Check[] = [
   {
-    name: 'credits fields on Channel',
-    predicate: (t) =>
-      t.includes('creditsStyleJson') &&
-      t.includes('creditsTokenVersion') &&
-      t.includes('creditsReconnectWindowMinutes'),
-    hint: 'Expected Channel to include credits overlay fields (creditsStyleJson/creditsTokenVersion/creditsReconnectWindowMinutes).',
-  },
-  {
     name: 'ChatBotSubscription model',
     predicate: (t) => t.includes('model ChatBotSubscription'),
     hint: 'Expected model ChatBotSubscription to exist (chatbot DB subscriptions).',

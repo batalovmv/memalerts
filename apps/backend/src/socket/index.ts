@@ -1,7 +1,5 @@
 import type { Server } from 'socket.io';
 import { debugLog, debugError } from '../utils/debug.js';
-import { startCreditsTicker, stopCreditsTicker } from '../realtime/creditsState.js';
-import { getCreditsStateFromStore } from '../realtime/creditsSessionStore.js';
 import { isShuttingDown } from '../utils/shutdownState.js';
 import { verifyJwtWithRotation } from '../utils/jwt.js';
 
@@ -92,7 +90,7 @@ export function setupSocketIO(io: Server) {
         const { prisma } = await import('../lib/prisma.js');
         const channel = await prisma.channel.findUnique({
           where: { id: auth.channelId },
-          select: { slug: true, creditsStyleJson: true },
+          select: { slug: true },
         });
         allowedSlug = String(channel?.slug || '').toLowerCase();
         allowedChannelSlugCache = allowedSlug ? { slug: allowedSlug, ts: now } : null;
@@ -110,34 +108,11 @@ export function setupSocketIO(io: Server) {
       void socket.join(`channel:${allowedSlug}`);
       const socketData = socket.data as {
         isOverlay?: boolean;
-        isCreditsSubscriber?: boolean;
         channelSlug?: string;
-        isCreditsOverlay?: boolean;
       };
       socketData.isOverlay = false;
-      // Allow streamer dashboard to subscribe to credits updates without requiring OBS overlay to be open.
-      // We keep this separate from "isCreditsOverlay" to avoid affecting token-rotation kick logic.
-      socketData.isCreditsSubscriber = true;
       socketData.channelSlug = allowedSlug;
       debugLog(`Client ${socket.id} joined channel:${allowedSlug} (auth)`);
-
-      // Best-effort: also send credits config/state and start ticker for this channel.
-      try {
-        // Reuse cached lookup if present; otherwise, fetch fresh (we may not have config in cache).
-        const { prisma } = await import('../lib/prisma.js');
-        const ch = await prisma.channel.findUnique({
-          where: { id: auth.channelId },
-          select: { slug: true, creditsStyleJson: true },
-        });
-        const slug = String(ch?.slug || '').toLowerCase();
-        if (slug) {
-          socket.emit('credits:config', { creditsStyleJson: ch?.creditsStyleJson ?? null });
-          socket.emit('credits:state', await getCreditsStateFromStore(slug));
-          startCreditsTicker(io, slug, 5000);
-        }
-      } catch {
-        // ignore
-      }
     });
 
     socket.on('join:overlay', async (data: { token?: string }) => {
@@ -147,76 +122,27 @@ export function setupSocketIO(io: Server) {
         const decoded = verifyJwtWithRotation<JwtPayload>(token, 'socket_auth');
         if (!decoded?.kind || !decoded.channelId) return;
         const isMemeOverlay = decoded.kind === 'overlay';
-        const isCreditsOverlay = decoded.kind === 'credits';
-        if (!isMemeOverlay && !isCreditsOverlay) return;
+        if (!isMemeOverlay) return;
 
         // Resolve current channel slug + config from DB so tokens survive slug changes.
         const { prisma } = await import('../lib/prisma.js');
-        if (isMemeOverlay) {
-          const channel = await prisma.channel.findUnique({
-            where: { id: decoded.channelId },
-            select: {
-              slug: true,
-              overlayMode: true,
-              overlayShowSender: true,
-              overlayMaxConcurrent: true,
-              overlayStyleJson: true,
-              overlayTokenVersion: true,
-            },
-          });
-
-          // Token rotation: deny old links after streamer regenerates overlay URL.
-          const tokenVersion = Number.isFinite(decoded.tv) ? Number(decoded.tv) : 1;
-          const currentVersion = Number.isFinite(channel?.overlayTokenVersion)
-            ? Number(channel?.overlayTokenVersion)
-            : 1;
-          if (tokenVersion !== currentVersion) {
-            debugLog('[socket] join:overlay denied (token rotated)', {
-              socketId: socket.id,
-              channelId: decoded.channelId,
-              tokenVersion,
-              currentVersion,
-            });
-            return;
-          }
-
-          const slug = String(channel?.slug || decoded.channelSlug || '').toLowerCase();
-          if (!slug) return;
-
-          // Join the normalized channel room only.
-          void socket.join(`channel:${slug}`);
-          const socketData = socket.data as {
-            isOverlay?: boolean;
-            isCreditsOverlay?: boolean;
-            channelSlug?: string;
-          };
-          socketData.isOverlay = true;
-          socketData.isCreditsOverlay = false;
-          socketData.channelSlug = slug;
-          debugLog(`Client ${socket.id} joined channel:${slug} (overlay token)`);
-
-          // Private config (sent only to the overlay client socket).
-          socket.emit('overlay:config', {
-            overlayMode: channel?.overlayMode ?? 'queue',
-            overlayShowSender: channel?.overlayShowSender ?? false,
-            overlayMaxConcurrent: channel?.overlayMaxConcurrent ?? 3,
-            overlayStyleJson: channel?.overlayStyleJson ?? null,
-          });
-          return;
-        }
-
         const channel = await prisma.channel.findUnique({
           where: { id: decoded.channelId },
           select: {
             slug: true,
-            creditsStyleJson: true,
-            creditsTokenVersion: true,
+            overlayMode: true,
+            overlayShowSender: true,
+            overlayMaxConcurrent: true,
+            overlayStyleJson: true,
+            overlayTokenVersion: true,
           },
         });
 
         // Token rotation: deny old links after streamer regenerates overlay URL.
         const tokenVersion = Number.isFinite(decoded.tv) ? Number(decoded.tv) : 1;
-        const currentVersion = Number.isFinite(channel?.creditsTokenVersion) ? Number(channel?.creditsTokenVersion) : 1;
+        const currentVersion = Number.isFinite(channel?.overlayTokenVersion)
+          ? Number(channel?.overlayTokenVersion)
+          : 1;
         if (tokenVersion !== currentVersion) {
           debugLog('[socket] join:overlay denied (token rotated)', {
             socketId: socket.id,
@@ -234,19 +160,19 @@ export function setupSocketIO(io: Server) {
         void socket.join(`channel:${slug}`);
         const socketData = socket.data as {
           isOverlay?: boolean;
-          isCreditsOverlay?: boolean;
           channelSlug?: string;
         };
-        socketData.isOverlay = false;
-        socketData.isCreditsOverlay = true;
+        socketData.isOverlay = true;
         socketData.channelSlug = slug;
         debugLog(`Client ${socket.id} joined channel:${slug} (overlay token)`);
 
-        socket.emit('credits:config', {
-          creditsStyleJson: channel?.creditsStyleJson ?? null,
+        // Private config (sent only to the overlay client socket).
+        socket.emit('overlay:config', {
+          overlayMode: channel?.overlayMode ?? 'queue',
+          overlayShowSender: channel?.overlayShowSender ?? false,
+          overlayMaxConcurrent: channel?.overlayMaxConcurrent ?? 3,
+          overlayStyleJson: channel?.overlayStyleJson ?? null,
         });
-        socket.emit('credits:state', await getCreditsStateFromStore(slug));
-        startCreditsTicker(io, slug, 5000);
       } catch {
         debugLog('[socket] join:overlay denied (invalid token)', { socketId: socket.id });
       }
@@ -258,6 +184,14 @@ export function setupSocketIO(io: Server) {
       if (String(userId) !== auth.userId) return;
       void socket.join(`user:${auth.userId}`);
       debugLog(`Client ${socket.id} joined user:${auth.userId}`);
+    });
+
+    socket.on('join:public', (channelSlug: string) => {
+      const raw = String(channelSlug || '').trim();
+      if (!raw) return;
+      const slug = raw.toLowerCase();
+      void socket.join(`public:${slug}`);
+      debugLog(`Client ${socket.id} joined public:${slug}`);
     });
 
     socket.on('activation:ackDone', async (data: { activationId: string }) => {
@@ -276,13 +210,8 @@ export function setupSocketIO(io: Server) {
     socket.on('disconnect', () => {
       try {
         const socketData = socket.data as {
-          isCreditsOverlay?: boolean;
-          isCreditsSubscriber?: boolean;
           channelSlug?: string;
         };
-        if ((socketData.isCreditsOverlay || socketData.isCreditsSubscriber) && socketData.channelSlug) {
-          stopCreditsTicker(String(socketData.channelSlug));
-        }
       } catch {
         // ignore
       }

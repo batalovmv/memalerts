@@ -11,16 +11,14 @@ import { emitWalletUpdated, relayWalletUpdatedToPeer, type WalletUpdatedEvent } 
 import { logger } from '../../utils/logger.js';
 import { withRetry } from '../../utils/retryTransaction.js';
 import { TasteProfileService } from '../taste/TasteProfileService.js';
-import { computeDynamicPricing, loadDynamicPricingSnapshot, normalizeDynamicPricingSettings } from './dynamicPricing.js';
+import { ECONOMY_CONSTANTS } from '../economy/economyService.js';
+import { grantGlobalAchievement, processActivationAchievements, processEventAchievements } from '../achievements/achievementService.js';
 
 type PoolChannelRow = {
   id: string;
   slug: string;
   memeCatalogMode: string | null;
   defaultPriceCoins: number | null;
-  dynamicPricingEnabled?: boolean | null;
-  dynamicPricingMinMult?: number | null;
-  dynamicPricingMaxMult?: number | null;
 };
 
 type PoolAssetRow = {
@@ -29,6 +27,7 @@ type PoolAssetRow = {
   fileUrl: string | null;
   durationMs: number | null;
   aiAutoTitle: string | null;
+  createdById: string | null;
 };
 
 type ChannelMemeRow = {
@@ -39,6 +38,7 @@ type ChannelMemeRow = {
   deletedAt: Date | null;
   cooldownMinutes: number | null;
   lastActivatedAt: Date | null;
+  timingBonusLastAt: Date | null;
 };
 
 type ChannelSlugContext = {
@@ -47,6 +47,21 @@ type ChannelSlugContext = {
 };
 
 const DEFAULT_POOL_PRICE = 100;
+const TIMING_WINDOW_MS = 30_000;
+const TIMING_THRESHOLD = 5;
+const TIMING_REFUND_RATE = 0.1;
+
+const VIRAL_THRESHOLDS: Array<{ count: number; coins: number; key?: string }> = [
+  { count: 10, coins: 20 },
+  { count: 50, coins: 50 },
+  { count: 100, coins: 100 },
+  { count: 500, coins: 300, key: 'viral_500' },
+];
+
+function isUniqueError(error: unknown): boolean {
+  const err = error as { code?: string };
+  return err?.code === 'P2002';
+}
 
 const normalizeDefaultPrice = (value: number | null | undefined): number =>
   Number.isFinite(value ?? NaN) ? (value as number) : DEFAULT_POOL_PRICE;
@@ -97,15 +112,12 @@ export const activateMeme = async (req: AuthRequest, res: Response) => {
           slug: true,
           memeCatalogMode: true,
           defaultPriceCoins: true,
-          dynamicPricingEnabled: true,
-          dynamicPricingMinMult: true,
-          dynamicPricingMaxMult: true,
         },
       });
       if (poolChannel && String(poolChannel.memeCatalogMode ?? 'channel') === 'pool_all') {
         poolAsset = await prisma.memeAsset.findFirst({
           where: { id: parsed.memeId, status: 'active', deletedAt: null, fileUrl: { not: '' } },
-          select: { id: true, type: true, fileUrl: true, durationMs: true, aiAutoTitle: true },
+          select: { id: true, type: true, fileUrl: true, durationMs: true, aiAutoTitle: true, createdById: true },
         });
       }
     }
@@ -141,6 +153,7 @@ export const activateMeme = async (req: AuthRequest, res: Response) => {
               deletedAt: channelMeme.deletedAt,
               cooldownMinutes: channelMeme.cooldownMinutes ?? null,
               lastActivatedAt: channelMeme.lastActivatedAt ?? null,
+              timingBonusLastAt: channelMeme.timingBonusLastAt ?? null,
             }
           : null;
 
@@ -155,6 +168,7 @@ export const activateMeme = async (req: AuthRequest, res: Response) => {
               deletedAt: true,
               cooldownMinutes: true,
               lastActivatedAt: true,
+              timingBonusLastAt: true,
             },
           });
 
@@ -180,6 +194,7 @@ export const activateMeme = async (req: AuthRequest, res: Response) => {
                 deletedAt: true,
                 cooldownMinutes: true,
                 lastActivatedAt: true,
+                timingBonusLastAt: true,
               },
             });
           }
@@ -205,27 +220,7 @@ export const activateMeme = async (req: AuthRequest, res: Response) => {
         }
 
         const basePrice = resolvedChannelMeme.priceCoins;
-        const pricingSettings = normalizeDynamicPricingSettings(channelMeme?.channel ?? poolChannel ?? null);
-        let priceBeforeDiscount = basePrice;
-        if (pricingSettings.enabled) {
-          const snapshot = await loadDynamicPricingSnapshot({
-            channelId,
-            channelMemeIds: [resolvedChannelMeme.id],
-            settings: pricingSettings,
-            now,
-            db: tx,
-          });
-          if (snapshot) {
-            const recent = snapshot.counts.get(resolvedChannelMeme.id) ?? 0;
-            const dynamic = computeDynamicPricing({
-              basePriceCoins: basePrice,
-              recent,
-              avgRecent: snapshot.avgRecent,
-              settings: pricingSettings,
-            });
-            priceBeforeDiscount = dynamic.dynamicPriceCoins;
-          }
-        }
+        const priceBeforeDiscount = basePrice;
 
         const finalPrice = promotion
           ? calculatePriceWithDiscount(priceBeforeDiscount, promotion.discountPercent)
@@ -261,6 +256,18 @@ export const activateMeme = async (req: AuthRequest, res: Response) => {
           },
         });
 
+        const authorId = channelMeme?.memeAsset?.createdById ?? poolAsset?.createdById ?? null;
+        const authorReward = Math.max(0, Math.floor(finalPrice * ECONOMY_CONSTANTS.authorActivationShare));
+        let authorWalletBalance: number | null = null;
+        if (authorId && authorReward > 0) {
+          const updatedAuthorWallet = await WalletService.incrementBalance(
+            tx,
+            { userId: authorId, channelId },
+            authorReward
+          );
+          authorWalletBalance = updatedAuthorWallet.balance;
+        }
+
         await tx.channelMeme.update({
           where: { id: resolvedChannelMeme.id },
           data: { lastActivatedAt: now },
@@ -271,6 +278,92 @@ export const activateMeme = async (req: AuthRequest, res: Response) => {
           select: { displayName: true },
         });
 
+        const achievementResult = await processActivationAchievements({
+          tx,
+          userId: req.userId!,
+          channelId,
+          occurredAt: now,
+        });
+        const eventAchievementResult = await processEventAchievements({
+          tx,
+          userId: req.userId!,
+          channelId,
+          occurredAt: now,
+        });
+
+        const bonusWalletUpdates: Array<{ userId: string; channelId: string; balance: number; delta: number; reason: string }> = [];
+        const bonusGrants: string[] = [];
+
+        if (resolvedChannelMeme) {
+          const windowStart = new Date(now.getTime() - TIMING_WINDOW_MS);
+          const lastTiming = resolvedChannelMeme.timingBonusLastAt;
+          if (!lastTiming || lastTiming < windowStart) {
+            const recentCount = await tx.memeActivation.count({
+              where: { channelMemeId: resolvedChannelMeme.id, createdAt: { gte: windowStart } },
+            });
+            if (recentCount >= TIMING_THRESHOLD) {
+              const recent = await tx.memeActivation.findMany({
+                where: { channelMemeId: resolvedChannelMeme.id, createdAt: { gte: windowStart } },
+                select: { userId: true, priceCoins: true },
+              });
+              const refunds = new Map<string, number>();
+              for (const activationRow of recent) {
+                const refund = Math.max(0, Math.round(activationRow.priceCoins * TIMING_REFUND_RATE));
+                if (!refund) continue;
+                refunds.set(activationRow.userId, (refunds.get(activationRow.userId) ?? 0) + refund);
+              }
+              for (const [userId, amount] of refunds.entries()) {
+                const updated = await WalletService.incrementBalance(tx, { userId, channelId }, amount);
+                bonusWalletUpdates.push({
+                  userId,
+                  channelId,
+                  balance: updated.balance,
+                  delta: amount,
+                  reason: 'timing_bonus',
+                });
+              }
+              await tx.channelMeme.update({
+                where: { id: resolvedChannelMeme.id },
+                data: { timingBonusLastAt: now },
+              });
+            }
+          }
+        }
+
+        if (resolvedChannelMeme) {
+          const totalActivations = await tx.memeActivation.count({
+            where: { channelMemeId: resolvedChannelMeme.id },
+          });
+          for (const threshold of VIRAL_THRESHOLDS) {
+            if (totalActivations < threshold.count) continue;
+            let created = false;
+            try {
+              await tx.memeViralBonus.create({
+                data: { channelMemeId: resolvedChannelMeme.id, threshold: threshold.count },
+              });
+              created = true;
+            } catch (error: unknown) {
+              if (!isUniqueError(error)) throw error;
+            }
+            if (!created) continue;
+
+            if (authorId && threshold.coins > 0) {
+              const updated = await WalletService.incrementBalance(tx, { userId: authorId, channelId }, threshold.coins);
+              bonusWalletUpdates.push({
+                userId: authorId,
+                channelId,
+                balance: updated.balance,
+                delta: threshold.coins,
+                reason: 'viral_bonus',
+              });
+            }
+            if (authorId && threshold.key === 'viral_500') {
+              const grant = await grantGlobalAchievement({ tx, userId: authorId, key: threshold.key });
+              if (grant.granted) bonusGrants.push(threshold.key);
+            }
+          }
+        }
+
         return {
           activation,
           wallet: updatedWallet,
@@ -278,6 +371,15 @@ export const activateMeme = async (req: AuthRequest, res: Response) => {
           originalPrice: priceBeforeDiscount,
           finalPrice,
           coinsSpent,
+          authorReward,
+          authorId,
+          authorWalletBalance,
+          achievementWalletUpdates: achievementResult.walletUpdates,
+          achievementGrants: achievementResult.grants,
+          eventAchievementWalletUpdates: eventAchievementResult.walletUpdates,
+          eventAchievementGrants: eventAchievementResult.grants,
+          bonusWalletUpdates,
+          bonusGrants,
         };
           },
           { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
@@ -331,6 +433,65 @@ export const activateMeme = async (req: AuthRequest, res: Response) => {
       void relayWalletUpdatedToPeer(walletUpdateData);
     }
 
+    if (result.authorReward && result.authorReward > 0 && result.authorId && result.authorWalletBalance !== null) {
+      const authorUpdate: WalletUpdatedEvent = {
+        userId: result.authorId,
+        channelId: result.activation.channelId,
+        balance: result.authorWalletBalance,
+        delta: result.authorReward,
+        reason: 'meme_activation_author_reward',
+        channelSlug: channel.slug,
+      };
+      emitWalletUpdated(io, authorUpdate);
+      void relayWalletUpdatedToPeer(authorUpdate);
+    }
+
+    if (Array.isArray(result.achievementWalletUpdates) && result.achievementWalletUpdates.length > 0) {
+      result.achievementWalletUpdates.forEach((update) => {
+        const payload: WalletUpdatedEvent = {
+          ...update,
+          channelSlug: channel.slug,
+        };
+        emitWalletUpdated(io, payload);
+        void relayWalletUpdatedToPeer(payload);
+      });
+    }
+
+    if (Array.isArray(result.eventAchievementWalletUpdates) && result.eventAchievementWalletUpdates.length > 0) {
+      result.eventAchievementWalletUpdates.forEach((update) => {
+        const payload: WalletUpdatedEvent = {
+          ...update,
+          channelSlug: channel.slug,
+        };
+        emitWalletUpdated(io, payload);
+        void relayWalletUpdatedToPeer(payload);
+      });
+    }
+
+    if (Array.isArray(result.bonusWalletUpdates) && result.bonusWalletUpdates.length > 0) {
+      result.bonusWalletUpdates.forEach((update) => {
+        const payload: WalletUpdatedEvent = {
+          ...update,
+          channelSlug: channel.slug,
+        };
+        emitWalletUpdated(io, payload);
+        void relayWalletUpdatedToPeer(payload);
+      });
+    }
+
+    const emitAchievementGrant = (userId: string, key: string) => {
+      io.to(`user:${userId}`).emit('achievement:granted', { key, channelId: channelId, channelSlug: channel.slug });
+    };
+    if (Array.isArray(result.achievementGrants) && result.achievementGrants.length > 0) {
+      result.achievementGrants.forEach((key) => emitAchievementGrant(result.activation.userId, key));
+    }
+    if (Array.isArray(result.eventAchievementGrants) && result.eventAchievementGrants.length > 0) {
+      result.eventAchievementGrants.forEach((entry) => emitAchievementGrant(result.activation.userId, entry.key));
+    }
+    if (Array.isArray(result.bonusGrants) && result.bonusGrants.length > 0 && result.authorId) {
+      result.bonusGrants.forEach((key) => emitAchievementGrant(result.authorId, key));
+    }
+
     void TasteProfileService.recordActivation({
       userId: req.userId!,
       channelMemeId: result.activation.channelMemeId,
@@ -374,4 +535,3 @@ export const activateMeme = async (req: AuthRequest, res: Response) => {
     throw error;
   }
 };
-

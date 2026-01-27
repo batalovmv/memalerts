@@ -42,7 +42,6 @@ describe('runtimeConfig (web)', () => {
         s3PublicBaseUrl: 'https://s3.example',
         maxUploadSizeMb: 75,
         aiEnabled: true,
-        creditsOverlayEnabled: false,
       }),
     }));
     vi.stubGlobal('fetch', fetchMock as unknown as typeof fetch);
@@ -54,7 +53,6 @@ describe('runtimeConfig (web)', () => {
       s3PublicBaseUrl: 'https://s3.example',
       maxUploadSizeMb: 75,
       aiEnabled: true,
-      creditsOverlayEnabled: false,
     });
   });
 });

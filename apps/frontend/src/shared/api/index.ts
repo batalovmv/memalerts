@@ -8,7 +8,5 @@ export * from './channel';
 export * from './memes';
 export * from './owner';
 export * from './bot';
-export * from './overlay';
-export * from './rewards';
 export * from './tasteProfile';
 export * from './personalizedMemes';

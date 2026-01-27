@@ -80,42 +80,6 @@ export function registerOwnerPaths(ctx: OpenApiContext) {
 
   registerJsonPath({
     method: 'get',
-    path: '/owner/bots/trovo/default/status',
-    tags: ['Owner'],
-  });
-
-  registerJsonPath({
-    method: 'get',
-    path: '/owner/bots/trovo/default/link',
-    tags: ['Owner'],
-  });
-
-  registerJsonPath({
-    method: 'delete',
-    path: '/owner/bots/trovo/default',
-    tags: ['Owner'],
-  });
-
-  registerJsonPath({
-    method: 'get',
-    path: '/owner/bots/kick/default/status',
-    tags: ['Owner'],
-  });
-
-  registerJsonPath({
-    method: 'get',
-    path: '/owner/bots/kick/default/link',
-    tags: ['Owner'],
-  });
-
-  registerJsonPath({
-    method: 'delete',
-    path: '/owner/bots/kick/default',
-    tags: ['Owner'],
-  });
-
-  registerJsonPath({
-    method: 'get',
     path: '/owner/entitlements/custom-bot',
     tags: ['Owner'],
   });

@@ -57,6 +57,7 @@ export async function validateTagWithAI(rawTag: string, existingTags: string[]):
   if (!apiKey) throw new Error('OPENAI_API_KEY_not_set');
 
   const model =
+    String(process.env.TAG_AI_VALIDATION_MODEL || '').trim() ||
     String(process.env.OPENAI_TAG_VALIDATION_MODEL || '').trim() ||
     String(process.env.OPENAI_MEME_METADATA_MODEL || '').trim() ||
     'gpt-4o-mini';

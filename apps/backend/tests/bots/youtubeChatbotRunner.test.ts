@@ -8,15 +8,11 @@ const loggerMock = vi.hoisted(() => ({
 const startServiceHeartbeat = vi.hoisted(() => vi.fn(() => ({ stop: vi.fn() })));
 const prismaMock = vi.hoisted(() => ({ $connect: vi.fn(), $disconnect: vi.fn() }));
 const subscriptions = vi.hoisted(() => ({ syncSubscriptions: vi.fn() }));
-const chatCommands = vi.hoisted(() => ({ refreshCommands: vi.fn() }));
-const chatPolling = vi.hoisted(() => ({ pollChatsOnce: vi.fn() }));
 const chatOutbox = vi.hoisted(() => ({
   startOutboxWorker: vi.fn(() => ({ close: vi.fn() })),
   processOutboxOnce: vi.fn(),
 }));
 const createYouTubeChatSubscriptions = vi.hoisted(() => vi.fn(() => subscriptions));
-const createYouTubeChatCommands = vi.hoisted(() => vi.fn(() => chatCommands));
-const createYouTubeChatPolling = vi.hoisted(() => vi.fn(() => chatPolling));
 const createYouTubeChatOutbox = vi.hoisted(() => vi.fn(() => chatOutbox));
 
 vi.mock('../../src/config/loadEnv.js', () => ({}));
@@ -26,8 +22,6 @@ vi.mock('../../src/utils/serviceHeartbeat.js', () => ({ startServiceHeartbeat })
 vi.mock('../../src/utils/logger.js', () => ({ logger: loggerMock }));
 vi.mock('../../src/lib/prisma.js', () => ({ prisma: prismaMock }));
 vi.mock('../../src/bots/youtubeChatSubscriptions.js', () => ({ createYouTubeChatSubscriptions }));
-vi.mock('../../src/bots/youtubeChatCommands.js', () => ({ createYouTubeChatCommands }));
-vi.mock('../../src/bots/youtubeChatPolling.js', () => ({ createYouTubeChatPolling }));
 vi.mock('../../src/bots/youtubeChatOutbox.js', () => ({ createYouTubeChatOutbox }));
 
 const baseEnv = { ...process.env };
@@ -63,7 +57,6 @@ describe('youtube chatbot runner', () => {
       expect.objectContaining({
         syncSeconds: expect.any(Number),
         liveCheckSeconds: expect.any(Number),
-        commandsRefreshSeconds: expect.any(Number),
         outboxPollMs: expect.any(Number),
       })
     );

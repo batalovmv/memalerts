@@ -15,6 +15,8 @@ import { resolveApprovalInputs, type ApprovalSubmission } from './submissionAppr
 import { ensureMemeAssetVariants } from '../memeAsset/ensureVariants.js';
 import { enqueueSubmissionApprovedEvent, enqueueWalletRewardEvent } from './submissionNotifications.js';
 import { handleApproveSubmissionError } from './submissionApproveErrors.js';
+import { ECONOMY_CONSTANTS } from '../economy/economyService.js';
+import { processSubmissionApprovalAchievements } from '../achievements/achievementService.js';
 
 type Submission = ApprovalSubmission;
 type PostApproveVariantInput = {
@@ -22,6 +24,13 @@ type PostApproveVariantInput = {
   fileUrl: string;
   fileHash: string | null;
   durationMs: number;
+};
+
+const getQualityStreakMultiplier = (count: number): number => {
+  if (count >= 10) return 1.3;
+  if (count >= 5) return 1.2;
+  if (count >= 3) return 1.1;
+  return 1.0;
 };
 export const approveSubmissionWithRepos = async (deps: AdminSubmissionDeps, req: AuthRequest, res: Response) => {
   const { submissions, transaction } = deps;
@@ -126,7 +135,6 @@ export const approveSubmissionWithRepos = async (deps: AdminSubmissionDeps, req:
                 submissionRewardCoins: true, // legacy
                 submissionRewardCoinsUpload: true,
                 submissionRewardCoinsPool: true,
-                submissionRewardOnlyWhenLive: true, // legacy (ignored for rewards in this rollout)
               },
             });
             const channelSlug = channel?.slug ? String(channel.slug).toLowerCase() : null;
@@ -149,10 +157,41 @@ export const approveSubmissionWithRepos = async (deps: AdminSubmissionDeps, req:
 
             const defaultPrice = channel?.defaultPriceCoins ?? 100; // Use channel default or 100 as fallback
             const sourceKind = String(submission?.sourceKind || '').toLowerCase();
-            const rewardForApproval =
-              sourceKind === 'pool'
-                ? (channel?.submissionRewardCoinsPool ?? 0)
-                : (channel?.submissionRewardCoinsUpload ?? channel?.submissionRewardCoins ?? 0);
+            const uploadBonusRaw = Number.isFinite(channel?.submissionRewardCoinsUpload ?? NaN)
+              ? (channel?.submissionRewardCoinsUpload as number)
+              : Number.isFinite(channel?.submissionRewardCoins ?? NaN)
+                ? (channel?.submissionRewardCoins as number)
+                : 0;
+            const poolBonusRaw = Number.isFinite(channel?.submissionRewardCoinsPool ?? NaN)
+              ? (channel?.submissionRewardCoinsPool as number)
+              : uploadBonusRaw;
+            const uploadBonus = Math.max(0, Math.min(100, Math.round(uploadBonusRaw)));
+            const poolBonus = Math.max(0, Math.min(100, Math.round(poolBonusRaw)));
+            const approvalBonus = sourceKind === 'pool' ? poolBonus : uploadBonus;
+            let streakCount = 0;
+            let streakMultiplier = 1.0;
+            if (submission.submitterUserId) {
+              const streak = await tx.channelSubmissionStreak.upsert({
+                where: { channelId_userId: { channelId: submission.channelId, userId: submission.submitterUserId } },
+                create: {
+                  channelId: submission.channelId,
+                  userId: submission.submitterUserId,
+                  streakCount: 1,
+                  lastApprovedAt: new Date(),
+                },
+                update: {
+                  streakCount: { increment: 1 },
+                  lastApprovedAt: new Date(),
+                },
+                select: { streakCount: true },
+              });
+              streakCount = streak?.streakCount ?? 0;
+              streakMultiplier = getQualityStreakMultiplier(streakCount);
+            }
+            const rewardForApproval = Math.max(
+              0,
+              Math.round((ECONOMY_CONSTANTS.approvalBaseCoins + approvalBonus) * streakMultiplier)
+            );
 
             // Pool submission: no file processing. Just create ChannelMeme + legacy Meme from MemeAsset.
             if (sourceKind === 'pool' && submission?.memeAssetId) {
@@ -236,9 +275,8 @@ export const approveSubmissionWithRepos = async (deps: AdminSubmissionDeps, req:
               throw error;
             }
 
-            // Reward submitter for approved submission (per-channel setting)
-            // Only if enabled (>0) and submitter is not the moderator approving.
-            // Policy: reward is granted ALWAYS (no online check) for both upload/url and pool.
+            // Reward submitter for approved submission (base + bonus, always granted).
+            // Policy: reward is granted ALWAYS (no online check).
             if (rewardForApproval > 0 && submission.submitterUserId && submission.submitterUserId !== req.userId) {
               const updatedWallet = await WalletService.incrementBalance(
                 tx,
@@ -255,6 +293,25 @@ export const approveSubmissionWithRepos = async (deps: AdminSubmissionDeps, req:
                 channelSlug: channel?.slug,
               };
               enqueueWalletRewardEvent({ io, eventBuffer, event: submissionRewardEvent });
+            }
+
+            if (submission.submitterUserId) {
+              const achievementResult = await processSubmissionApprovalAchievements({
+                tx,
+                userId: submission.submitterUserId,
+                channelId: submission.channelId,
+                streakCount,
+              });
+              achievementResult.walletUpdates.forEach((event) => {
+                enqueueWalletRewardEvent({
+                  io,
+                  eventBuffer,
+                  event: {
+                    ...event,
+                    channelSlug: channel?.slug,
+                  },
+                });
+              });
             }
 
             queueSubmissionApproved();

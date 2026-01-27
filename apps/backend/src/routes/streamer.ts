@@ -9,6 +9,9 @@ import { aiRegenerateController } from '../controllers/streamer/aiRegenerateCont
 import { bulkSubmissionsController } from '../controllers/streamer/bulkSubmissionsController.js';
 import { addChannelBlocklist, listChannelBlocklist, removeChannelBlocklist } from '../controllers/streamer/channelBlocklistController.js';
 import { getStarterMemes } from '../controllers/streamer/starterMemesController.js';
+import { getLatestStreamRecap } from '../controllers/streamer/streamRecapController.js';
+import { createVote, closeVote, getActiveVote } from '../controllers/streamer/voteController.js';
+import { getWheelSettings, updateWheelSettings } from '../controllers/streamer/wheelController.js';
 
 // Streamer control panel API (role: streamer | admin).
 // NOTE: This router is mounted with authenticate + requireBetaAccess in routes/index.ts.
@@ -51,6 +54,12 @@ streamerRoutes.delete('/promotions/:id', adminController.deletePromotion);
 
 // Channel statistics (for the streamer's channel)
 streamerRoutes.get('/stats/channel', adminController.getChannelStats);
+streamerRoutes.get('/stream-recap/latest', getLatestStreamRecap);
+streamerRoutes.get('/votes/active', getActiveVote);
+streamerRoutes.post('/votes', createVote);
+streamerRoutes.post('/votes/:sessionId/close', closeVote);
+streamerRoutes.get('/wheel/settings', getWheelSettings);
+streamerRoutes.patch('/wheel/settings', updateWheelSettings);
 
 // OBS overlay
 streamerRoutes.get('/overlay/token', adminController.getOverlayToken);
@@ -59,17 +68,6 @@ streamerRoutes.get('/overlay/preview-meme', adminController.getOverlayPreviewMem
 streamerRoutes.get('/overlay/preview-memes', adminController.getOverlayPreviewMemes);
 streamerRoutes.get('/overlay/presets', adminController.getOverlayPresets);
 streamerRoutes.put('/overlay/presets', adminController.putOverlayPresets);
-
-// OBS credits overlay (titres)
-streamerRoutes.get('/credits/token', adminController.getCreditsToken);
-streamerRoutes.get('/credits/state', adminController.getCreditsState);
-streamerRoutes.get('/credits/reconnect-window', adminController.getCreditsReconnectWindow);
-streamerRoutes.get('/credits/ignored-chatters', adminController.getCreditsIgnoredChatters);
-streamerRoutes.post('/credits/ignored-chatters', adminController.setCreditsIgnoredChatters);
-streamerRoutes.post('/credits/settings', adminController.saveCreditsSettings);
-streamerRoutes.post('/credits/token/rotate', adminController.rotateCreditsToken);
-streamerRoutes.post('/credits/reset', adminController.resetCredits);
-streamerRoutes.post('/credits/reconnect-window', adminController.setCreditsReconnectWindow);
 
 // Global chat bot subscription (joins streamer's chat as lotas_bot)
 streamerRoutes.post('/bot/enable', streamerBotController.enable);
@@ -89,30 +87,10 @@ streamerRoutes.delete('/bots/twitch/bot', botIntegrationsController.twitchBotUnl
 streamerRoutes.get('/bots/youtube/bot', botIntegrationsController.youtubeBotStatus);
 streamerRoutes.get('/bots/youtube/bot/link', botIntegrationsController.youtubeBotLinkStart);
 streamerRoutes.delete('/bots/youtube/bot', botIntegrationsController.youtubeBotUnlink);
-streamerRoutes.get('/bots/trovo/bot', botIntegrationsController.trovoBotStatus);
-streamerRoutes.get('/bots/trovo/bot/link', botIntegrationsController.trovoBotLinkStart);
-streamerRoutes.delete('/bots/trovo/bot', botIntegrationsController.trovoBotUnlink);
-streamerRoutes.get('/bots/kick/bot', botIntegrationsController.kickBotStatus);
-streamerRoutes.get('/bots/kick/bot/link', botIntegrationsController.kickBotLinkStart);
-streamerRoutes.delete('/bots/kick/bot', botIntegrationsController.kickBotUnlink);
 streamerRoutes.patch('/bots/:provider', botIntegrationsController.patch);
 
 // Entitlements / subscription gates
 streamerRoutes.get('/entitlements/custom-bot', streamerEntitlementsController.customBot);
 
-// Bot commands CRUD
-streamerRoutes.get('/bot/commands', streamerBotController.getCommands);
-streamerRoutes.post('/bot/commands', streamerBotController.createCommand);
-streamerRoutes.patch('/bot/commands/:id', streamerBotController.patchCommand);
-streamerRoutes.delete('/bot/commands/:id', streamerBotController.deleteCommand);
-
 // Bot settings
 streamerRoutes.get('/bot/subscription', streamerBotController.subscription);
-streamerRoutes.get('/bot/follow-greetings', streamerBotController.getFollowGreetings);
-streamerRoutes.post('/bot/follow-greetings/enable', streamerBotController.enableFollowGreetings);
-streamerRoutes.post('/bot/follow-greetings/disable', streamerBotController.disableFollowGreetings);
-streamerRoutes.patch('/bot/follow-greetings', streamerBotController.patchFollowGreetings);
-
-// Smart bot command: stream duration
-streamerRoutes.get('/bot/stream-duration', streamerBotController.getStreamDuration);
-streamerRoutes.patch('/bot/stream-duration', streamerBotController.patchStreamDuration);

@@ -15,6 +15,7 @@ import {
 } from '../../../realtime/walletBridge.js';
 import type { Server } from 'socket.io';
 import { applyExternalAccount } from './applyExternalAccount.js';
+import { maybeGrantFirstUserAchievement } from '../../../services/achievements/achievementService.js';
 import { finalizeAuthResponse } from './finalizeAuthResponse.js';
 import { asRecord, buildRedirectWithError, getRedirectUrl, sanitizeRedirectTo, wantsJson } from '../utils.js';
 
@@ -276,6 +277,7 @@ export async function handleCallback(req: AuthRequest, res: Response) {
           },
           include: { wallets: true, channel: { select: safeChannelSelect } },
         });
+        await maybeGrantFirstUserAchievement(user.id);
       }
     }
     diagResolvedUserId = user?.id ?? null;

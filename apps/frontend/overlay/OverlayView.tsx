@@ -1,10 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { io, Socket } from 'socket.io-client';
+import { GetActiveEventsResponseSchema, type Event, type VoteSession, type WheelPrize } from '@memalerts/api-contracts';
 
 import { clampFloat, clampInt } from './lib/math';
 import { useOverlayParams } from './model/useOverlayParams';
 import { getSocketBaseUrl, resolveMediaUrl } from './urls';
+import { EventConfetti } from './components/EventConfetti';
+import { VoteOverlay } from './components/VoteOverlay';
+import { WheelSpinOverlay } from './components/WheelSpinOverlay';
 
 import type {
   Activation,
@@ -38,48 +42,14 @@ export default function OverlayView() {
   const ackSentRef = useRef<Set<string>>(new Set());
   const timersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const fadeTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
-
-  useEffect(() => {
-    const onMessage = (event: MessageEvent<unknown>) => {
-      // Only accept messages from same-origin parent (Admin page).
-      if (event.origin !== window.location.origin) return;
-      const data: unknown = event.data;
-      if (!data || typeof data !== 'object') return;
-      const msg = data as { type?: unknown; params?: unknown };
-      if (msg.type !== 'memalerts:overlayParams') return;
-      const params = msg.params as Record<string, unknown>;
-      if (!params || typeof params !== 'object') return;
-      const next: Record<string, string> = {};
-      for (const [k, v] of Object.entries(params)) {
-        if (typeof v === 'string') next[k] = v;
-      }
-      setLiveParams(next);
-    };
-    window.addEventListener('message', onMessage);
-    return () => window.removeEventListener('message', onMessage);
-  }, []);
-
-  // Handshake: notify parent (settings page) that the overlay is ready to receive params.
-  // Without this, the parent may postMessage on iframe load before our listener is attached,
-  // which results in "DEMO" fallback until the next user action.
-  useEffect(() => {
-    try {
-      if (window.parent && window.parent !== window) {
-        window.parent.postMessage({ type: 'memalerts:overlayReady' }, window.location.origin);
-      }
-    } catch {
-      // ignore
-    }
-  }, []);
-
-  const getParam = useCallback(
-    (key: string): string | null => {
-      const v = liveParams[key];
-      if (typeof v === 'string') return v;
-      return searchParams.get(key);
-    },
-    [liveParams, searchParams]
-  );
+  const [voteSession, setVoteSession] = useState<VoteSession | null>(null);
+  const [showVote, setShowVote] = useState(false);
+  const [lastSpin, setLastSpin] = useState<{ id: string; displayName: string | null; prize: WheelPrize } | null>(null);
+  const [activeEvent, setActiveEvent] = useState<Event | null>(null);
+  const [eventBurstKey, setEventBurstKey] = useState(0);
+  const activeEventRef = useRef<Event | null>(null);
+  const voteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const spinTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const {
     demo,
@@ -142,6 +112,86 @@ export default function OverlayView() {
     demoSeqRef,
   });
 
+  useEffect(() => {
+    const onMessage = (event: MessageEvent<unknown>) => {
+      // Only accept messages from same-origin parent (Admin page).
+      if (event.origin !== window.location.origin) return;
+      const data: unknown = event.data;
+      if (!data || typeof data !== 'object') return;
+      const msg = data as { type?: unknown; params?: unknown };
+      if (msg.type !== 'memalerts:overlayParams') return;
+      const params = msg.params as Record<string, unknown>;
+      if (!params || typeof params !== 'object') return;
+      const next: Record<string, string> = {};
+      for (const [k, v] of Object.entries(params)) {
+        if (typeof v === 'string') next[k] = v;
+      }
+      setLiveParams(next);
+    };
+    window.addEventListener('message', onMessage);
+    return () => window.removeEventListener('message', onMessage);
+  }, []);
+
+  // Handshake: notify parent (settings page) that the overlay is ready to receive params.
+  // Without this, the parent may postMessage on iframe load before our listener is attached,
+  // which results in "DEMO" fallback until the next user action.
+  useEffect(() => {
+    try {
+      if (window.parent && window.parent !== window) {
+        window.parent.postMessage({ type: 'memalerts:overlayReady' }, window.location.origin);
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (voteTimerRef.current) clearTimeout(voteTimerRef.current);
+      if (spinTimerRef.current) clearTimeout(spinTimerRef.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    activeEventRef.current = activeEvent;
+  }, [activeEvent]);
+
+  useEffect(() => {
+    if (demo) return;
+    let cancelled = false;
+
+    const loadEvents = async () => {
+      try {
+        const resp = await fetch('/public/events/active', { method: 'GET' });
+        if (!resp.ok) return;
+        const data = await resp.json();
+        const parsed = GetActiveEventsResponseSchema.safeParse(data);
+        if (!parsed.success) return;
+        if (!cancelled) {
+          setActiveEvent(parsed.data.events?.[0] ?? null);
+        }
+      } catch {
+        // ignore
+      }
+    };
+
+    void loadEvents();
+    const timer = setInterval(loadEvents, 5 * 60_000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [demo]);
+
+  const getParam = useCallback(
+    (key: string): string | null => {
+      const v = liveParams[key];
+      if (typeof v === 'string') return v;
+      return searchParams.get(key);
+    },
+    [liveParams, searchParams]
+  );
+
   const isProbablyOBS = useMemo(() => {
     const ua = (typeof navigator !== 'undefined' ? navigator.userAgent : '') || '';
     // Heuristic: OBS Browser Source typically includes "OBS" in the UA.
@@ -199,6 +249,9 @@ export default function OverlayView() {
           startTime: Date.now(),
         },
       ]);
+      if (activeEventRef.current) {
+        setEventBurstKey((k) => k + 1);
+      }
     };
 
     const toOverlayActivation = (incoming: {
@@ -237,6 +290,47 @@ export default function OverlayView() {
       const activation = toOverlayActivation(incoming);
       if (!activation) return;
       pushActivation(activation);
+    });
+
+    const showVoteUntil = (session: VoteSession | null, holdMs: number) => {
+      setVoteSession(session);
+      setShowVote(!!session);
+      if (voteTimerRef.current) clearTimeout(voteTimerRef.current);
+      if (session && holdMs > 0) {
+        voteTimerRef.current = setTimeout(() => {
+          setShowVote(false);
+        }, holdMs);
+      }
+    };
+
+    newSocket.on('vote:updated', (payload: { session?: VoteSession | null }) => {
+      const next = payload?.session ?? null;
+      if (!next) {
+        setVoteSession(null);
+        setShowVote(false);
+        return;
+      }
+      if (next.status === 'active') {
+        setVoteSession(next);
+        setShowVote(true);
+        if (voteTimerRef.current) clearTimeout(voteTimerRef.current);
+        return;
+      }
+      // Show results briefly after vote ends.
+      showVoteUntil(next, 12_000);
+    });
+
+    newSocket.on('wheel:spin', (payload: { displayName?: string | null; prize?: WheelPrize }) => {
+      if (!payload?.prize) return;
+      setLastSpin({
+        id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+        displayName: typeof payload.displayName === 'string' ? payload.displayName : null,
+        prize: payload.prize,
+      });
+      if (spinTimerRef.current) clearTimeout(spinTimerRef.current);
+      spinTimerRef.current = setTimeout(() => {
+        setLastSpin(null);
+      }, 8_000);
     });
 
     socketRef.current = newSocket;
@@ -1038,6 +1132,11 @@ export default function OverlayView() {
   ]);
 
   const renderItems = active;
+  const eventAccent = activeEvent?.theme?.accentColor || '#fbbf24';
+  const eventBadge = typeof activeEvent?.theme?.badgeKey === 'string' && activeEvent?.theme?.badgeKey
+    ? activeEvent.theme.badgeKey.toUpperCase()
+    : 'EVENT';
+  const eventRadius = Math.max(0, (radius || 20) - (border || 0) - 2);
 
   const badgeAnimStyle = useMemo<React.CSSProperties>(() => {
     const inMs = 220;
@@ -1055,7 +1154,9 @@ export default function OverlayView() {
     };
   }, [senderHoldMs]);
 
-  if (renderItems.length === 0) {
+  const hasAuxOverlay = showVote || !!lastSpin;
+
+  if (renderItems.length === 0 && !hasAuxOverlay) {
     // In demo mode, still render a background so preview isn't a blank white canvas.
     if (!demo) return null;
     return (
@@ -1107,6 +1208,11 @@ export default function OverlayView() {
           }
         `}
       </style>
+      {activeEvent && eventBurstKey > 0 ? (
+        <EventConfetti accent={eventAccent} burstKey={eventBurstKey} />
+      ) : null}
+      <VoteOverlay session={voteSession} visible={showVote} />
+      <WheelSpinOverlay spin={lastSpin} />
       {demo && showSafeGuide && safePadPx > 0 && (
         <div
           style={{
@@ -1269,6 +1375,39 @@ export default function OverlayView() {
                       DEMO
                     </div>
                   )}
+
+                  {activeEvent ? (
+                    <>
+                      <div
+                        style={{
+                          position: 'absolute',
+                          inset: 6,
+                          borderRadius: eventRadius,
+                          border: `1px solid ${eventAccent}99`,
+                          boxShadow: `0 0 14px ${eventAccent}55, inset 0 0 12px ${eventAccent}33`,
+                          pointerEvents: 'none',
+                        }}
+                      />
+                      <div
+                        style={{
+                          position: 'absolute',
+                          top: 10,
+                          right: 10,
+                          padding: '4px 10px',
+                          borderRadius: 999,
+                          background: eventAccent,
+                          color: '#0f172a',
+                          fontSize: 10,
+                          fontWeight: 800,
+                          letterSpacing: 0.8,
+                          boxShadow: '0 6px 14px rgba(0,0,0,0.35)',
+                          pointerEvents: 'none',
+                        }}
+                      >
+                        {eventBadge}
+                      </div>
+                    </>
+                  ) : null}
 
                   <div style={glassOverlayStyle} />
                   {showSender && item.senderDisplayName ? (

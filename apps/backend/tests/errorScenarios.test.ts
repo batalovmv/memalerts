@@ -8,7 +8,6 @@ import type { AuthRequest } from '../src/middleware/auth.js';
 import { createSubmissionWithRepos } from '../src/services/SubmissionService.js';
 import { fetchWithTimeout } from '../src/utils/httpTimeouts.js';
 import { registerHealthRoutes } from '../src/routes/setup/healthRoutes.js';
-import { getCreditsStateFromStore } from '../src/realtime/creditsSessionStore.js';
 import { setupShutdownHandlers } from '../src/server/shutdown.js';
 
 const prismaMock = vi.hoisted(() => ({
@@ -82,14 +81,6 @@ describe('error scenarios', () => {
     expect(res.status).toBe(503);
     expect(res.body?.status).toBe('degraded');
     expect(res.body?.checks?.database).toBe('error');
-  });
-
-  it('returns empty credits state when redis is unavailable', async () => {
-    redisClientMock.getRedisClient.mockResolvedValue(null);
-
-    const state = await getCreditsStateFromStore('credits-channel');
-
-    expect(state).toEqual({ chatters: [], donors: [] });
   });
 
   it('records timeouts when external fetch exceeds the deadline', async () => {

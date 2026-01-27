@@ -1,10 +1,16 @@
 import '@testing-library/jest-dom/vitest';
 import { configure, prettyDOM } from '@testing-library/dom';
+import { http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
 import { afterAll, afterEach, beforeAll } from 'vitest';
 
 // Overlay tests are currently lightweight, but we still enforce "no real network".
-const server = setupServer();
+const server = setupServer(
+  http.get('/public/events/active', () => HttpResponse.json({ events: [] })),
+  http.options('/public/events/active', () => new HttpResponse(null, { status: 204 })),
+  http.get('*/public/events/active', () => HttpResponse.json({ events: [] })),
+  http.options('*/public/events/active', () => new HttpResponse(null, { status: 204 }))
+);
 beforeAll(() => server.listen({ onUnhandledRequest: 'error' }));
 afterEach(() => server.resetHandlers());
 afterAll(() => server.close());
@@ -18,7 +24,6 @@ configure({
     return new Error(`${message}${hint}`);
   },
 });
-
 
 
 

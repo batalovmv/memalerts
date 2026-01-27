@@ -8,18 +8,8 @@ export type RecordAndMaybeClaimParams = {
   channelId: string;
   providerEventId: string;
   providerAccountId: string;
-  eventType:
-    | 'twitch_follow'
-    | 'twitch_subscribe'
-    | 'twitch_resub_message'
-    | 'twitch_gift_sub'
-    | 'twitch_cheer'
-    | 'twitch_raid'
-    | 'twitch_channel_points_redemption'
-    | 'twitch_chat_first_message'
-    | 'twitch_chat_messages_threshold'
-    | 'twitch_chat_daily_streak';
-  currency: 'twitch_channel_points' | 'twitch_bits' | 'twitch_units';
+  eventType: 'twitch_channel_points_redemption';
+  currency: 'twitch_channel_points';
   amount: number;
   coinsToGrant: number;
   status: 'observed' | 'eligible' | 'ignored' | 'failed';

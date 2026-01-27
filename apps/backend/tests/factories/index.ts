@@ -2,16 +2,10 @@ export { createChannel } from './channelFactory.js';
 export { createExternalAccount, createUser, createUserWithChannel } from './userFactory.js';
 export { createBetaAccess } from './betaAccessFactory.js';
 export {
-  createChatBotCommand,
   createChatBotSubscription,
-  createGlobalKickBotCredential,
-  createGlobalTrovoBotCredential,
   createGlobalTwitchBotCredential,
   createGlobalVkVideoBotCredential,
   createGlobalYouTubeBotCredential,
-  createKickBotIntegration,
-  createKickChatBotSubscription,
-  createTrovoBotIntegration,
   createTwitchBotIntegration,
   createYouTubeChatBotSubscription,
   createVkVideoBotIntegration,
@@ -25,5 +19,4 @@ export { createServiceHeartbeat } from './serviceHeartbeatFactory.js';
 export { createSubmission } from './submissionFactory.js';
 export { createWallet } from './walletFactory.js';
 export { createMemeActivation } from './memeActivationFactory.js';
-export { createYouTubeLikeRewardClaim } from './youtubeLikeRewardClaimFactory.js';
 export { createChannelDailyStats, createChannelMemeStats30d, createChannelUserStats30d } from './statsFactory.js';

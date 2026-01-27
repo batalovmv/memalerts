@@ -14,8 +14,6 @@ export type BotPatchPrepared = {
   twitchLogin?: string | null;
   twitchChannelId?: string | null;
   youtubeChannelId?: string | null;
-  trovoChannelId?: string | null;
-  kickChannelId?: string | null;
   vkvideoChannelId?: string | null;
   vkvideoChannelUrl?: string | null;
 };

@@ -305,120 +305,6 @@ export const useBotIntegrations = () => {
     [loadBotIntegrations, t]
   );
 
-  const toggleTrovoIntegration = useCallback(
-    async (nextEnabled: boolean) => {
-      const startedAt = Date.now();
-      let optimisticItems: StreamerBotIntegration[] | null = null;
-      try {
-        setBotIntegrationToggleLoading('trovo');
-        const { api } = await import('@/lib/api');
-
-        setBots((prev) => {
-          const next = prev.map((b) => (b.provider === 'trovo' ? { ...b, enabled: nextEnabled } : b));
-          optimisticItems = next;
-          return next;
-        });
-
-        await api.patch('/streamer/bots/trovo', { enabled: nextEnabled });
-        toast.success(t('admin.saved', { defaultValue: 'Saved.' }));
-        try {
-          if (optimisticItems) {
-            sessionStorage.setItem('memalerts:botSettings:bots', JSON.stringify({ at: Date.now(), items: optimisticItems }));
-          }
-        } catch {
-          // ignore cache write
-        }
-        void loadBotIntegrations();
-      } catch (error: unknown) {
-        void loadBotIntegrations();
-        const apiError = error as { response?: { status?: number; data?: { error?: string } } };
-        const code = String((apiError.response?.data as { code?: unknown } | undefined)?.code || '');
-        if (apiError.response?.status === 503 && code === 'TROVO_BOT_NOT_CONFIGURED') {
-          toast.error(
-            t('admin.trovoBotNotConfigured', {
-              defaultValue:
-                'Нужен отправитель сообщений: подключите своего бота или попросите админа подключить дефолтного.',
-            })
-          );
-          return;
-        }
-        if (apiError.response?.status === 404) {
-          toast.error(t('admin.featureNotAvailable', { defaultValue: 'Feature not available on this server yet.' }));
-          return;
-        }
-        try {
-          const { getRequestIdFromError } = await import('@/lib/api');
-          const rid = getRequestIdFromError(error);
-          const msg = apiError.response?.data?.error || t('admin.failedToSave', { defaultValue: 'Failed to save.' });
-          toast.error(rid ? `${msg} (${t('common.errorId', { defaultValue: 'Error ID' })}: ${rid})` : msg);
-        } catch {
-          toast.error(apiError.response?.data?.error || t('admin.failedToSave', { defaultValue: 'Failed to save.' }));
-        }
-      } finally {
-        await ensureMinDuration(startedAt, 450);
-        setBotIntegrationToggleLoading(null);
-      }
-    },
-    [loadBotIntegrations, t]
-  );
-
-  const toggleKickIntegration = useCallback(
-    async (nextEnabled: boolean) => {
-      const startedAt = Date.now();
-      let optimisticItems: StreamerBotIntegration[] | null = null;
-      try {
-        setBotIntegrationToggleLoading('kick');
-        const { api } = await import('@/lib/api');
-
-        setBots((prev) => {
-          const next = prev.map((b) => (b.provider === 'kick' ? { ...b, enabled: nextEnabled } : b));
-          optimisticItems = next;
-          return next;
-        });
-
-        await api.patch('/streamer/bots/kick', { enabled: nextEnabled });
-        toast.success(t('admin.saved', { defaultValue: 'Saved.' }));
-        try {
-          if (optimisticItems) {
-            sessionStorage.setItem('memalerts:botSettings:bots', JSON.stringify({ at: Date.now(), items: optimisticItems }));
-          }
-        } catch {
-          // ignore cache write
-        }
-        void loadBotIntegrations();
-      } catch (error: unknown) {
-        void loadBotIntegrations();
-        const apiError = error as { response?: { status?: number; data?: { error?: string } } };
-        const code = String((apiError.response?.data as { code?: unknown } | undefined)?.code || '');
-        if (apiError.response?.status === 503 && code === 'KICK_BOT_NOT_CONFIGURED') {
-          toast.error(
-            t('admin.kickBotNotConfigured', {
-              defaultValue:
-                'Нужен отправитель сообщений: подключите своего бота или попросите админа подключить дефолтного.',
-            })
-          );
-          return;
-        }
-        if (apiError.response?.status === 404) {
-          toast.error(t('admin.featureNotAvailable', { defaultValue: 'Feature not available on this server yet.' }));
-          return;
-        }
-        try {
-          const { getRequestIdFromError } = await import('@/lib/api');
-          const rid = getRequestIdFromError(error);
-          const msg = apiError.response?.data?.error || t('admin.failedToSave', { defaultValue: 'Failed to save.' });
-          toast.error(rid ? `${msg} (${t('common.errorId', { defaultValue: 'Error ID' })}: ${rid})` : msg);
-        } catch {
-          toast.error(apiError.response?.data?.error || t('admin.failedToSave', { defaultValue: 'Failed to save.' }));
-        }
-      } finally {
-        await ensureMinDuration(startedAt, 450);
-        setBotIntegrationToggleLoading(null);
-      }
-    },
-    [loadBotIntegrations, t]
-  );
-
   const botsMap = useMemo(() => new Map(bots.map((b) => [b.provider, b])), [bots]);
   const yt = botsMap.get('youtube');
   const ytEnabled = yt?.enabled === true;
@@ -426,12 +312,6 @@ export const useBotIntegrations = () => {
   const vk = botsMap.get('vkvideo');
   const vkEnabled = vk?.enabled === true;
   const vkBusy = botIntegrationToggleLoading === 'vkvideo';
-  const trovo = botsMap.get('trovo');
-  const trovoEnabled = trovo?.enabled === true;
-  const trovoBusy = botIntegrationToggleLoading === 'trovo';
-  const kick = botsMap.get('kick');
-  const kickEnabled = kick?.enabled === true;
-  const kickBusy = botIntegrationToggleLoading === 'kick';
 
   return {
     bots,
@@ -446,15 +326,9 @@ export const useBotIntegrations = () => {
     ytBusy,
     vkEnabled,
     vkBusy,
-    trovoEnabled,
-    trovoBusy,
-    kickEnabled,
-    kickBusy,
     loadBotIntegrations,
     toggleBotIntegration,
     toggleVkvideoIntegration,
-    toggleTrovoIntegration,
-    toggleKickIntegration,
   };
 };
 

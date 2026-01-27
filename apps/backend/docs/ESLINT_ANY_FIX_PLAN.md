@@ -188,7 +188,6 @@ export function createMockRequest(overrides: Partial<Request> = {}): Request {
 | `src/controllers/viewer/search.ts` | ~35 | Zod schemas |
 | `src/controllers/viewer/activation.ts` | ~15 | Error handling |
 | `src/controllers/viewer/stats.ts` | ~14 | Prisma types |
-| `src/controllers/viewer/boostyAccess.ts` | ~10 | API types |
 
 **Команда для проверки:**
 ```bash
@@ -214,8 +213,6 @@ pnpm lint 2>&1 | grep "src/controllers/viewer" | wc -l
 | `src/utils/vkvideoApi.ts` | ~30 | API response types |
 | `src/utils/webhookController.ts` | ~70 | Event types |
 | `src/utils/twitchApi.ts` | ~24 | API types |
-| `src/utils/kickApi.ts` | ~17 | |
-| `src/utils/boostyApi.ts` | ~12 | |
 
 ---
 
@@ -375,4 +372,3 @@ pnpm lint -- --max-warnings 0
 
 *Создано: 2026-01-18*  
 *Статус: ✅ Выполнено 2026-01-18*
-
