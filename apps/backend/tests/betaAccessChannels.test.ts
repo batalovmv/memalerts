@@ -29,7 +29,7 @@ describe('beta/prod routing: GET /channels/:slug', () => {
     process.env = originalEnv;
   });
 
-  it('production is public; beta is gated (guest 403, user without access 403, user with access 200)', async () => {
+  it('production is public; beta allows public reads (guest + any user -> 200)', async () => {
     const slug = `chan_${Date.now()}`;
     await createChannel({ slug, name: 'Test Channel' });
 
@@ -39,21 +39,21 @@ describe('beta/prod routing: GET /channels/:slug', () => {
     expect(res.status).toBe(200);
     expect(res.body?.slug).toBe(slug);
 
-    // Beta: guest forbidden (even though channel exists)
+    // Beta: guest can read (public channel page must work)
     process.env.DOMAIN = 'beta.example.com';
     res = await request(makeApp()).get(`/channels/${slug}?includeMemes=false`).set('Host', 'beta.example.com');
-    expect(res.status).toBe(403);
-    expect(res.body?.errorCode).toBe('BETA_ACCESS_REQUIRED');
+    expect(res.status).toBe(200);
+    expect(res.body?.slug).toBe(slug);
 
-    // Beta: authenticated but no beta access -> 403
+    // Beta: authenticated but no beta access -> still 200 for public reads
     const userNo = await createUser({ displayName: 'NoAccess', role: 'viewer', hasBetaAccess: false });
     const tokenNo = makeJwt({ userId: userNo.id, role: userNo.role });
     res = await request(makeApp())
       .get(`/channels/${slug}?includeMemes=false`)
       .set('Host', 'beta.example.com')
       .set('Cookie', [`token_beta=${encodeURIComponent(tokenNo)}`]);
-    expect(res.status).toBe(403);
-    expect(res.body?.errorCode).toBe('BETA_ACCESS_REQUIRED');
+    expect(res.status).toBe(200);
+    expect(res.body?.slug).toBe(slug);
 
     // Beta: authenticated with beta access -> 200
     const userYes = await createUser({ displayName: 'HasAccess', role: 'viewer', hasBetaAccess: true });

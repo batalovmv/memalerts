@@ -14,7 +14,7 @@ function makeApp() {
   return app;
 }
 
-describe('beta gating: public endpoints remain public; non-public endpoints are blocked for guests', () => {
+describe('beta gating: public endpoints remain public; read-only endpoints stay public on beta', () => {
   const originalEnv = { ...process.env };
 
   beforeEach(() => {
@@ -44,19 +44,16 @@ describe('beta gating: public endpoints remain public; non-public endpoints are 
     expect(Array.isArray(res.body)).toBe(true);
   });
 
-  it('on beta, guest is blocked from public-on-prod endpoints', async () => {
+  it('on beta, guest can access read-only endpoints used by public pages', async () => {
     const host = 'beta.example.com';
 
     let res = await request(makeApp()).get('/memes/stats').set('Host', host);
-    expect(res.status).toBe(403);
-    expect(res.body?.errorCode).toBe('BETA_ACCESS_REQUIRED');
+    expect(res.status).toBe(200);
 
     res = await request(makeApp()).get('/memes/pool').set('Host', host);
-    expect(res.status).toBe(403);
-    expect(res.body?.errorCode).toBe('BETA_ACCESS_REQUIRED');
+    expect(res.status).toBe(200);
 
     res = await request(makeApp()).get('/channels/memes/search?q=x').set('Host', host);
-    expect(res.status).toBe(403);
-    expect(res.body?.errorCode).toBe('BETA_ACCESS_REQUIRED');
+    expect(res.status).toBe(200);
   });
 });
