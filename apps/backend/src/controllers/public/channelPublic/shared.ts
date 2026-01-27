@@ -6,6 +6,7 @@ import type { PaginationError } from '../../../utils/pagination.js';
 import type { toPublicChannelMemeListItemDto } from '../dto/publicChannelMemeListItemDto.js';
 import { buildCooldownPayload } from '../../viewer/channelMemeListDto.js';
 import { safeDecodeCursor } from '../../../utils/pagination.js';
+import type { EconomySnapshot } from '../../../services/economy/economyService.js';
 
 export const CURSOR_SENTINELS = new Set(['', 'null', 'undefined', 'start', 'initial']);
 export const LEGACY_DEFAULT_LIMIT = 30;
@@ -26,8 +27,12 @@ export type PublicChannelResponse = {
   submissionRewardOnlyWhenLive: boolean;
   submissionsEnabled: boolean;
   submissionsOnlyWhenLive: boolean;
+  wheelEnabled: boolean;
+  wheelPaidSpinCostCoins: number | null;
+  wheelPrizeMultiplier: number | null;
   owner: ChannelOwner | null;
   stats: { memesCount: number; usersCount: number };
+  economy?: EconomySnapshot;
   memes?: PublicChannelMemeListItem[];
   memesPage?: { limit: number; offset: number; returned: number; total: number };
 };

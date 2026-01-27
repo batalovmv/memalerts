@@ -76,20 +76,6 @@ async function main() {
           .count({ where: failedWhere })
           .then((failed) => ({ platform: 'vkvideo', pending, failed }))
       ),
-    prisma.trovoChatBotOutboxMessage
-      .count({ where: pendingWhere })
-      .then((pending) =>
-        prisma.trovoChatBotOutboxMessage
-          .count({ where: failedWhere })
-          .then((failed) => ({ platform: 'trovo', pending, failed }))
-      ),
-    prisma.kickChatBotOutboxMessage
-      .count({ where: pendingWhere })
-      .then((pending) =>
-        prisma.kickChatBotOutboxMessage
-          .count({ where: failedWhere })
-          .then((failed) => ({ platform: 'kick', pending, failed }))
-      ),
   ]);
 
   for (const row of platformCounts) {

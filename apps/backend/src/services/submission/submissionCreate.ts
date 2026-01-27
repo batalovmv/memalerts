@@ -5,7 +5,7 @@ import { ZodError } from 'zod';
 import { createSubmissionSchema } from '../../shared/schemas.js';
 import type { ApiError } from '../../shared/apiError.js';
 import type { SubmissionDeps } from './submissionTypes.js';
-import { getStreamDurationSnapshot } from '../../realtime/streamDurationStore.js';
+import { getStreamStatusSnapshot } from '../../realtime/streamStatusStore.js';
 import { logger } from '../../utils/logger.js';
 import { debugLog } from '../../utils/debug.js';
 import { decrementFileHashReference } from '../../utils/fileHash.js';
@@ -145,7 +145,7 @@ export const createSubmissionWithRepos = async (deps: SubmissionDeps, req: AuthR
 
   if (channel.submissionsOnlyWhenLive) {
     const slug = channel.slug.toLowerCase();
-    const snap = await getStreamDurationSnapshot(slug);
+    const snap = await getStreamStatusSnapshot(slug);
     if (snap.status !== 'online') {
       return res.status(403).json({
         error: 'Submissions are allowed only while the stream is live',

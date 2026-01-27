@@ -12,12 +12,6 @@ import {
 } from '../channelMemeListDto.js';
 import { buildChannelMemeVisibilityFilter, buildMemeAssetVisibilityFilter, applyViewerMemeState, loadViewerMemeState } from '../memeViewerState.js';
 import { sendSearchResponse, type PoolAssetRow, type ChannelMemeRow, type SearchContext } from './searchShared.js';
-import {
-  applyDynamicPricingToItems,
-  collectChannelMemeIds,
-  loadDynamicPricingSnapshot,
-  normalizeDynamicPricingSettings,
-} from '../../../services/meme/dynamicPricing.js';
 
 type SearchRowsResult = {
   items: Array<ChannelMemeListItemDto | Record<string, unknown>>;
@@ -101,7 +95,7 @@ function applyChannelSearchFilters(where: Prisma.ChannelMemeWhereInput, ctx: Sea
   if (ctx.tagsStr) {
     const tagNames = parseTagNames(ctx.tagsStr);
     if (tagNames.length > 0) {
-      where.AND = tagNames.map((tag) => ({
+      where.AND = tagNames.map((tag: string) => ({
         tags: { some: { tag: { name: { contains: tag, mode: 'insensitive' } } } },
       }));
     }
@@ -112,7 +106,7 @@ function applyPoolSearchFilters(where: Prisma.MemeAssetWhereInput, ctx: SearchCo
   if (ctx.tagsStr) {
     const tagNames = parseTagNames(ctx.tagsStr);
     if (tagNames.length > 0) {
-      where.AND = tagNames.map((tag) => ({ aiSearchText: { contains: tag, mode: 'insensitive' } }));
+      where.AND = tagNames.map((tag: string) => ({ aiSearchText: { contains: tag, mode: 'insensitive' } }));
     }
   }
 
@@ -159,13 +153,7 @@ async function attachViewerState(ctx: SearchContext, items: Array<Record<string,
   });
   const withState = applyViewerMemeState(items, state);
   if (!ctx.targetChannelId) return withState;
-  const settings = normalizeDynamicPricingSettings(ctx.targetChannel ?? null);
-  const snapshot = await loadDynamicPricingSnapshot({
-    channelId: ctx.targetChannelId,
-    channelMemeIds: collectChannelMemeIds(withState),
-    settings,
-  });
-  return applyDynamicPricingToItems(withState, snapshot);
+  return withState;
 }
 
 async function buildChannelItems(

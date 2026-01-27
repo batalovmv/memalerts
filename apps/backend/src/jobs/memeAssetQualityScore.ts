@@ -127,7 +127,7 @@ export function startMemeAssetQualityScoreScheduler(): void {
 
   const intervalRaw = parseInt(String(process.env.QUALITY_SCORE_INTERVAL_MS || ''), 10);
   const initialDelayRaw = parseInt(String(process.env.QUALITY_SCORE_INITIAL_DELAY_MS || ''), 10);
-  const intervalMs = clampInt(intervalRaw, 60_000, 24 * 60 * 60 * 1000, 6 * 60 * 60 * 1000);
+  const intervalMs = clampInt(intervalRaw, 60_000, 24 * 60 * 60 * 1000, 24 * 60 * 60 * 1000);
   const initialDelayMs = clampInt(initialDelayRaw, 0, 60 * 60 * 1000, 60_000);
 
   let running = false;

@@ -11,7 +11,6 @@ import {
   mockStreamerBotSubscription,
   mockStreamerBots,
   mockStreamerCustomBotEntitlement,
-  mockStreamerFollowGreetings,
 } from '@/test/msw/handlers';
 import { http, HttpResponse } from 'msw';
 import { makeStreamerUser } from '@/test/fixtures/user';
@@ -51,15 +50,8 @@ describe('BotSettings (integration)', () => {
     server.use(
       mockStreamerBotSubscription({ enabled: true }),
       mockStreamerCustomBotEntitlement({ entitled: true }),
-      mockStreamerFollowGreetings({ followGreetingsEnabled: false, followGreetingTemplate: '' }),
       mockStreamerBots([{ provider: 'youtube', enabled: false }, { provider: 'vkvideo', enabled: false }, { provider: 'twitch', enabled: false }]),
       mockStreamerBotOverrideStatus('youtube', { enabled: false, updatedAt: null, externalAccountId: null, lockedBySubscription: false }),
-      http.options('*/streamer/bot/commands', () => new HttpResponse(null, { status: 204 })),
-      http.get('*/streamer/bot/commands', () => HttpResponse.json({ items: [] })),
-      http.options('*/streamer/bot/stream-duration', () => new HttpResponse(null, { status: 204 })),
-      http.get('*/streamer/bot/stream-duration', () =>
-        HttpResponse.json({ enabled: false, trigger: '!time', responseTemplate: '', breakCreditMinutes: 60, onlyWhenLive: false }),
-      ),
       http.patch('*/streamer/bots/youtube', () => HttpResponse.json({ ok: true }))
     );
 
@@ -95,19 +87,12 @@ describe('BotSettings (integration)', () => {
     server.use(
       mockStreamerBotSubscription({ enabled: true }),
       mockStreamerCustomBotEntitlement({ entitled: true }),
-      mockStreamerFollowGreetings({ followGreetingsEnabled: false, followGreetingTemplate: '' }),
       http.get('*/streamer/bots', () =>
         HttpResponse.json({
           bots: [{ provider: 'youtube', enabled: true, useDefaultBot: true, customBotLinked: true, customBotDisplayName: 'YT' }],
         })
       ),
       mockStreamerBotOverrideStatus('youtube', { enabled: false, updatedAt: null, externalAccountId: null, lockedBySubscription: false }),
-      http.options('*/streamer/bot/commands', () => new HttpResponse(null, { status: 204 })),
-      http.get('*/streamer/bot/commands', () => HttpResponse.json({ items: [] })),
-      http.options('*/streamer/bot/stream-duration', () => new HttpResponse(null, { status: 204 })),
-      http.get('*/streamer/bot/stream-duration', () =>
-        HttpResponse.json({ enabled: false, trigger: '!time', responseTemplate: '', breakCreditMinutes: 60, onlyWhenLive: false })
-      ),
     );
 
     renderWithProviders(<BotSettings />, {
@@ -135,16 +120,8 @@ describe('BotSettings (integration)', () => {
     server.use(
       mockStreamerBotSubscription({ enabled: true }),
       mockStreamerCustomBotEntitlement({ entitled: true }),
-      mockStreamerFollowGreetings({ followGreetingsEnabled: false, followGreetingTemplate: '' }),
       mockStreamerBots([{ provider: 'youtube', enabled: false }, { provider: 'vkvideo', enabled: false }, { provider: 'twitch', enabled: false }]),
       mockStreamerBotOverrideStatus('youtube', { enabled: false, updatedAt: null, externalAccountId: null, lockedBySubscription: false }),
-      // BotSettings may prefetch these on mount (depending on feature flags / backend):
-      http.options('*/streamer/bot/commands', () => new HttpResponse(null, { status: 204 })),
-      http.get('*/streamer/bot/commands', () => HttpResponse.json({ items: [] })),
-      http.options('*/streamer/bot/stream-duration', () => new HttpResponse(null, { status: 204 })),
-      http.get('*/streamer/bot/stream-duration', () =>
-        HttpResponse.json({ enabled: false, trigger: '!time', responseTemplate: '', breakCreditMinutes: 60, onlyWhenLive: false }),
-      ),
       // PATCH integration toggle
       http.patch('*/streamer/bots/youtube', async ({ request }) => {
         const body = (await request.json().catch(() => null)) as unknown;

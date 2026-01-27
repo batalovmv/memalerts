@@ -36,12 +36,6 @@ import {
 } from '../../viewer/cache.js';
 import { nsKey, redisGetString, redisSetStringEx } from '../../../utils/redisCache.js';
 import { parseQueryBool } from '../../../shared/utils/queryParsers.js';
-import {
-  applyDynamicPricingToItems,
-  collectChannelMemeIds,
-  loadDynamicPricingSnapshot,
-  normalizeDynamicPricingSettings,
-} from '../../../services/meme/dynamicPricing.js';
 
 export const getPublicChannelMemes = async (req: AuthRequest, res: Response) => {
   const query = req.query as PublicChannelMemesQuery;
@@ -89,9 +83,6 @@ export const getPublicChannelMemes = async (req: AuthRequest, res: Response) => 
       id: true,
       memeCatalogMode: true,
       defaultPriceCoins: true,
-      dynamicPricingEnabled: true,
-      dynamicPricingMinMult: true,
-      dynamicPricingMaxMult: true,
     },
   });
   if (!channel)
@@ -239,19 +230,6 @@ export const getPublicChannelMemes = async (req: AuthRequest, res: Response) => 
         return tags && tags.length > 0 ? { ...item, tags } : item;
       });
     }
-    if (items.length > 0) {
-      const dynamicSettings = normalizeDynamicPricingSettings(channel);
-      const snapshot = await loadDynamicPricingSnapshot({
-        channelId: channel.id,
-        channelMemeIds: collectChannelMemeIds(items as Array<Record<string, unknown>>),
-        settings: dynamicSettings,
-      });
-      items = applyDynamicPricingToItems(
-        items as Array<Record<string, unknown>>,
-        snapshot
-      ) as PublicChannelMemeListItem[];
-    }
-
     try {
       const body = JSON.stringify(items);
       const etag = makeEtagFromString(body);
@@ -383,19 +361,6 @@ export const getPublicChannelMemes = async (req: AuthRequest, res: Response) => 
         where: buildChannelMemeWhere(channel.id),
       });
     }
-  }
-
-  if (items.length > 0) {
-    const dynamicSettings = normalizeDynamicPricingSettings(channel);
-    const snapshot = await loadDynamicPricingSnapshot({
-      channelId: channel.id,
-      channelMemeIds: collectChannelMemeIds(items as Array<Record<string, unknown>>),
-      settings: dynamicSettings,
-    });
-    items = applyDynamicPricingToItems(
-      items as Array<Record<string, unknown>>,
-      snapshot
-    ) as PublicChannelMemeListItem[];
   }
 
   const nextCursor = hasMore && items.length > 0 ? encodeCursorFromItem(items[items.length - 1], cursorSchema) : null;

@@ -11,6 +11,7 @@ import { assertChannelOwner } from '../../utils/accessControl.js';
 import { logAdminAction } from '../../utils/auditLogger.js';
 import { getErrorMessage } from './submissionShared.js';
 import { evaluateAndApplySpamBan } from '../spamBan.js';
+import { prisma } from '../../lib/prisma.js';
 export const rejectSubmissionWithRepos = async (deps: AdminSubmissionDeps, req: AuthRequest, res: Response) => {
   const { channels, submissions } = deps;
   const { id } = req.params;
@@ -58,6 +59,25 @@ export const rejectSubmissionWithRepos = async (deps: AdminSubmissionDeps, req: 
         moderatorNotes: body.moderatorNotes || null,
       },
     });
+
+    if (submission.submitterUserId) {
+      try {
+        await prisma.channelSubmissionStreak.update({
+          where: { channelId_userId: { channelId: submission.channelId, userId: submission.submitterUserId } },
+          data: { streakCount: 0, lastRejectedAt: new Date() },
+        });
+      } catch {
+        // Best-effort: streak row may not exist yet.
+        await prisma.channelSubmissionStreak.create({
+          data: {
+            channelId: submission.channelId,
+            userId: submission.submitterUserId,
+            streakCount: 0,
+            lastRejectedAt: new Date(),
+          },
+        }).catch(() => {});
+      }
+    }
 
     // Don't delete file on reject - keep it for potential future use
 

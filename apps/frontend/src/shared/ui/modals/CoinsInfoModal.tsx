@@ -84,14 +84,44 @@ export default function CoinsInfoModal({ rewardTitle }: CoinsInfoModalProps) {
 
       <div className="space-y-3 text-gray-700 dark:text-gray-300">
         <p>
-          {rewardTitle
-            ? t(
-                'coinsInfoModal.descriptionWithReward',
-                `Activate the reward "${rewardTitle}" on the streamer's Twitch channel to get coins.`,
-                { rewardTitle },
-              )
-            : t('coinsInfoModal.description', "Activate the reward on the streamer's Twitch channel to get coins.")}
+          {t('coinsInfoModal.mainIntro', {
+            defaultValue: 'Earn coins in several ways on each channel:',
+          })}
         </p>
+
+        <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-400 list-disc pl-5">
+          <li>
+            {t('coinsInfoModal.dailyBonus', { defaultValue: 'Daily bonus on the channel page.' })}
+          </li>
+          <li>
+            {t('coinsInfoModal.watchBonus', {
+              defaultValue: '“I’m watching” bonus while the stream is live (cooldown applies).',
+            })}
+          </li>
+          <li>
+            {t('coinsInfoModal.approvedBonus', {
+              defaultValue: 'Approved memes: base + bonus from the streamer.',
+            })}
+          </li>
+          <li>
+            {t('coinsInfoModal.activationBonus', {
+              defaultValue: 'When your meme is activated, you get 10% back.',
+            })}
+          </li>
+          <li>
+            {t('coinsInfoModal.startBonus', { defaultValue: 'Start bonus when you join a channel.' })}
+          </li>
+          <li>
+            {rewardTitle
+              ? t(
+                  'coinsInfoModal.rewardWithTitle',
+                  `Activate the reward “${rewardTitle}” on the streamer’s Twitch channel.`,
+                  { rewardTitle },
+                )
+              : t('coinsInfoModal.rewardGeneric', 'Activate the Twitch reward on the streamer’s channel.')}
+          </li>
+        </ul>
+
         <p className="text-sm text-gray-600 dark:text-gray-400">
           {t('coinsInfoModal.afterActivation', 'After activation, coins will appear in your balance.')}
         </p>
@@ -107,5 +137,4 @@ export default function CoinsInfoModal({ rewardTitle }: CoinsInfoModalProps) {
     </Modal>
   );
 }
-
 

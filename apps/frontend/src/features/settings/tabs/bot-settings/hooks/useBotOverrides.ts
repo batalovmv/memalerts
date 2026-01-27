@@ -9,7 +9,7 @@ import { getRuntimeConfig } from '@/shared/config/runtimeConfig';
 import { ensureMinDuration } from '@/shared/lib/ensureMinDuration';
 
 type UseBotOverridesOptions = {
-  botTab: 'commands' | 'twitch' | 'youtube' | 'vk' | 'trovo' | 'kick';
+  botTab: 'twitch' | 'youtube' | 'vk';
 };
 
 export const useBotOverrides = ({ botTab }: UseBotOverridesOptions) => {
@@ -18,10 +18,10 @@ export const useBotOverrides = ({ botTab }: UseBotOverridesOptions) => {
   const [customBotEntitlement, setCustomBotEntitlement] = useState<CustomBotEntitlementStatus>('unknown');
   const [subscriptionRequiredModalOpen, setSubscriptionRequiredModalOpen] = useState(false);
   const [subscriptionRequiredModalProvider, setSubscriptionRequiredModalProvider] = useState<
-    'twitch' | 'youtube' | 'vkvideo' | 'trovo' | 'kick' | null
+    'twitch' | 'youtube' | 'vkvideo' | null
   >(null);
   const [oauthSubscriptionRequiredBanner, setOauthSubscriptionRequiredBanner] = useState<{
-    provider: 'twitch' | 'youtube' | 'vkvideo' | 'trovo' | 'kick';
+    provider: 'twitch' | 'youtube' | 'vkvideo';
   } | null>(null);
 
   const [youtubeOverrideStatus, setYoutubeOverrideStatus] = useState<OverrideStatus | null>(null);
@@ -33,19 +33,13 @@ export const useBotOverrides = ({ botTab }: UseBotOverridesOptions) => {
   const [vkvideoOverrideStatus, setVkvideoOverrideStatus] = useState<OverrideStatus | null>(null);
   const [vkvideoOverrideLoading, setVkvideoOverrideLoading] = useState(false);
   const [vkvideoOverrideBusy, setVkvideoOverrideBusy] = useState(false);
-  const [trovoOverrideStatus, setTrovoOverrideStatus] = useState<OverrideStatus | null>(null);
-  const [trovoOverrideLoading, setTrovoOverrideLoading] = useState(false);
-  const [trovoOverrideBusy, setTrovoOverrideBusy] = useState(false);
-  const [kickOverrideStatus, setKickOverrideStatus] = useState<OverrideStatus | null>(null);
-  const [kickOverrideLoading, setKickOverrideLoading] = useState(false);
-  const [kickOverrideBusy, setKickOverrideBusy] = useState(false);
 
   const billingUrl = useMemo(() => {
     const v = getRuntimeConfig()?.billingUrl;
     return typeof v === 'string' && v.trim() ? v.trim() : null;
   }, []);
 
-  const showSubscriptionRequiredModal = useCallback((provider: 'twitch' | 'youtube' | 'vkvideo' | 'trovo' | 'kick') => {
+  const showSubscriptionRequiredModal = useCallback((provider: 'twitch' | 'youtube' | 'vkvideo') => {
     setSubscriptionRequiredModalProvider(provider);
     setSubscriptionRequiredModalOpen(true);
   }, []);
@@ -79,9 +73,9 @@ export const useBotOverrides = ({ botTab }: UseBotOverridesOptions) => {
       const url = new URL(window.location.href);
       const reason = url.searchParams.get('reason');
       const provider = (url.searchParams.get('provider') || '').toLowerCase();
-      const isProvider = provider === 'twitch' || provider === 'youtube' || provider === 'vkvideo' || provider === 'trovo' || provider === 'kick';
+      const isProvider = provider === 'twitch' || provider === 'youtube' || provider === 'vkvideo';
       if (reason === 'subscription_required' && isProvider) {
-        setOauthSubscriptionRequiredBanner({ provider: provider as 'twitch' | 'youtube' | 'vkvideo' | 'trovo' | 'kick' });
+        setOauthSubscriptionRequiredBanner({ provider: provider as 'twitch' | 'youtube' | 'vkvideo' });
         url.searchParams.delete('error');
         url.searchParams.delete('reason');
         url.searchParams.delete('provider');
@@ -175,58 +169,8 @@ export const useBotOverrides = ({ botTab }: UseBotOverridesOptions) => {
     void loadVkvideoOverride();
   }, [botTab, loadVkvideoOverride]);
 
-  const loadTrovoOverride = useCallback(async () => {
-    try {
-      setTrovoOverrideLoading(true);
-      const { api } = await import('@/lib/api');
-      const res = await api.get<unknown>('/streamer/bots/trovo/bot', { timeout: 8000 });
-      const enabled = Boolean((res as { enabled?: unknown } | null)?.enabled);
-      const updatedAtRaw = (res as { updatedAt?: unknown } | null)?.updatedAt;
-      const updatedAt = typeof updatedAtRaw === 'string' ? updatedAtRaw : null;
-      const externalAccountIdRaw = (res as { externalAccountId?: unknown } | null)?.externalAccountId;
-      const externalAccountId = typeof externalAccountIdRaw === 'string' ? externalAccountIdRaw : null;
-      const lockedRaw = (res as { lockedBySubscription?: unknown } | null)?.lockedBySubscription;
-      const lockedBySubscription = typeof lockedRaw === 'boolean' ? lockedRaw : null;
-      setTrovoOverrideStatus({ enabled, updatedAt, externalAccountId, lockedBySubscription });
-    } catch {
-      setTrovoOverrideStatus(null);
-    } finally {
-      setTrovoOverrideLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (botTab !== 'trovo') return;
-    void loadTrovoOverride();
-  }, [botTab, loadTrovoOverride]);
-
-  const loadKickOverride = useCallback(async () => {
-    try {
-      setKickOverrideLoading(true);
-      const { api } = await import('@/lib/api');
-      const res = await api.get<unknown>('/streamer/bots/kick/bot', { timeout: 8000 });
-      const enabled = Boolean((res as { enabled?: unknown } | null)?.enabled);
-      const updatedAtRaw = (res as { updatedAt?: unknown } | null)?.updatedAt;
-      const updatedAt = typeof updatedAtRaw === 'string' ? updatedAtRaw : null;
-      const externalAccountIdRaw = (res as { externalAccountId?: unknown } | null)?.externalAccountId;
-      const externalAccountId = typeof externalAccountIdRaw === 'string' ? externalAccountIdRaw : null;
-      const lockedRaw = (res as { lockedBySubscription?: unknown } | null)?.lockedBySubscription;
-      const lockedBySubscription = typeof lockedRaw === 'boolean' ? lockedRaw : null;
-      setKickOverrideStatus({ enabled, updatedAt, externalAccountId, lockedBySubscription });
-    } catch {
-      setKickOverrideStatus(null);
-    } finally {
-      setKickOverrideLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (botTab !== 'kick') return;
-    void loadKickOverride();
-  }, [botTab, loadKickOverride]);
-
   const preflightAndRedirectToOverrideLink = useCallback(
-    async (provider: 'twitch' | 'youtube' | 'vkvideo' | 'trovo' | 'kick') => {
+    async (provider: 'twitch' | 'youtube' | 'vkvideo') => {
       const apiOrigin = getApiOriginForRedirect();
       const redirectTo = provider === 'vkvideo' ? '/settings/bot/vkvideo' : `/settings/bot/${provider}`;
       const url = new URL(`${apiOrigin}/streamer/bots/${provider}/bot/link`);
@@ -349,60 +293,6 @@ export const useBotOverrides = ({ botTab }: UseBotOverridesOptions) => {
     }
   }, [loadVkvideoOverride, t, vkvideoOverrideBusy]);
 
-  const disconnectTrovoOverride = useCallback(async () => {
-    if (trovoOverrideBusy) return;
-    const confirmed = window.confirm(
-      t('admin.trovoOverrideDisconnectConfirm', { defaultValue: 'Отключить вашего Trovo-бота (override)?' })
-    );
-    if (!confirmed) return;
-
-    const startedAt = Date.now();
-    try {
-      setTrovoOverrideBusy(true);
-      const { api } = await import('@/lib/api');
-      await api.delete('/streamer/bots/trovo/bot');
-      toast.success(t('admin.saved', { defaultValue: 'Saved.' }));
-      await loadTrovoOverride();
-    } catch (e) {
-      const apiError = e as { response?: { data?: { error?: string; message?: string } } };
-      const msg =
-        apiError.response?.data?.error ||
-        apiError.response?.data?.message ||
-        t('admin.failedToSave', { defaultValue: 'Failed to save.' });
-      toast.error(msg);
-    } finally {
-      await ensureMinDuration(startedAt, 350);
-      setTrovoOverrideBusy(false);
-    }
-  }, [loadTrovoOverride, t, trovoOverrideBusy]);
-
-  const disconnectKickOverride = useCallback(async () => {
-    if (kickOverrideBusy) return;
-    const confirmed = window.confirm(
-      t('admin.kickOverrideDisconnectConfirm', { defaultValue: 'Отключить вашего Kick-бота (override)?' })
-    );
-    if (!confirmed) return;
-
-    const startedAt = Date.now();
-    try {
-      setKickOverrideBusy(true);
-      const { api } = await import('@/lib/api');
-      await api.delete('/streamer/bots/kick/bot');
-      toast.success(t('admin.saved', { defaultValue: 'Saved.' }));
-      await loadKickOverride();
-    } catch (e) {
-      const apiError = e as { response?: { data?: { error?: string; message?: string } } };
-      const msg =
-        apiError.response?.data?.error ||
-        apiError.response?.data?.message ||
-        t('admin.failedToSave', { defaultValue: 'Failed to save.' });
-      toast.error(msg);
-    } finally {
-      await ensureMinDuration(startedAt, 350);
-      setKickOverrideBusy(false);
-    }
-  }, [kickOverrideBusy, loadKickOverride, t]);
-
   return {
     billingUrl,
     subscriptionRequiredModalOpen,
@@ -425,17 +315,9 @@ export const useBotOverrides = ({ botTab }: UseBotOverridesOptions) => {
     vkvideoOverrideStatus,
     vkvideoOverrideLoading,
     vkvideoOverrideBusy,
-    trovoOverrideStatus,
-    trovoOverrideLoading,
-    trovoOverrideBusy,
-    kickOverrideStatus,
-    kickOverrideLoading,
-    kickOverrideBusy,
     disconnectYoutubeOverride,
     disconnectTwitchOverride,
     disconnectVkvideoOverride,
-    disconnectTrovoOverride,
-    disconnectKickOverride,
   };
 };
 

@@ -4,6 +4,7 @@ import request from 'supertest';
 import jwt from 'jsonwebtoken';
 
 import { prisma } from '../src/lib/prisma.js';
+import { ECONOMY_CONSTANTS } from '../src/services/economy/economyService.js';
 import { setupRoutes } from '../src/routes/index.js';
 import { createChannel, createUser, createWallet } from './factories/index.js';
 
@@ -101,7 +102,7 @@ describe('viewer wallet endpoints', () => {
     expect(res.body?.id).not.toBe('');
     expect(res.body?.userId).toBe(user.id);
     expect(res.body?.channelId).toBe(channel.id);
-    expect(res.body?.balance).toBe(0);
+    expect(res.body?.balance).toBe(ECONOMY_CONSTANTS.startBonusCoins);
 
     const stored = await prisma.wallet.findUnique({
       where: { userId_channelId: { userId: user.id, channelId: channel.id } },

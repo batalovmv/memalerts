@@ -43,28 +43,7 @@ async function fetchBatch(platform: ChatOutboxPlatform, batch: number, staleBefo
       take: batch,
     });
   }
-  if (platform === 'trovo') {
-    return await prisma.trovoChatBotOutboxMessage.findMany({
-      where: {
-        OR: [{ status: 'pending' }, { status: 'processing', processingAt: { lt: staleBefore } }],
-      },
-      select: { id: true, channelId: true },
-      orderBy: baseOrder,
-      take: batch,
-    });
-  }
-  const now = new Date();
-  return await prisma.kickChatBotOutboxMessage.findMany({
-    where: {
-      OR: [
-        { status: 'pending', nextAttemptAt: { lte: now } },
-        { status: 'processing', processingAt: { lt: staleBefore } },
-      ],
-    },
-    select: { id: true, channelId: true },
-    orderBy: baseOrder,
-    take: batch,
-  });
+  return [];
 }
 
 async function migratePlatform(platform: ChatOutboxPlatform, batch: number, maxBatches: number, staleMs: number) {
@@ -112,7 +91,7 @@ async function main() {
     60_000
   );
 
-  const platforms: ChatOutboxPlatform[] = ['twitch', 'youtube', 'vkvideo', 'trovo', 'kick'];
+  const platforms: ChatOutboxPlatform[] = ['twitch', 'youtube', 'vkvideo'];
   for (const platform of platforms) {
     await migratePlatform(platform, batch, maxBatches, staleMs);
   }

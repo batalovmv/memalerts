@@ -28,6 +28,67 @@ export const getRedirectUrl = (req?: AuthRequest, stateOrigin?: string): string 
 
 export const DEFAULT_LINK_REDIRECT = '/settings/accounts';
 
+function normalizeHost(host: string): string {
+  return host.trim().toLowerCase().replace(/:\d+$/, '');
+}
+
+function deriveBaseDomain(domain: string): string {
+  const trimmed = normalizeHost(domain);
+  return trimmed.replace(/^beta\./, '').replace(/^www\./, '');
+}
+
+function isAllowedOriginHost(hostname: string, req?: AuthRequest): boolean {
+  const host = normalizeHost(hostname);
+  if (!host) return false;
+
+  const allowed = new Set<string>();
+  const envDomain = String(process.env.DOMAIN || '').trim();
+  if (envDomain) {
+    const base = deriveBaseDomain(envDomain);
+    if (base) {
+      allowed.add(base);
+      allowed.add(`www.${base}`);
+      allowed.add(`beta.${base}`);
+    }
+  }
+
+  if (req) {
+    const reqHost = normalizeHost(req.get('host') || '');
+    if (reqHost) allowed.add(reqHost);
+  }
+
+  if (process.env.NODE_ENV !== 'production') {
+    allowed.add('localhost');
+    allowed.add('127.0.0.1');
+    allowed.add('0.0.0.0');
+  }
+
+  if (allowed.has(host)) return true;
+
+  for (const allowedHost of allowed) {
+    if (allowedHost && host.endsWith(`.${allowedHost}`)) return true;
+  }
+
+  return false;
+}
+
+export function sanitizeOrigin(input: unknown, req?: AuthRequest): string | null {
+  const raw = typeof input === 'string' ? input.trim() : '';
+  if (!raw) return null;
+
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    return null;
+  }
+
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') return null;
+  if (!isAllowedOriginHost(url.hostname, req)) return null;
+
+  return url.origin;
+}
+
 const REDIRECT_ALLOWLIST = new Set<string>([
   '/settings/accounts',
   '/settings/bot',

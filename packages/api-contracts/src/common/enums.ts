@@ -4,7 +4,9 @@ export const UserRoleSchema = z.enum(['viewer', 'streamer', 'admin']);
 
 export const MemeCatalogModeSchema = z.enum(['channel', 'pool_all']);
 
-export const BotProviderSchema = z.enum(['twitch', 'youtube', 'vkvideo', 'trovo', 'kick']);
+export const BotProviderSchema = z.enum(['twitch', 'youtube', 'vkvideo']);
+
+export const StreamProviderSchema = z.enum(['twitch', 'vkvideo', 'unknown']);
 
 export const SubmissionSourceKindSchema = z.enum(['upload', 'url', 'pool']);
 
@@ -19,6 +21,7 @@ export const SubmissionAiDecisionSchema = z.enum(['low', 'medium', 'high']);
 export type UserRole = z.infer<typeof UserRoleSchema>;
 export type MemeCatalogMode = z.infer<typeof MemeCatalogModeSchema>;
 export type BotProvider = z.infer<typeof BotProviderSchema>;
+export type StreamProvider = z.infer<typeof StreamProviderSchema>;
 export type SubmissionSourceKind = z.infer<typeof SubmissionSourceKindSchema>;
 export type MemeAssetStatus = z.infer<typeof MemeAssetStatusSchema>;
 export type SubmissionStatus = z.infer<typeof SubmissionStatusSchema>;

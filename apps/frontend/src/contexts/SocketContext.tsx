@@ -1,4 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState, ReactNode } from 'react';
+import toast from 'react-hot-toast';
+import { useTranslation } from 'react-i18next';
 import { io, Socket } from 'socket.io-client';
 
 import { getRuntimeConfig } from '../lib/runtimeConfig';
@@ -39,6 +41,7 @@ export function SocketProvider({ children }: SocketProviderProps) {
   const { user, loading } = useAppSelector((state) => state.auth);
   const userId = user?.id;
   const dispatch = useAppDispatch();
+  const { t } = useTranslation();
   const socketRef = useRef<Socket | null>(null);
   const [socket, setSocket] = useState<Socket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
@@ -237,6 +240,24 @@ export function SocketProvider({ children }: SocketProviderProps) {
       socket.off('wallet:updated', onWalletUpdated);
     };
   }, [dispatch, isConnected, userId]);
+
+  useEffect(() => {
+    const socket = socketRef.current;
+    if (!socket || !userId || !isConnected) return;
+
+    const onAchievementGranted = (data: { key?: string }) => {
+      const key = typeof data?.key === 'string' ? data.key : '';
+      if (!key) return;
+      toast.success(
+        t('achievements.toast', { defaultValue: 'Achievement unlocked: {{key}}', key }),
+      );
+    };
+
+    socket.on('achievement:granted', onAchievementGranted);
+    return () => {
+      socket.off('achievement:granted', onAchievementGranted);
+    };
+  }, [isConnected, t, userId]);
 
   // Submission/Channel realtime updates (streamer/admin scope).
   useEffect(() => {

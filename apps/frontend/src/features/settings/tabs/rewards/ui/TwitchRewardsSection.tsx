@@ -2,12 +2,10 @@ import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 
 import type { RewardSettingsState } from '@/features/settings/tabs/rewards/types';
-import type { TwitchAutoRewardsV1 } from '@memalerts/api-contracts';
 import type { Dispatch, SetStateAction } from 'react';
 
-import { AutoRewardsEditor } from '@/features/settings/tabs/rewards/TwitchAutoRewardsEditor';
 import { SettingsSection } from '@/features/settings/ui/SettingsSection';
-import { Button, HelpTooltip, Input } from '@/shared/ui';
+import { HelpTooltip, Input } from '@/shared/ui';
 import SecretCopyField from '@/shared/ui/SecretCopyField/SecretCopyField';
 import { SavedOverlay, SavingOverlay } from '@/shared/ui/StatusOverlays';
 
@@ -20,13 +18,6 @@ type TwitchRewardsSectionProps = {
   twitchRewardEligible: boolean | null;
   twitchLinked: boolean;
   lastErrorRequestId: string | null;
-  savingTwitchAutoRewards: boolean;
-  twitchAutoRewardsSavedPulse: boolean;
-  twitchAutoRewardsError: string | null;
-  twitchAutoRewardsDraft: TwitchAutoRewardsV1 | null;
-  onChangeTwitchAutoRewardsDraft: (next: TwitchAutoRewardsV1 | null) => void;
-  onSaveTwitchAutoRewards: (overrideValue?: TwitchAutoRewardsV1 | null) => void;
-  onClearTwitchAutoRewards: () => void;
 };
 
 export function TwitchRewardsSection({
@@ -38,13 +29,6 @@ export function TwitchRewardsSection({
   twitchRewardEligible,
   twitchLinked,
   lastErrorRequestId,
-  savingTwitchAutoRewards,
-  twitchAutoRewardsSavedPulse,
-  twitchAutoRewardsError,
-  twitchAutoRewardsDraft,
-  onChangeTwitchAutoRewardsDraft,
-  onSaveTwitchAutoRewards,
-  onClearTwitchAutoRewards,
 }: TwitchRewardsSectionProps) {
   const { t } = useTranslation();
 
@@ -241,41 +225,6 @@ export function TwitchRewardsSection({
         )}
       </SettingsSection>
 
-      <SettingsSection
-        title={t('admin.twitchChannelPointsMappingTitle', { defaultValue: 'Twitch Channel Points: rewardId → coins' })}
-        description={t('admin.twitchChannelPointsMappingDescription', {
-          defaultValue: 'Twitch-only mapping. Stored inside the auto-rewards JSON.',
-        })}
-        overlay={
-          <>
-            {savingTwitchAutoRewards && <SavingOverlay label={t('admin.saving', { defaultValue: 'Saving…' })} />}
-            {twitchAutoRewardsSavedPulse && !savingTwitchAutoRewards && <SavedOverlay label={t('admin.saved', { defaultValue: 'Saved' })} />}
-          </>
-        }
-        right={
-          <div className="flex items-center gap-2">
-            <Button variant="primary" size="sm" disabled={savingTwitchAutoRewards || !twitchLinked} onClick={() => onSaveTwitchAutoRewards()}>
-              {t('common.save', { defaultValue: 'Save' })}
-            </Button>
-            <Button variant="secondary" size="sm" disabled={savingTwitchAutoRewards || !twitchLinked} onClick={onClearTwitchAutoRewards}>
-              {t('common.clear', { defaultValue: 'Clear' })}
-            </Button>
-          </div>
-        }
-      >
-        {!twitchLinked && (
-          <p className="text-sm text-yellow-700 dark:text-yellow-300">
-            {t('admin.twitchChannelNotLinked', { defaultValue: 'This channel is not linked to Twitch.' })}
-          </p>
-        )}
-        {twitchAutoRewardsError && <p className="text-sm text-rose-600 dark:text-rose-300">{twitchAutoRewardsError}</p>}
-        <AutoRewardsEditor
-          value={twitchAutoRewardsDraft}
-          onChange={onChangeTwitchAutoRewardsDraft}
-          disabled={savingTwitchAutoRewards || !twitchLinked}
-          variant="channelPointsOnly"
-        />
-      </SettingsSection>
     </>
   );
 }

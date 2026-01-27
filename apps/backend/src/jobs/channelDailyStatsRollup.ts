@@ -69,7 +69,7 @@ export function startChannelDailyStatsRollupScheduler() {
 
   const effectiveDays = Number.isFinite(days) && days > 0 ? days : 45;
   const effectiveInitialDelay = Number.isFinite(initialDelayMs) ? Math.max(0, initialDelayMs) : 60_000;
-  const effectiveInterval = Number.isFinite(intervalMs) ? Math.max(60_000, intervalMs) : 5 * 60_000;
+  const effectiveInterval = Number.isFinite(intervalMs) ? Math.max(60_000, intervalMs) : 60 * 60_000;
 
   let running = false;
 

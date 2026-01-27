@@ -5,34 +5,23 @@ import type { RewardsPlatformId } from '@/features/settings/tabs/rewards/types';
 type RewardsPlatformTabsProps = {
   activePlatform: RewardsPlatformId;
   onChange: (next: RewardsPlatformId) => void;
-  autoRewardsLinked: boolean;
   twitchLinked: boolean;
-  youtubeLinked: boolean;
-  kickLinked: boolean;
   vkvideoLinked: boolean;
-  trovoLinked: boolean;
 };
 
 export function RewardsPlatformTabs({
   activePlatform,
   onChange,
-  autoRewardsLinked,
   twitchLinked,
-  youtubeLinked,
-  kickLinked,
   vkvideoLinked,
-  trovoLinked,
 }: RewardsPlatformTabsProps) {
   const { t } = useTranslation();
   const tabs: Array<{ id: RewardsPlatformId; label: string; linked: boolean }> = [
-    { id: 'common', label: t('admin.commonRewardsTab', { defaultValue: 'Общие' }), linked: autoRewardsLinked },
+    { id: 'economy', label: t('economy.settingsTab', { defaultValue: 'Экономика' }), linked: true },
+    { id: 'wheel', label: t('wheel.settingsTab', { defaultValue: 'Колесо' }), linked: true },
     { id: 'twitch', label: 'Twitch', linked: twitchLinked },
-    { id: 'youtube', label: 'YouTube', linked: youtubeLinked },
-    { id: 'kick', label: 'Kick', linked: kickLinked },
     { id: 'vkvideo', label: 'VKVideo', linked: vkvideoLinked },
-    { id: 'trovo', label: 'Trovo', linked: trovoLinked },
     { id: 'submissions', label: t('admin.submissions', { defaultValue: 'Заявки' }), linked: true },
-    { id: 'boosty', label: 'Boosty', linked: true },
   ];
 
   return (

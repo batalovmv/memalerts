@@ -30,8 +30,6 @@ Short map of sensitive endpoints and the access checks they must enforce.
 | `DELETE /streamer/promotions/:id` | streamer/admin | promotion `channelId === req.channelId` |
 | `GET /streamer/overlay/*` | streamer/admin | overlay token/state scoped to `req.channelId` |
 | `POST /streamer/overlay/*` | streamer/admin | overlay token/state scoped to `req.channelId` |
-| `GET /streamer/credits/*` | streamer/admin | credits token/state scoped to `req.channelId` |
-| `POST /streamer/credits/*` | streamer/admin | credits token/state scoped to `req.channelId` |
 | `POST /streamer/bot/*` + `/bots/*` | streamer/admin | channel is `req.channelId` |
 
 ## Owner routes (admin-only)

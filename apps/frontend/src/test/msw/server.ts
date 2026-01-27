@@ -54,22 +54,58 @@ export const server = setupServer(
     })
   ),
   http.get('*/streamer/starter-memes*', () => HttpResponse.json([])),
+  http.get('*/streamer/stream-recap/latest', () => HttpResponse.json({ recap: null })),
+  http.options('*/streamer/stream-recap/latest', () => new HttpResponse(null, { status: 204, headers: corsHeaders })),
+  http.get('*/streamer/bots/:provider/bot', () =>
+    HttpResponse.json({
+      enabled: false,
+      updatedAt: null,
+      externalAccountId: null,
+      lockedBySubscription: false,
+    })
+  ),
+  http.options('*/streamer/bots/:provider/bot', () => new HttpResponse(null, { status: 204, headers: corsHeaders })),
+  http.get('/public/events/active', () => HttpResponse.json({ events: [] })),
+  http.options('/public/events/active', () => new HttpResponse(null, { status: 204, headers: corsHeaders })),
+  http.get('*/public/events/active', () => HttpResponse.json({ events: [] })),
+  http.options('*/public/events/active', () => new HttpResponse(null, { status: 204, headers: corsHeaders })),
+  http.get('/channels/:slug/achievements/me', () =>
+    HttpResponse.json({
+      global: [],
+      channel: [],
+      events: [],
+    })
+  ),
+  http.options('/channels/:slug/achievements/me', () => new HttpResponse(null, { status: 204, headers: corsHeaders })),
+  http.get('*/channels/:slug/achievements/me', () =>
+    HttpResponse.json({
+      global: [],
+      channel: [],
+      events: [],
+    })
+  ),
+  http.options('*/channels/:slug/achievements/me', () => new HttpResponse(null, { status: 204, headers: corsHeaders })),
+  http.get('*/channels/:slug/votes/active', () => HttpResponse.json({ session: null })),
+  http.options('*/channels/:slug/votes/active', () => new HttpResponse(null, { status: 204, headers: corsHeaders })),
+  http.get('*/channels/:slug/wheel', () =>
+    HttpResponse.json({
+      enabled: false,
+      paidSpinCostCoins: 0,
+      freeSpinAvailable: false,
+      freeSpinCooldownSeconds: 0,
+      nextFreeSpinAt: null,
+      prizeMultiplier: 1,
+    })
+  ),
+  http.options('*/channels/:slug/wheel', () => new HttpResponse(null, { status: 204, headers: corsHeaders })),
   // Agent/debug telemetry (used by some integration tests for snapshots/logs).
   http.options(/http:\/\/127\.0\.0\.1:7245\/ingest\/.+/, () => new HttpResponse(null, { status: 204, headers: corsHeaders })),
   http.post(/http:\/\/127\.0\.0\.1:7245\/ingest\/.+/, () => HttpResponse.json({ ok: true }, { headers: corsHeaders })),
   http.options('*/ingest/:id', () => new HttpResponse(null, { status: 204, headers: corsHeaders })),
   http.post('*/ingest/:id', () => HttpResponse.json({ ok: true }, { headers: corsHeaders })),
-  http.options('*/channels/:channelId/boosty-access', () => new HttpResponse(null, { status: 204, headers: corsHeaders })),
-  http.get('*/channels/:channelId/boosty-access', () =>
-    HttpResponse.json(
-      { status: 'need_discord_link', requiredGuild: { id: 'g1', autoJoin: true, name: null, inviteUrl: null } },
-      { headers: corsHeaders }
-    )
-  ),
   // Some API clients trigger CORS preflights even for GETs; keep tests strict without spurious unhandled OPTIONS.
   http.options(/\/channels\/[^/]+(\?.*)?$/, () => new HttpResponse(null, { status: 204, headers: corsHeaders })),
-  http.options(/\/public\/channels\/[^/]+(\?.*)?$/, () => new HttpResponse(null, { status: 204, headers: corsHeaders })),
-  http.options(/\/streamer\/credits\/.+$/, () => new HttpResponse(null, { status: 204, headers: corsHeaders }))
+  http.options(/\/public\/channels\/[^/]+(\?.*)?$/, () => new HttpResponse(null, { status: 204, headers: corsHeaders }))
 );
 
 

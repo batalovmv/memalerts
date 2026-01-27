@@ -70,7 +70,7 @@ export function useStreamerProfileChannel({ slug, normalizedSlug, isAuthed, relo
           }
         } else {
           try {
-            // Prefer authenticated channel DTO (it includes reward flags like youtubeLikeReward*).
+            // Prefer authenticated channel DTO for viewer-specific flags.
             channelInfoRaw = await api.get<unknown>(channelInfoUrl, {
               timeout: 15000,
               headers: { 'Cache-Control': 'no-store' },

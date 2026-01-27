@@ -27,10 +27,10 @@ describe('botIntegrationSlice reducer', () => {
 
   it('updateBotSettingsThunk.fulfilled upserts bot status', () => {
     const prev = reducer(undefined, { type: 'init' });
-    const next = reducer(prev, updateBotSettingsThunk.fulfilled(sampleBot({ provider: 'kick' }), 'req1', {
-      provider: 'kick',
+    const next = reducer(prev, updateBotSettingsThunk.fulfilled(sampleBot({ provider: 'vkvideo' }), 'req1', {
+      provider: 'vkvideo',
       settings: { enabled: true },
     }));
-    expect(next.bots[0]).toMatchObject({ provider: 'kick' });
+    expect(next.bots[0]).toMatchObject({ provider: 'vkvideo' });
   });
 });

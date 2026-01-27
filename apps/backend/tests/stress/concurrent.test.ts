@@ -235,7 +235,12 @@ describe('stress: concurrent operations', () => {
     const channel = await createChannel({ slug: 'stress-activation', name: 'Stress Activation' });
     const price = 25;
     const activations = 6;
-    const meme = await createMeme({ channelId: channel.id, priceCoins: price, status: 'approved' });
+    const meme = await createMeme({
+      channelId: channel.id,
+      priceCoins: price,
+      status: 'approved',
+      timingBonusLastAt: new Date(),
+    });
     const viewers = await Promise.all(
       Array.from({ length: activations }, () => createUser({ role: 'viewer', channelId: null, hasBetaAccess: false }))
     );
@@ -266,7 +271,8 @@ describe('stress: concurrent operations', () => {
       select: { balance: true },
     });
     expect(wallets).toHaveLength(activations);
-    expect(wallets.every((wallet) => wallet.balance === 0)).toBe(true);
+    const expectedBalance = 20;
+    expect(wallets.every((wallet) => wallet.balance === expectedBalance)).toBe(true);
 
     const activationCount = await prisma.memeActivation.count({
       where: { channelId: channel.id, channelMemeId: meme.id },

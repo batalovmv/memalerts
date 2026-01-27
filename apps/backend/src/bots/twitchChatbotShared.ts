@@ -13,7 +13,6 @@ export { asRecord, clampInt, getErrorCode, getErrorMessage, parseBool, parseIntS
 
 export type PrismaAny = typeof prisma & {
   botIntegrationSettings: { findMany: (args: unknown) => Promise<unknown[]> };
-  chatBotCommand: { findMany: (args: unknown) => Promise<unknown[]> };
   channel: { findMany: (args: unknown) => Promise<unknown[]> };
   chatBotOutboxMessage: {
     findMany: (args: unknown) => Promise<unknown[]>;

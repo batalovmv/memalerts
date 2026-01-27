@@ -1,5 +1,5 @@
-import axios, { AxiosError, AxiosInstance, AxiosRequestConfig } from 'axios';
 import { ErrorResponse, ErrorResponseSchema } from '@memalerts/api-contracts';
+import axios, { AxiosError, AxiosInstance, AxiosRequestConfig } from 'axios';
 import { z } from 'zod';
 
 import { getRuntimeConfig } from '@/shared/config/runtimeConfig';

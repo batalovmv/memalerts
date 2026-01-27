@@ -5,7 +5,7 @@ import type { z } from 'zod';
 import { ZodError } from 'zod';
 import { prisma } from '../../lib/prisma.js';
 import { importMemeSchema } from '../../shared/schemas.js';
-import { getStreamDurationSnapshot } from '../../realtime/streamDurationStore.js';
+import { getStreamStatusSnapshot } from '../../realtime/streamStatusStore.js';
 import { getOrCreateTags } from '../../utils/tags.js';
 import { decrementFileHashReference } from '../../utils/fileHash.js';
 import { generateTagNames } from '../../utils/ai/tagging.js';
@@ -77,7 +77,7 @@ export const importMeme = async (req: AuthRequest, res: Response) => {
 
   if (!isOwner && channel.submissionsOnlyWhenLive) {
     const slug = channel.slug.toLowerCase();
-    const snap = await getStreamDurationSnapshot(slug);
+    const snap = await getStreamStatusSnapshot(slug);
     if (snap.status !== 'online') {
       return res.status(403).json({
         error: 'Submissions are allowed only while the stream is live',

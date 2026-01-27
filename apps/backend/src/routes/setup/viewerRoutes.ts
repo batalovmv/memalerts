@@ -14,7 +14,6 @@ export function registerViewerRoutes(app: Router) {
   app.get('/wallet', authenticate, requireBetaAccess, viewerController.getWallet);
   app.get('/memes', authenticate, requireBetaAccess, viewerController.getMemes);
 
-  app.post('/rewards/youtube/like/claim', authenticate, requireBetaAccess, viewerController.claimYouTubeLikeReward);
 
   app.get('/channels/:slug', (req, res) => {
     if (isBetaDomain(req)) {
@@ -28,6 +27,13 @@ export function registerViewerRoutes(app: Router) {
   });
 
   app.get('/channels/:slug/wallet', authenticate, requireBetaAccess, viewerController.getWalletForChannel);
+  app.post('/channels/:slug/bonuses/daily', authenticate, requireBetaAccess, viewerController.claimDailyBonus);
+  app.post('/channels/:slug/bonuses/watch', authenticate, requireBetaAccess, viewerController.claimWatchBonus);
+  app.get('/channels/:slug/votes/active', optionalAuthenticate, viewerController.getActiveVote);
+  app.post('/channels/:slug/votes/:sessionId', authenticate, requireBetaAccess, viewerController.castVote);
+  app.get('/channels/:slug/wheel', optionalAuthenticate, viewerController.getWheelState);
+  app.post('/channels/:slug/wheel/spin', authenticate, requireBetaAccess, viewerController.spinWheel);
+  app.get('/channels/:slug/achievements/me', authenticate, requireBetaAccess, viewerController.getMyChannelAchievements);
   app.get('/channels/:slug/memes/personalized', authenticate, requireBetaAccess, viewerController.getPersonalizedMemes);
   app.post(
     '/channels/:slug/memes/:memeAssetId/favorite',

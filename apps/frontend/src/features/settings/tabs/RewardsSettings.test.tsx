@@ -45,12 +45,8 @@ function logRewardsSnapshot(params: { runId: string; test: string }) {
     data: {
       test: params.test,
       has: {
-        discord: contains('discord'),
-        boosty: contains('boosty'),
         subscribed_ru: contains('подписка активна'),
-        autoRewards: contains('auto rewards'),
-        uploadRewardLabel: contains('reward (upload / url)'),
-        kickCoinsRewardRu: contains('награда за монеты (kick)'),
+        uploadRewardLabel: contains('bonus (upload / url)'),
       },
       headings,
       buttons,
@@ -87,13 +83,6 @@ vi.mock('@/contexts/ChannelColorsContext', () => ({
       rewardCost: null,
       rewardCoins: null,
       rewardOnlyWhenLive: false,
-      kickRewardEnabled: false,
-      kickRewardIdForCoins: null,
-      kickCoinPerPointRatio: 1,
-      kickRewardCoins: null,
-      kickRewardOnlyWhenLive: false,
-      trovoManaCoinsPerUnit: 0,
-      trovoElixirCoinsPerUnit: 0,
       vkvideoRewardEnabled: false,
       vkvideoRewardIdForCoins: null,
       vkvideoCoinPerPointRatio: 1,
@@ -106,203 +95,16 @@ vi.mock('@/contexts/ChannelColorsContext', () => ({
 
 describe('RewardsSettings (integration)', () => {
   type ChannelSettingsPatch = {
-    twitchAutoRewards?: { v?: number; follow?: { coins?: number } };
     submissionRewardCoinsUpload?: number;
     submissionRewardCoinsPool?: number;
-    submissionRewardOnlyWhenLive?: boolean;
-    kickRewardEnabled?: boolean;
-    kickCoinPerPointRatio?: number;
   };
-
-  const defaultBoostyAccess = () =>
-    HttpResponse.json({
-      status: 'need_discord_link',
-      requiredGuild: { id: 'g1', autoJoin: true, name: null, inviteUrl: null },
-    });
-
-  it('renders Discord link CTA when boosty-access status=need_discord_link', async () => {
-    const userEv = userEvent.setup();
-    const me = makeStreamerUser({ channelId: 'c1', channel: { id: 'c1', slug: 's1', name: 'S', twitchChannelId: 't1' } });
-
-    server.use(
-      http.options('*/channels/:channelId/boosty-access', () => HttpResponse.text('', { status: 204 })),
-      http.get('*/channels/:channelId/boosty-access', () =>
-        HttpResponse.json({
-          status: 'need_discord_link',
-          requiredGuild: { id: 'g1', autoJoin: true, name: null, inviteUrl: null },
-        })
-      ),
-      mockTwitchRewardEligibility({ eligible: true }),
-      http.patch('*/streamer/channel/settings', () => HttpResponse.json({ ok: true })),
-    );
-
-    renderWithProviders(<RewardsSettings />, {
-      route: '/settings?tab=rewards',
-      preloadedState: { auth: { user: me, loading: false, error: null } },
-    });
-
-    await userEv.click(await screen.findByRole('button', { name: /boosty/i }));
-    logRewardsSnapshot({ runId: 'pre-fix', test: 'need_discord_link' });
-    expect(await screen.findByRole('button', { name: /(привязать discord|link discord)/i })).toBeInTheDocument();
-  });
-
-  it('renders subscribed state when boosty-access status=subscribed', async () => {
-    const userEv = userEvent.setup();
-    const me = makeStreamerUser({ channelId: 'c1', channel: { id: 'c1', slug: 's1', name: 'S', twitchChannelId: 't1' } });
-
-    server.use(
-      http.options('*/channels/:channelId/boosty-access', () => HttpResponse.text('', { status: 204 })),
-      http.get('*/channels/:channelId/boosty-access', () =>
-        HttpResponse.json({
-          status: 'subscribed',
-          matchedTier: 'T3',
-          requiredGuild: { id: 'g1', autoJoin: true, name: null, inviteUrl: null },
-        })
-      ),
-      mockTwitchRewardEligibility({ eligible: true }),
-      http.patch('*/streamer/channel/settings', () => HttpResponse.json({ ok: true })),
-    );
-
-    renderWithProviders(<RewardsSettings />, {
-      route: '/settings?tab=rewards',
-      preloadedState: { auth: { user: me, loading: false, error: null } },
-    });
-
-    await userEv.click(await screen.findByRole('button', { name: /boosty/i }));
-    logRewardsSnapshot({ runId: 'pre-fix', test: 'subscribed' });
-    expect(await screen.findByText(/подписка активна|subscription active/i)).toBeInTheDocument();
-    expect(await screen.findByText(/t3/i)).toBeInTheDocument();
-  });
-
-  it('saves twitchAutoRewards JSON via /streamer/channel/settings', async () => {
-    const userEv = userEvent.setup();
-    const me = makeStreamerUser({ channelId: 'c1', channel: { id: 'c1', slug: 's1', name: 'S', twitchChannelId: 't1' } });
-
-    const bodies: unknown[] = [];
-    server.use(
-      http.options('*/channels/:channelId/boosty-access', () => HttpResponse.text('', { status: 204 })),
-      http.get('*/channels/:channelId/boosty-access', defaultBoostyAccess),
-      mockTwitchRewardEligibility({ eligible: true }),
-      mockStreamerChannelSettingsPatch((b) => bodies.push(b)),
-    );
-
-    renderWithProviders(<RewardsSettings />, {
-      route: '/settings?tab=rewards',
-      preloadedState: { auth: { user: me, loading: false, error: null } },
-    });
-
-    logRewardsSnapshot({ runId: 'pre-fix', test: 'save_twitchAutoRewards' });
-    await userEv.click(await screen.findByRole('button', { name: /(общие|common)/i }));
-    const titleEl = await screen.findByRole('heading', { name: /(автонаграды|auto rewards)/i });
-    const section = titleEl.closest('section') ?? titleEl.parentElement ?? document.body;
-
-    // Common tab should not show Twitch-only Channel Points mapping.
-    expect(within(section).queryByText(/channel points:?\s*rewardid\s*→\s*coins/i)).not.toBeInTheDocument();
-
-    const followToggle = within(section).getByRole('checkbox', { name: /enable follow auto reward/i });
-    await userEv.click(followToggle);
-
-    const followCoins = within(section).getByRole('textbox', { name: /follow coins/i }) as HTMLInputElement;
-    await userEv.clear(followCoins);
-    await userEv.type(followCoins, '10');
-
-    const saveBtn = within(section).getByRole('button', { name: /save/i });
-    await userEv.click(saveBtn);
-
-    await waitFor(() => expect(bodies.length).toBeGreaterThanOrEqual(1));
-    const last = bodies.at(-1) as ChannelSettingsPatch | undefined;
-    expect(last).toBeTruthy();
-    expect(last?.twitchAutoRewards?.v).toBe(1);
-    expect(last?.twitchAutoRewards?.follow?.coins).toBe(10);
-  });
-
-  it('shows Channel Points mapping editor on Twitch tab (and not in Common)', async () => {
-    const userEv = userEvent.setup();
-    const me = makeStreamerUser({ channelId: 'c1', channel: { id: 'c1', slug: 's1', name: 'S', twitchChannelId: 't1' } });
-
-    server.use(
-      http.options('*/channels/:channelId/boosty-access', () => HttpResponse.text('', { status: 204 })),
-      http.get('*/channels/:channelId/boosty-access', defaultBoostyAccess),
-      mockTwitchRewardEligibility({ eligible: true }),
-      http.patch('*/streamer/channel/settings', () => HttpResponse.json({ ok: true })),
-    );
-
-    renderWithProviders(<RewardsSettings />, {
-      route: '/settings?tab=rewards',
-      preloadedState: { auth: { user: me, loading: false, error: null } },
-    });
-
-    // Twitch tab: the Channel Points mapping section is visible and scoped (no Follow toggle inside).
-    await userEv.click(await screen.findByRole('button', { name: /twitch/i }));
-    const cpTitle = await screen.findByRole('heading', { name: /twitch\s+channel\s+points:?\s*rewardid\s*→\s*coins/i });
-    const cpSection = cpTitle.closest('section') ?? cpTitle.parentElement ?? document.body;
-    expect(within(cpSection).queryByRole('checkbox', { name: /enable follow auto reward/i })).not.toBeInTheDocument();
-    // Text appears both in section title and inside the editor; assert "at least one" match.
-    expect(within(cpSection).getAllByText(/channel points:?\s*rewardid\s*→\s*coins/i).length).toBeGreaterThanOrEqual(1);
-
-    // Common tab: still hidden.
-    await userEv.click(await screen.findByRole('button', { name: /(общие|common)/i }));
-    const commonTitleEl = await screen.findByRole('heading', { name: /(автонаграды|auto rewards)/i });
-    const commonSection = commonTitleEl.closest('section') ?? commonTitleEl.parentElement ?? document.body;
-    expect(within(commonSection).queryByText(/channel points:?\s*rewardid\s*→\s*coins/i)).not.toBeInTheDocument();
-  });
-
-  it('allows editing/saving autoRewards on Kick tab when Twitch is not linked', async () => {
-    const userEv = userEvent.setup();
-    const me = makeStreamerUser({
-      channelId: 'c1',
-      channel: { id: 'c1', slug: 's1', name: 'S', twitchChannelId: null },
-      externalAccounts: [{ id: 'ea_kick', provider: 'kick' }],
-    });
-
-    const bodies: unknown[] = [];
-    server.use(
-      http.options('*/channels/:channelId/boosty-access', () => HttpResponse.text('', { status: 204 })),
-      http.get('*/channels/:channelId/boosty-access', defaultBoostyAccess),
-      mockTwitchRewardEligibility({ eligible: true }),
-      mockStreamerChannelSettingsPatch((b) => bodies.push(b)),
-    );
-
-    renderWithProviders(<RewardsSettings />, {
-      route: '/settings?tab=rewards',
-      preloadedState: { auth: { user: me, loading: false, error: null } },
-    });
-
-    logRewardsSnapshot({ runId: 'pre-fix', test: 'kick_tab_autoRewards' });
-    await userEv.click(await screen.findByRole('button', { name: /(общие|common)/i }));
-
-    const titleEl = await screen.findByRole('heading', { name: /(автонаграды|auto rewards)/i });
-    const section = titleEl.closest('section') ?? titleEl.parentElement ?? document.body;
-
-    const followToggle = within(section).getByRole('checkbox', { name: /enable follow auto reward/i });
-    await userEv.click(followToggle);
-
-    const followCoins = within(section).getByRole('textbox', { name: /follow coins/i }) as HTMLInputElement;
-    await userEv.clear(followCoins);
-    await userEv.type(followCoins, '10');
-
-    const saveBtn = within(section).getByRole('button', { name: /save/i });
-    expect(saveBtn).not.toBeDisabled();
-    await userEv.click(saveBtn);
-
-    await waitFor(() => expect(bodies.length).toBeGreaterThanOrEqual(1));
-    const last = bodies.at(-1) as ChannelSettingsPatch | undefined;
-    expect(last).toBeTruthy();
-    expect(last?.twitchAutoRewards?.v).toBe(1);
-    expect(last?.twitchAutoRewards?.follow?.coins).toBe(10);
-  });
 
   it('autosaves approved meme reward via /streamer/channel/settings (payload uses numbers)', async () => {
     const userEv = userEvent.setup();
     const me = makeStreamerUser({ channelId: 'c1', channel: { id: 'c1', slug: 's1', name: 'S', twitchChannelId: 't1' } });
 
     const bodies: unknown[] = [];
-    server.use(
-      http.options('*/channels/:channelId/boosty-access', () => HttpResponse.text('', { status: 204 })),
-      http.get('*/channels/:channelId/boosty-access', defaultBoostyAccess),
-      mockTwitchRewardEligibility({ eligible: true }),
-      mockStreamerChannelSettingsPatch((b) => bodies.push(b)),
-    );
+    server.use(mockTwitchRewardEligibility({ eligible: true }), mockStreamerChannelSettingsPatch((b) => bodies.push(b)));
 
     renderWithProviders(<RewardsSettings />, {
       route: '/settings?tab=rewards',
@@ -312,7 +114,7 @@ describe('RewardsSettings (integration)', () => {
     await userEv.click(await screen.findByRole('button', { name: /(заявки|submissions)/i }));
     logRewardsSnapshot({ runId: 'pre-fix', test: 'approved_meme_autosave' });
     // Change upload reward to 10 (this triggers debounced autosave).
-    const uploadLabelEl = await screen.findByText(/reward \(upload \/ url\) \(coins\)/i);
+    const uploadLabelEl = await screen.findByText(/bonus \(upload \/ url\) \(coins\)/i);
     const uploadContainer = uploadLabelEl.closest('div') ?? uploadLabelEl.parentElement ?? document.body;
     const uploadInput = within(uploadContainer).getByRole('textbox') as HTMLInputElement;
     await userEv.clear(uploadInput);
@@ -323,12 +125,17 @@ describe('RewardsSettings (integration)', () => {
       await new Promise((r) => setTimeout(r, 900));
     });
 
-    await waitFor(() => expect(bodies.length).toBeGreaterThanOrEqual(1));
-    const last = bodies.at(-1) as ChannelSettingsPatch | undefined;
-    expect(last).toBeTruthy();
-    expect(last?.submissionRewardCoinsUpload).toBe(10);
-    expect(last?.submissionRewardCoinsPool).toBe(0);
-    expect(last?.submissionRewardOnlyWhenLive).toBe(false);
+    await waitFor(() =>
+      expect(bodies.some((b) => (b as ChannelSettingsPatch | undefined)?.submissionRewardCoinsUpload !== undefined)).toBe(true),
+    );
+    const payload = [...bodies]
+      .reverse()
+      .find((b) => (b as ChannelSettingsPatch | undefined)?.submissionRewardCoinsUpload !== undefined) as
+      | ChannelSettingsPatch
+      | undefined;
+    expect(payload).toBeTruthy();
+    expect(payload?.submissionRewardCoinsUpload).toBe(10);
+    expect(payload?.submissionRewardCoinsPool).toBe(0);
   });
 
   it('invalid approved meme reward (empty) shows toast error and does not PATCH', async () => {
@@ -336,8 +143,6 @@ describe('RewardsSettings (integration)', () => {
     const me = makeStreamerUser({ channelId: 'c1', channel: { id: 'c1', slug: 's1', name: 'S', twitchChannelId: 't1' } });
 
     server.use(
-      http.options('*/channels/:channelId/boosty-access', () => HttpResponse.text('', { status: 204 })),
-      http.get('*/channels/:channelId/boosty-access', defaultBoostyAccess),
       mockTwitchRewardEligibility({ eligible: true }),
       http.patch('*/streamer/channel/settings', () => HttpResponse.json({ error: 'Boom' }, { status: 500 })),
     );
@@ -349,7 +154,7 @@ describe('RewardsSettings (integration)', () => {
 
     await userEv.click(await screen.findByRole('button', { name: /(заявки|submissions)/i }));
     logRewardsSnapshot({ runId: 'pre-fix', test: 'approved_meme_invalid_toast' });
-    const uploadLabelEl = await screen.findByText(/reward \(upload \/ url\) \(coins\)/i);
+    const uploadLabelEl = await screen.findByText(/bonus \(upload \/ url\) \(coins\)/i);
     const uploadContainer = uploadLabelEl.closest('div') ?? uploadLabelEl.parentElement ?? document.body;
     const uploadInput = within(uploadContainer).getByRole('textbox') as HTMLInputElement;
 
@@ -363,54 +168,5 @@ describe('RewardsSettings (integration)', () => {
     expect(toast.error).toHaveBeenCalled();
   });
 
-  it('autosaves Kick reward via /streamer/channel/settings (payload uses numbers)', async () => {
-    const userEv = userEvent.setup();
-    const me = makeStreamerUser({
-      channelId: 'c1',
-      channel: { id: 'c1', slug: 's1', name: 'S', twitchChannelId: 't1' },
-      externalAccounts: [{ id: 'ea_kick', provider: 'kick' }],
-    });
-
-    const bodies: unknown[] = [];
-    server.use(
-      http.options('*/channels/:channelId/boosty-access', () => HttpResponse.text('', { status: 204 })),
-      http.get('*/channels/:channelId/boosty-access', () =>
-        HttpResponse.json({
-          status: 'need_discord_link',
-          requiredGuild: { id: 'g1', autoJoin: true, name: null, inviteUrl: null },
-        })
-      ),
-      mockTwitchRewardEligibility({ eligible: true }),
-      mockStreamerChannelSettingsPatch((b) => bodies.push(b)),
-    );
-
-    renderWithProviders(<RewardsSettings />, {
-      route: '/settings?tab=rewards',
-      preloadedState: { auth: { user: me, loading: false, error: null } },
-    });
-
-    logRewardsSnapshot({ runId: 'pre-fix', test: 'kick_reward_autosave' });
-    await userEv.click(await screen.findByRole('button', { name: /kick/i }));
-    const kickTitleEl = await screen.findByText(/coins reward \(kick\)|награда за монеты \(kick\)/i);
-    const section = kickTitleEl.closest('section') ?? kickTitleEl.parentElement ?? document.body;
-    const kickToggle = within(section).getByRole('checkbox') as HTMLInputElement;
-    await userEv.click(kickToggle);
-
-    const ratioLabelEl = await screen.findByText(/kickcoinperpointratio/i);
-    const ratioContainer = ratioLabelEl.closest('div') ?? ratioLabelEl.parentElement ?? document.body;
-    const ratioInput = within(ratioContainer).getByRole('textbox') as HTMLInputElement;
-    await userEv.clear(ratioInput);
-    await userEv.type(ratioInput, '2');
-
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, 900));
-    });
-
-    await waitFor(() => expect(bodies.length).toBeGreaterThanOrEqual(1));
-    const last = bodies.at(-1) as ChannelSettingsPatch | undefined;
-    expect(last).toBeTruthy();
-    expect(last?.kickRewardEnabled).toBe(true);
-    expect(last?.kickCoinPerPointRatio).toBe(2);
-  });
 });
 

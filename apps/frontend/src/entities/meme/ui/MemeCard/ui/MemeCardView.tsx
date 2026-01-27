@@ -1,9 +1,9 @@
 import { memo, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { cn } from '@/shared/lib/cn';
-
 import type { MemeCardItem } from '../model/types';
+
+import { cn } from '@/shared/lib/cn';
 
 export interface MemeCardViewProps {
   meme: MemeCardItem;

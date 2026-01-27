@@ -10,7 +10,7 @@ type ShutdownDeps = {
   io: SocketIOServer;
   shutdownTimeoutMs: number;
   httpDrainTimeoutMs: number;
-  getChatBotHandle: () => { stop?: () => Promise<void> | void } | null;
+  getChatBotHandle?: () => { stop?: () => Promise<void> | void } | null;
   getAiModerationWorkerHandle: () => { stop: (opts: { timeoutMs: number }) => Promise<void> } | null;
   getTranscodeWorkerHandle?: () => { stop: (opts: { timeoutMs: number }) => Promise<void> } | null;
   closeBullmqConnection: () => Promise<void>;
@@ -140,7 +140,7 @@ export function setupShutdownHandlers(deps: ShutdownDeps) {
       label: 'chatbot_stop',
       deadlineAt,
       maxMs: 5000,
-      action: () => deps.getChatBotHandle()?.stop?.() ?? Promise.resolve(),
+      action: () => deps.getChatBotHandle?.()?.stop?.() ?? Promise.resolve(),
     });
 
     await runShutdownStep({

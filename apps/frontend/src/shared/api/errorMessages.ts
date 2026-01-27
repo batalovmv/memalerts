@@ -14,6 +14,10 @@ const ERROR_MESSAGES: Record<string, string> = {
   TOO_MANY_REQUESTS: 'Too many requests',
   INTERNAL_ERROR: 'Internal server error',
   FEATURE_NOT_AVAILABLE: 'Feature not available',
+  BONUS_UNAVAILABLE: 'Bonus unavailable',
+  BONUS_COOLDOWN: 'Bonus cooldown active',
+  BONUS_LIMIT_REACHED: 'Bonus limit reached',
+  BONUS_OFFLINE: 'Bonus available only when live',
 
   // Channel/resource
   CHANNEL_NOT_FOUND: 'Channel not found',
@@ -35,8 +39,6 @@ const ERROR_MESSAGES: Record<string, string> = {
   YOUTUBE_API_QUOTA: 'YouTube API quota exceeded',
   YOUTUBE_ENABLE_FAILED: 'Failed to enable YouTube',
   VKVIDEO_BOT_NOT_CONFIGURED: 'VKVideo bot is not configured',
-  TROVO_BOT_NOT_CONFIGURED: 'Trovo bot is not configured',
-  KICK_BOT_NOT_CONFIGURED: 'Kick bot is not configured',
 
   // Submissions
   STREAMER_SUBMISSIONS_DISABLED: 'Submissions are disabled by the streamer',
@@ -57,6 +59,7 @@ const ERROR_MESSAGES: Record<string, string> = {
   MEME_ASSET_NOT_FOUND: 'Meme asset not found',
   ASSET_PURGED_OR_QUARANTINED: 'Asset is deleted or quarantined',
   MEME_INSUFFICIENT_COINS: 'Insufficient coins',
+  INSUFFICIENT_BALANCE: 'Insufficient balance',
   MEME_ACTIVATION_RATE_LIMITED: 'Meme activation rate limited',
   MEME_COOLDOWN_ACTIVE: 'This meme is cooling down. Try again soon.',
 
@@ -90,12 +93,6 @@ const ERROR_MESSAGES: Record<string, string> = {
   OAUTH_FAILED: 'OAuth failed',
   OAUTH_STATE_MISMATCH: 'OAuth state mismatch',
   ACCOUNT_ALREADY_LINKED: 'Account already linked',
-
-  // Boosty
-  BOOSTY_INVALID_TOKEN: 'Boosty token invalid',
-  BOOSTY_RATE_LIMITED: 'Boosty rate limited',
-  BOOSTY_UNAVAILABLE: 'Boosty unavailable',
-  BOOSTY_ACCOUNT_ALREADY_LINKED: 'Boosty already linked',
 
   // AI
   AI_PROCESSING: 'AI processing in progress',

@@ -24,36 +24,27 @@ function buildAuthCookie(userId: string): string {
 }
 
 type ProviderSpec = {
-  provider: 'twitch' | 'youtube' | 'discord' | 'vk' | 'vkvideo' | 'kick' | 'trovo';
+  provider: 'twitch' | 'youtube' | 'vk' | 'vkvideo';
   callbackPath: string;
   kind: 'login' | 'link';
 };
 
 const linkProviders = [
   { provider: 'youtube', authorizeBase: 'https://accounts.google.com/o/oauth2/v2/auth' },
-  { provider: 'discord', authorizeBase: 'https://discord.com/oauth2/authorize' },
   { provider: 'vk', authorizeBase: 'https://oauth.vk.com/authorize' },
   { provider: 'vkvideo', authorizeBase: 'https://vkvideo.example.com/oauth/authorize' },
-  { provider: 'kick', authorizeBase: 'https://kick.example.com/oauth/authorize' },
-  { provider: 'trovo', authorizeBase: 'https://open.trovo.live/page/login.html' },
 ];
 
 const callbackProviders: ProviderSpec[] = [
   { provider: 'twitch', callbackPath: '/auth/twitch/callback', kind: 'login' },
   { provider: 'youtube', callbackPath: '/auth/youtube/link/callback', kind: 'link' },
-  { provider: 'discord', callbackPath: '/auth/discord/link/callback', kind: 'link' },
   { provider: 'vk', callbackPath: '/auth/vk/link/callback', kind: 'link' },
   { provider: 'vkvideo', callbackPath: '/auth/vkvideo/link/callback', kind: 'link' },
-  { provider: 'kick', callbackPath: '/auth/kick/link/callback', kind: 'link' },
-  { provider: 'trovo', callbackPath: '/auth/trovo/link/callback', kind: 'link' },
 ];
 
 const linkCallbackProviders = [
-  { provider: 'discord', providerAccountId: 'discord_user_123' },
   { provider: 'vk', providerAccountId: '123456' },
   { provider: 'vkvideo', providerAccountId: 'vkvideo-user-1' },
-  { provider: 'kick', providerAccountId: 'kick-user-1' },
-  { provider: 'trovo', providerAccountId: 'trovo-user-1' },
 ];
 
 describe('OAuth callback flows (mocked external services)', () => {
@@ -86,10 +77,6 @@ describe('OAuth callback flows (mocked external services)', () => {
     process.env.YOUTUBE_CLIENT_ID = 'test-youtube-client-id';
     process.env.YOUTUBE_CLIENT_SECRET = 'test-youtube-client-secret';
     process.env.YOUTUBE_CALLBACK_URL = 'https://example.com/auth/youtube/link/callback';
-    process.env.DISCORD_CLIENT_ID = 'test-discord-client-id';
-    process.env.DISCORD_CLIENT_SECRET = 'test-discord-client-secret';
-    process.env.DISCORD_CALLBACK_URL = 'https://example.com/auth/discord/link/callback';
-    process.env.DISCORD_AUTO_JOIN_GUILD = '0';
     process.env.VK_CLIENT_ID = 'test-vk-client-id';
     process.env.VK_CLIENT_SECRET = 'test-vk-client-secret';
     process.env.VK_CALLBACK_URL = 'https://example.com/auth/vk/link/callback';
@@ -99,18 +86,6 @@ describe('OAuth callback flows (mocked external services)', () => {
     process.env.VKVIDEO_AUTHORIZE_URL = 'https://vkvideo.example.com/oauth/authorize';
     process.env.VKVIDEO_TOKEN_URL = 'https://vkvideo.example.com/oauth/token';
     process.env.VKVIDEO_USERINFO_URL = 'https://vkvideo.example.com/userinfo';
-    process.env.KICK_CLIENT_ID = 'test-kick-client-id';
-    process.env.KICK_CLIENT_SECRET = 'test-kick-client-secret';
-    process.env.KICK_CALLBACK_URL = 'https://example.com/auth/kick/link/callback';
-    process.env.KICK_AUTHORIZE_URL = 'https://kick.example.com/oauth/authorize';
-    process.env.KICK_TOKEN_URL = 'https://kick.example.com/oauth/token';
-    process.env.KICK_REFRESH_URL = 'https://kick.example.com/oauth/refresh';
-    process.env.KICK_USERINFO_URL = 'https://kick.example.com/userinfo';
-    process.env.TROVO_CLIENT_ID = 'test-trovo-client-id';
-    process.env.TROVO_CLIENT_SECRET = 'test-trovo-client-secret';
-    process.env.TROVO_CALLBACK_URL = 'https://example.com/auth/trovo/link/callback';
-    process.env.TROVO_TOKEN_URL = 'https://open-api.trovo.live/openplatform/exchangetoken';
-    process.env.TROVO_USERINFO_URL = 'https://open-api.trovo.live/openplatform/getuserinfo';
   });
 
   it('redirects to Twitch OAuth on login initiate', async () => {
@@ -121,7 +96,7 @@ describe('OAuth callback flows (mocked external services)', () => {
     expect(location).toContain('client_id=test-twitch-client-id');
   });
 
-  it.each(['youtube', 'discord', 'vk', 'vkvideo', 'kick', 'trovo'] as const)(
+  it.each(['youtube', 'vk', 'vkvideo'] as const)(
     'rejects login initiation for unsupported provider %s',
     async (provider) => {
       const res = await request(makeApp()).get(`/auth/${provider}`).set('Host', 'example.com');

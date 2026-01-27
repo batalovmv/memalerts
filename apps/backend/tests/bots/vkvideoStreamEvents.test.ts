@@ -47,7 +47,7 @@ vi.mock('../../src/utils/vkvideoApi.js', () => ({
   fetchVkVideoCurrentUser,
   extractVkVideoChannelIdFromUrl,
 }));
-vi.mock('../../src/realtime/streamDurationStore.js', () => ({ handleStreamOnline, handleStreamOffline }));
+vi.mock('../../src/realtime/streamStatusStore.js', () => ({ handleStreamOnline, handleStreamOffline }));
 vi.mock('../../src/bots/vkvideoRewardProcessor.js', () => ({ handleVkvideoRewardPush }));
 vi.mock('../../src/utils/logger.js', () => ({ logger: loggerMock }));
 
@@ -63,7 +63,7 @@ describe('vkvideo stream events', () => {
         userId: 'user-1',
         vkvideoChannelId: 'vk-1',
         vkvideoChannelUrl: 'https://vkvideo.example/channel/1',
-        channel: { slug: 'slug-1', creditsReconnectWindowMinutes: 10, streamDurationCommandJson: null },
+        channel: { slug: 'slug-1' },
       },
     ]);
     prismaMock.botIntegrationSettings.findMany.mockResolvedValue([]);
@@ -80,51 +80,53 @@ describe('vkvideo stream events', () => {
     handleVkvideoRewardPush.mockReturnValue(false);
   });
 
-  it('syncs subscriptions and forwards chat messages', async () => {
+  it('syncs subscriptions and forwards reward pushes', async () => {
     const state = {
       vkvideoIdToSlug: new Map(),
       vkvideoIdToChannelId: new Map(),
       vkvideoIdToOwnerUserId: new Map(),
       vkvideoIdToChannelUrl: new Map(),
       vkvideoIdToLastLiveStreamId: new Map(),
-      streamDurationCfgByChannelId: new Map([['channel-1', { ts: Date.now(), cfg: { breakCreditMinutes: 15 } }]]),
-      autoRewardsByChannelId: new Map([['channel-1', { ts: Date.now(), cfg: null }]]),
     };
     const pubsubState = {
       pubsubByChannelId: new Map(),
       pubsubCtxByChannelId: new Map(),
       wsChannelToVkvideoId: new Map(),
     };
-    const handleIncoming = vi.fn();
 
-    const events = createVkvideoStreamEvents(
-      state,
-      pubsubState,
-      { pubsubWsUrl: 'wss://pubsub.example/ws', pubsubRefreshSeconds: 30, stoppedRef: { value: false } },
-      { handleIncoming }
-    );
+    const events = createVkvideoStreamEvents(state, pubsubState, {
+      pubsubWsUrl: 'wss://pubsub.example/ws',
+      pubsubRefreshSeconds: 30,
+      stoppedRef: { value: false },
+    });
 
     await events.syncSubscriptions();
 
-    expect(handleStreamOnline).toHaveBeenCalledWith('slug-1', 15);
+    expect(handleStreamOnline).toHaveBeenCalledWith('slug-1');
     expect(pubsubMocks.instances).toHaveLength(1);
 
     const instance = pubsubMocks.instances[0];
-    instance.params.onPush({
-      channel: 'ws-chat',
+    const pushData = {
+      type: 'channel_points',
       data: {
-        data: {
-          message: {
-            author: { id: 'u1', nick: 'Viewer' },
-            parts: [{ text: { content: 'hello' } }],
-          },
+        redemption: {
+          user: { id: 'u1', nick: 'Viewer' },
+          amount: 10,
+          reward: { id: 'reward-1' },
+          id: 'red-1',
         },
       },
+    };
+    instance.params.onPush({
+      channel: 'ws-chat',
+      data: pushData,
     });
 
-    expect(handleIncoming).toHaveBeenCalledWith(
-      'vk-1',
-      expect.objectContaining({ userId: 'u1', displayName: 'Viewer', text: 'hello' })
-    );
+    expect(handleVkvideoRewardPush).toHaveBeenCalledWith({
+      vkvideoChannelId: 'vk-1',
+      channelId: 'channel-1',
+      channelSlug: 'slug-1',
+      pushData,
+    });
   });
 });

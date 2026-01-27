@@ -74,9 +74,6 @@ export type SearchContext = {
     memeCatalogMode: string | null;
     defaultPriceCoins: number | null;
     slug: string | null;
-    dynamicPricingEnabled?: boolean | null;
-    dynamicPricingMinMult?: number | null;
-    dynamicPricingMaxMult?: number | null;
   } | null;
   memeCatalogMode: string;
   minPrice: unknown;

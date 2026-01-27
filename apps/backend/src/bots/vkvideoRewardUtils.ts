@@ -1,95 +1,71 @@
-import { asRecord } from './vkvideoChatbotShared.js';
+type MentionPart = { mention?: { id?: unknown } };
 
-export function extractFirstMentionIdFromParts(parts: unknown): string | null {
+export function extractFirstMentionIdFromParts(parts: MentionPart[] | null | undefined): string | null {
   if (!Array.isArray(parts)) return null;
-  for (const p of parts) {
-    const rec = asRecord(p);
-    const mentionRec = asRecord(rec.mention);
-    const id = mentionRec.id ?? null;
-    const s = String(id ?? '').trim();
-    if (s) return s;
+  for (const part of parts) {
+    const id = (part && part.mention && part.mention.id) ?? null;
+    if (id === null || id === undefined) continue;
+    const value = String(id).trim();
+    if (value) return value;
   }
   return null;
 }
 
-export function extractVkVideoFollowOrSubscriptionAlert(pubData: unknown): {
-  kind: 'follow' | 'subscribe';
-  providerAccountId: string;
-  providerEventId: string | null;
-  eventAt: Date | null;
-} | null {
-  const root = asRecord(pubData);
-  const type = String(root.type ?? root.event ?? root.name ?? '')
-    .trim()
-    .toLowerCase();
-  if (!type) return null;
+export function extractVkVideoFollowOrSubscriptionAlert(payload: {
+  type?: string;
+  data?: { event?: { user?: { id?: unknown }; id?: unknown; created_at?: unknown } };
+}): { kind: 'follow' | 'subscription'; providerAccountId: string; providerEventId: string; occurredAt: string } | null {
+  const type = String(payload.type || '').trim();
+  if (type !== 'follow' && type !== 'subscription') return null;
 
-  const isFollow = type.includes('follow');
-  const isSub = type.includes('subscription') || type.includes('subscribe') || type.includes('sub');
-  if (!isFollow && !isSub) return null;
+  const event = payload.data?.event;
+  const providerAccountId = String(event?.user?.id ?? '').trim();
+  const providerEventId = String(event?.id ?? '').trim();
+  const occurredAt = String(event?.created_at ?? '').trim();
 
-  const rootData = asRecord(root.data);
-  const ev = asRecord(rootData.event ?? rootData.data ?? rootData);
+  if (!providerAccountId || !providerEventId) return null;
 
-  const maybeMsg = asRecord(ev.message ?? ev.chat_message ?? ev);
-  const parts = maybeMsg.parts ?? ev.parts ?? rootData.parts ?? asRecord(rootData.message).parts ?? null;
-
-  const providerAccountId = String(
-    asRecord(ev.user).id ??
-      asRecord(ev.viewer).id ??
-      asRecord(ev.from).id ??
-      ev.user_id ??
-      extractFirstMentionIdFromParts(parts) ??
-      ''
-  ).trim();
-  if (!providerAccountId) return null;
-
-  const providerEventId = String(ev.id ?? ev.event_id ?? ev.message_id ?? rootData.id ?? '').trim() || null;
-
-  const eventAt = (() => {
-    const ts = ev.created_at ?? ev.createdAt ?? ev.timestamp ?? rootData.timestamp ?? null;
-    const ms = typeof ts === 'number' ? ts : Date.parse(String(ts || ''));
-    return Number.isFinite(ms) ? new Date(ms) : null;
-  })();
-
-  return { kind: isFollow ? 'follow' : 'subscribe', providerAccountId, providerEventId, eventAt };
+  return {
+    kind: type,
+    providerAccountId,
+    providerEventId,
+    occurredAt: occurredAt || new Date().toISOString(),
+  };
 }
 
-export function extractVkVideoChannelPointsRedemption(pubData: unknown): {
+export function extractVkVideoChannelPointsRedemption(payload: {
+  type?: string;
+  data?: {
+    redemption?: {
+      user?: { id?: unknown };
+      amount?: unknown;
+      reward?: { id?: unknown };
+      id?: unknown;
+      created_at?: unknown;
+    };
+  };
+}): {
   providerAccountId: string;
   amount: number;
-  rewardId: string | null;
-  providerEventId: string | null;
-  eventAt: Date | null;
+  rewardId: string;
+  providerEventId: string;
+  occurredAt: string;
 } | null {
-  const root = asRecord(pubData);
-  const type = String(root.type ?? root.event ?? root.name ?? '')
-    .trim()
-    .toLowerCase();
-  if (type && !type.includes('channel_points') && !type.includes('channelpoints') && !type.includes('points'))
-    return null;
+  if (String(payload.type || '').trim() !== 'channel_points') return null;
+  const redemption = payload.data?.redemption;
+  const providerAccountId = String(redemption?.user?.id ?? '').trim();
+  const rewardId = String(redemption?.reward?.id ?? '').trim();
+  const providerEventId = String(redemption?.id ?? '').trim();
+  const amount = Number(redemption?.amount ?? 0);
+  const occurredAt = String(redemption?.created_at ?? '').trim();
 
-  const rootData = asRecord(root.data);
-  const ev = asRecord(rootData.event ?? rootData.redemption ?? rootData);
+  if (!providerAccountId || !rewardId || !providerEventId) return null;
 
-  const providerAccountId = String(
-    asRecord(ev.user).id ?? asRecord(ev.viewer).id ?? asRecord(ev.from).id ?? ev.user_id ?? ''
-  ).trim();
-  if (!providerAccountId) return null;
-
-  const reward = asRecord(ev.reward);
-  const amountRaw = ev.cost ?? ev.amount ?? ev.points ?? ev.value ?? reward.cost ?? null;
-  const amount = Number.isFinite(Number(amountRaw)) ? Math.floor(Number(amountRaw)) : 0;
-  if (amount <= 0) return null;
-
-  const rewardId = String(reward.id ?? ev.reward_id ?? reward.uuid ?? '').trim() || null;
-  const providerEventId = String(ev.id ?? ev.redemption_id ?? ev.event_id ?? '').trim() || null;
-
-  const eventAt = (() => {
-    const ts = ev.created_at ?? ev.createdAt ?? ev.timestamp ?? rootData.timestamp ?? null;
-    const ms = typeof ts === 'number' ? ts : Date.parse(String(ts || ''));
-    return Number.isFinite(ms) ? new Date(ms) : null;
-  })();
-
-  return { providerAccountId, amount, rewardId, providerEventId, eventAt };
+  return {
+    providerAccountId,
+    amount: Number.isFinite(amount) ? amount : 0,
+    rewardId,
+    providerEventId,
+    occurredAt: occurredAt || new Date().toISOString(),
+  };
 }

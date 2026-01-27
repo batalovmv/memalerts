@@ -1,4 +1,4 @@
-import type { MemeDetail } from '@memalerts/api-contracts';
+import type { ChannelEconomy, MemeDetail } from '@memalerts/api-contracts';
 
 export type ChannelInfo = {
   id: string;
@@ -6,19 +6,16 @@ export type ChannelInfo = {
   name: string;
   memeCatalogMode?: 'channel' | 'pool_all';
   coinPerPointRatio: number;
-  youtubeLikeRewardEnabled?: boolean;
-  youtubeLikeRewardCoins?: number;
-  youtubeLikeRewardOnlyWhenLive?: boolean;
   coinIconUrl?: string | null;
   rewardTitle?: string | null;
   primaryColor?: string | null;
   secondaryColor?: string | null;
   accentColor?: string | null;
-  dynamicPricingEnabled?: boolean;
-  dynamicPricingMinMult?: number;
-  dynamicPricingMaxMult?: number;
   submissionsEnabled?: boolean;
   submissionsOnlyWhenLive?: boolean;
+  wheelEnabled?: boolean;
+  wheelPaidSpinCostCoins?: number | null;
+  wheelPrizeMultiplier?: number;
   createdAt: string;
   memes: MemeDetail[];
   owner?: {
@@ -30,6 +27,7 @@ export type ChannelInfo = {
     memesCount: number;
     usersCount: number;
   };
+  economy?: ChannelEconomy;
 };
 
 

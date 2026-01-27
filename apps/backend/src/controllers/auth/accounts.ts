@@ -20,10 +20,6 @@ export async function listAccounts(req: AuthRequest, res: Response) {
       globalVkVideoBotCredential: { is: null },
       twitchBotIntegration: { is: null },
       globalTwitchBotCredential: { is: null },
-      trovoBotIntegration: { is: null },
-      globalTrovoBotCredential: { is: null },
-      kickBotIntegration: { is: null },
-      globalKickBotCredential: { is: null },
     },
     orderBy: { createdAt: 'asc' },
     select: {
@@ -58,10 +54,6 @@ export async function unlinkAccount(req: AuthRequest, res: Response) {
       globalVkVideoBotCredential: { select: { id: true } },
       twitchBotIntegration: { select: { id: true } },
       globalTwitchBotCredential: { select: { id: true } },
-      trovoBotIntegration: { select: { id: true } },
-      globalTrovoBotCredential: { select: { id: true } },
-      kickBotIntegration: { select: { id: true } },
-      globalKickBotCredential: { select: { id: true } },
     },
   });
 
@@ -74,11 +66,7 @@ export async function unlinkAccount(req: AuthRequest, res: Response) {
     hasId(rowRec.vkVideoBotIntegration) ||
     hasId(rowRec.globalVkVideoBotCredential) ||
     hasId(rowRec.twitchBotIntegration) ||
-    hasId(rowRec.globalTwitchBotCredential) ||
-    hasId(rowRec.trovoBotIntegration) ||
-    hasId(rowRec.globalTrovoBotCredential) ||
-    hasId(rowRec.kickBotIntegration) ||
-    hasId(rowRec.globalKickBotCredential);
+    hasId(rowRec.globalTwitchBotCredential);
 
   if (isBotCredential) {
     const provider = String(rowRec.provider || '').toLowerCase();
@@ -89,16 +77,12 @@ export async function unlinkAccount(req: AuthRequest, res: Response) {
         'Use DELETE /owner/bots/twitch/default (global) or DELETE /streamer/bots/twitch/bot (per-channel override).',
       vkvideo:
         'Use DELETE /owner/bots/vkvideo/default (global) or DELETE /streamer/bots/vkvideo/bot (per-channel override).',
-      trovo: 'Use DELETE /owner/bots/trovo/default (global) or DELETE /streamer/bots/trovo/bot (per-channel override).',
-      kick: 'Use DELETE /owner/bots/kick/default (global) or DELETE /streamer/bots/kick/bot (per-channel override).',
     };
 
     const isGlobal =
       hasId(rowRec.globalYouTubeBotCredential) ||
       hasId(rowRec.globalVkVideoBotCredential) ||
-      hasId(rowRec.globalTwitchBotCredential) ||
-      hasId(rowRec.globalTrovoBotCredential) ||
-      hasId(rowRec.globalKickBotCredential);
+      hasId(rowRec.globalTwitchBotCredential);
     const kind = isGlobal ? 'global_bot_credential' : 'channel_bot_credential';
     const unlinkEndpoint =
       provider === 'youtube'
@@ -109,19 +93,11 @@ export async function unlinkAccount(req: AuthRequest, res: Response) {
           ? isGlobal
             ? 'DELETE /owner/bots/twitch/default'
             : 'DELETE /streamer/bots/twitch/bot'
-          : provider === 'vkvideo'
-            ? isGlobal
-              ? 'DELETE /owner/bots/vkvideo/default'
-              : 'DELETE /streamer/bots/vkvideo/bot'
-            : provider === 'trovo'
-              ? isGlobal
-                ? 'DELETE /owner/bots/trovo/default'
-                : 'DELETE /streamer/bots/trovo/bot'
-              : provider === 'kick'
-                ? isGlobal
-                  ? 'DELETE /owner/bots/kick/default'
-                  : 'DELETE /streamer/bots/kick/bot'
-                : null;
+        : provider === 'vkvideo'
+          ? isGlobal
+            ? 'DELETE /owner/bots/vkvideo/default'
+            : 'DELETE /streamer/bots/vkvideo/bot'
+          : null;
     return res.status(409).json({
       errorCode: 'CONFLICT',
       error: 'This account is used as a bot credential and cannot be unlinked via /auth/accounts',
@@ -143,10 +119,6 @@ export async function unlinkAccount(req: AuthRequest, res: Response) {
       globalVkVideoBotCredential: { is: null },
       twitchBotIntegration: { is: null },
       globalTwitchBotCredential: { is: null },
-      trovoBotIntegration: { is: null },
-      globalTrovoBotCredential: { is: null },
-      kickBotIntegration: { is: null },
-      globalKickBotCredential: { is: null },
     },
   });
   if (count <= 1) {

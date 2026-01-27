@@ -1,121 +1,112 @@
 import { logger } from '../utils/logger.js';
-import { asRecord, getErrorMessage, normalizeLogin } from './vkvideoChatbotShared.js';
 
-export type ChatCommandRole = 'vip' | 'moderator' | 'subscriber' | 'follower';
+const ALLOWED_ROLE_KEYS = new Set(['vip', 'moderator']);
 
-export type StreamDurationCfg = {
-  enabled: boolean;
-  triggerNormalized: string;
-  responseTemplate: string | null;
-  breakCreditMinutes: number;
-  onlyWhenLive: boolean;
-};
-
-export function normalizeAllowedUsersList(raw: unknown): string[] {
-  if (!Array.isArray(raw)) return [];
-  const out: string[] = [];
-  for (const v of raw) {
-    const login = normalizeLogin(v);
-    if (!login) continue;
-    if (!out.includes(login)) out.push(login);
-  }
-  return out;
-}
-
-export function normalizeAllowedRolesList(raw: unknown): ChatCommandRole[] {
-  // VKVideo chat roles mapping is not implemented yet (platform-specific).
-  // We still accept the schema and store it, but will ignore roles for now.
-  if (!Array.isArray(raw)) return [];
-  const out: ChatCommandRole[] = [];
-  for (const v of raw) {
-    const role = String(v ?? '')
+export function normalizeAllowedUsersList(raw: Array<string | null | undefined>): string[] {
+  const result: string[] = [];
+  const seen = new Set<string>();
+  for (const entry of raw) {
+    const value = String(entry ?? '')
       .trim()
-      .toLowerCase() as ChatCommandRole;
-    if (!role) continue;
-    if (role !== 'vip' && role !== 'moderator' && role !== 'subscriber' && role !== 'follower') continue;
-    if (!out.includes(role)) out.push(role);
+      .toLowerCase()
+      .replace(/^@+/, '');
+    if (!value || seen.has(value)) continue;
+    seen.add(value);
+    result.push(value);
   }
-  return out;
+  return result;
 }
 
-export function normalizeVkVideoAllowedRoleIdsList(raw: unknown): string[] {
-  if (!Array.isArray(raw)) return [];
-  const out: string[] = [];
-  for (const v of raw) {
-    const id = String(v ?? '').trim();
-    if (!id) continue;
-    if (!out.includes(id)) out.push(id);
+export function normalizeAllowedRolesList(raw: Array<string | null | undefined>): string[] {
+  const result: string[] = [];
+  const seen = new Set<string>();
+  for (const entry of raw) {
+    const value = String(entry ?? '').trim().toLowerCase();
+    if (!value || !ALLOWED_ROLE_KEYS.has(value) || seen.has(value)) continue;
+    seen.add(value);
+    result.push(value);
   }
-  return out;
+  return result;
 }
 
-export function canTriggerCommand(opts: {
-  senderLogin: string | null;
+export function normalizeVkVideoAllowedRoleIdsList(raw: Array<string | null | undefined>): string[] {
+  const result: string[] = [];
+  const seen = new Set<string>();
+  for (const entry of raw) {
+    const value = String(entry ?? '').trim();
+    if (!value || seen.has(value)) continue;
+    seen.add(value);
+    result.push(value);
+  }
+  return result;
+}
+
+export function canTriggerCommand(params: {
+  senderLogin: string;
   allowedUsers: string[];
-  allowedRoles: ChatCommandRole[];
+  allowedRoles: string[];
   vkvideoAllowedRoleIds: string[];
   senderVkVideoRoleIds: string[] | null;
 }): boolean {
-  const users = opts.allowedUsers || [];
-  const roles = opts.allowedRoles || [];
-  const vkRoles = opts.vkvideoAllowedRoleIds || [];
-  if (users.length === 0 && roles.length === 0 && vkRoles.length === 0) return true;
-  if (opts.senderLogin && users.includes(opts.senderLogin)) return true;
+  const senderLogin = String(params.senderLogin || '').trim().toLowerCase();
+  const allowedUsers = normalizeAllowedUsersList(params.allowedUsers ?? []);
+  const allowedRoles = normalizeAllowedRolesList(params.allowedRoles ?? []);
+  const allowedRoleIds = normalizeVkVideoAllowedRoleIdsList(params.vkvideoAllowedRoleIds ?? []);
 
-  // Legacy Twitch roles are ignored here; VKVideo uses role ids.
-  if (vkRoles.length) {
-    const senderRoleIds = new Set((opts.senderVkVideoRoleIds || []).filter(Boolean));
-    for (const roleId of vkRoles) {
-      if (senderRoleIds.has(roleId)) return true;
-    }
-  }
+  if (allowedUsers.length === 0 && allowedRoles.length === 0 && allowedRoleIds.length === 0) return true;
+  if (allowedUsers.includes(senderLogin)) return true;
+
+  const senderRoles = Array.isArray(params.senderVkVideoRoleIds) ? params.senderVkVideoRoleIds : [];
+  if (allowedRoleIds.length > 0 && senderRoles.some((role) => allowedRoleIds.includes(role))) return true;
+
   return false;
+}
+
+export function parseStreamDurationCfg(raw: string): {
+  enabled: boolean;
+  triggerNormalized: string;
+  responseTemplate: string;
+  breakCreditMinutes: number;
+  onlyWhenLive: boolean;
+} | null {
+  try {
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    const trigger = String(parsed.trigger ?? '').trim();
+    const responseTemplate = String(parsed.responseTemplate ?? '').trim();
+    if (!trigger || !responseTemplate) return null;
+
+    const enabled = parsed.enabled === undefined ? true : Boolean(parsed.enabled);
+    const onlyWhenLive = parsed.onlyWhenLive === undefined ? true : Boolean(parsed.onlyWhenLive);
+    const breakCreditMinutes = Number.isFinite(parsed.breakCreditMinutes as number)
+      ? Math.max(0, Math.floor(parsed.breakCreditMinutes as number))
+      : 0;
+
+    return {
+      enabled,
+      triggerNormalized: trigger.toLowerCase(),
+      responseTemplate,
+      breakCreditMinutes,
+      onlyWhenLive,
+    };
+  } catch {
+    return null;
+  }
 }
 
 export async function postInternalCreditsChatter(
   baseUrl: string,
   payload: { channelSlug: string; userId: string; displayName: string }
-) {
-  const url = new URL('/internal/credits/chatter', baseUrl);
-  const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), 2_000);
+): Promise<void> {
+  const url = `${String(baseUrl || '').replace(/\/+$/g, '')}/internal/credits/chat`;
   try {
-    await fetch(url.toString(), {
+    await fetch(url, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-memalerts-internal': 'credits-event',
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
-      signal: ctrl.signal,
     });
-  } catch (e: unknown) {
-    logger.warn('vkvideo_chatbot.internal_post_failed', { errorMessage: getErrorMessage(e) });
-  } finally {
-    clearTimeout(t);
-  }
-}
-
-export function parseStreamDurationCfg(raw: string | null | undefined): StreamDurationCfg | null {
-  try {
-    const s = String(raw || '').trim();
-    if (!s) return null;
-    const parsed = JSON.parse(s) as unknown;
-    const parsedRec = asRecord(parsed);
-    const triggerNormalized = String(parsedRec.triggerNormalized ?? parsedRec.trigger ?? '')
-      .trim()
-      .toLowerCase();
-    if (!triggerNormalized) return null;
-    const enabled = Boolean(parsedRec.enabled);
-    const onlyWhenLive = Boolean(parsedRec.onlyWhenLive);
-    const breakCreditMinutesRaw = Number(parsedRec.breakCreditMinutes);
-    const breakCreditMinutes = Number.isFinite(breakCreditMinutesRaw)
-      ? Math.max(0, Math.min(24 * 60, Math.floor(breakCreditMinutesRaw)))
-      : 60;
-    const responseTemplate =
-      parsedRec.responseTemplate === null ? null : String(parsedRec.responseTemplate ?? '').trim() || null;
-    return { enabled, triggerNormalized, responseTemplate, breakCreditMinutes, onlyWhenLive };
-  } catch {
-    return null;
+  } catch (error: unknown) {
+    logger.warn('vkvideo_chatbot.internal_post_failed', {
+      errorMessage: error instanceof Error ? error.message : String(error),
+    });
   }
 }

@@ -62,9 +62,6 @@ export const searchMemes = async (req: SearchRequest, res: Response) => {
           memeCatalogMode: true,
           defaultPriceCoins: true,
           slug: true,
-          dynamicPricingEnabled: true,
-          dynamicPricingMinMult: true,
-          dynamicPricingMaxMult: true,
         },
       })
     : null;
@@ -162,9 +159,6 @@ export const searchMemes = async (req: SearchRequest, res: Response) => {
           memeCatalogMode: targetChannel.memeCatalogMode ?? null,
           defaultPriceCoins: targetChannel.defaultPriceCoins ?? null,
           slug: targetChannel.slug ?? null,
-          dynamicPricingEnabled: targetChannel.dynamicPricingEnabled ?? null,
-          dynamicPricingMinMult: targetChannel.dynamicPricingMinMult ?? null,
-          dynamicPricingMaxMult: targetChannel.dynamicPricingMaxMult ?? null,
         }
       : null,
     memeCatalogMode,

@@ -5,7 +5,6 @@ import { registerBetaPaths } from './beta.js';
 import { registerDebugPaths } from './debug.js';
 import { registerInternalPaths } from './internal.js';
 import { registerModerationPaths } from './moderation.js';
-import { registerOverlayPaths } from './overlay.js';
 import { registerOwnerPaths } from './owner.js';
 import { registerPublicPaths } from './public.js';
 import { registerStreamerPaths } from './streamer.js';
@@ -19,7 +18,6 @@ export function registerPaths(ctx: OpenApiContext) {
   registerSystemPaths(ctx);
   registerInternalPaths(ctx);
   registerDebugPaths(ctx);
-  registerOverlayPaths(ctx);
   registerPublicPaths(ctx);
   registerAuthPaths(ctx);
   registerBetaPaths(ctx);

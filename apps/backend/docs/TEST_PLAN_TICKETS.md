@@ -313,32 +313,6 @@
 
 ---
 
-## TICKET-010: Auth Boosty Link
-
-**Компонент**: `src/controllers/auth/boosty.ts`
-
-**Описание**:
-Тестирование manual linking Boosty (без OAuth redirect).
-
-**Файл теста**: `tests/authBoostyLink.test.ts`
-
-**Что тестировать**:
-- [x] `POST /auth/boosty/link` с валидным API key
-- [x] Отклонение невалидного API key
-- [x] Обновление при повторном linking
-
-**Мокировать**:
-- Boosty API
-
-**Acceptance Criteria**:
-```
-✅ Проверена валидация API key
-```
-
-**Примерная сложность**: 2 часа
-
----
-
 ## TICKET-011: Auth Logout
 
 **Компонент**: `src/controllers/auth/index.ts` (logout)
@@ -578,38 +552,6 @@
 
 ---
 
-## TICKET-020: YouTube Like Reward
-
-**Компонент**: `src/controllers/viewer/youtubeLikeReward.ts`
-
-**Описание**:
-Тестирование YouTube like reward claim.
-
-**Файл теста**: `tests/viewerYoutubeLikeReward.test.ts`
-
-**Что тестировать**:
-- [x] `POST /rewards/youtube/like/claim`
-- [x] status: disabled (feature off)
-- [x] status: need_youtube_link
-- [x] status: need_relink_scopes
-- [x] status: not_live
-- [x] status: cooldown
-- [x] status: not_liked
-- [x] status: already_claimed
-- [x] status: success + начисление coins
-
-**Мокировать**:
-- YouTube API (videos.getRating)
-
-**Acceptance Criteria**:
-```
-✅ Все статусы проверены
-```
-
-**Примерная сложность**: 4 часа
-
----
-
 ## TICKET-021: Streamer Submissions List
 
 **Компонент**: `src/controllers/admin/submissions.ts`
@@ -702,7 +644,6 @@
 - [x] `GET /streamer/twitch/reward/eligibility`
 - [x] Create/Update/Delete reward
 - [x] EventSub subscription management
-- [x] Auto rewards configuration
 
 **Мокировать**:
 - Twitch API
@@ -713,28 +654,6 @@
 ```
 
 **Примерная сложность**: 5 часов
-
----
-
-## TICKET-025: Streamer Kick Rewards
-
-**Компонент**: `src/controllers/admin/channelSettings/kickRewards.ts`
-
-**Описание**:
-Тестирование Kick rewards configuration.
-
-**Файл теста**: `tests/streamerKickRewards.test.ts`
-
-**Что тестировать**:
-- [x] Настройка Kick rewards
-- [x] Валидация
-
-**Acceptance Criteria**:
-```
-✅ Kick rewards покрыты
-```
-
-**Примерная сложность**: 2 часа
 
 ---
 
@@ -881,29 +800,6 @@
 
 ---
 
-## TICKET-032: Streamer Credits Overlay
-
-**Компонент**: `src/controllers/admin/creditsOverlay.ts`
-
-**Описание**:
-Тестирование credits overlay configuration.
-
-**Файл теста**: `tests/streamerCreditsOverlay.test.ts`
-
-**Что тестировать**:
-- [x] GET credits overlay settings
-- [x] PATCH credits overlay settings
-- [x] Генерация credits overlay URL
-
-**Acceptance Criteria**:
-```
-✅ Credits overlay покрыт
-```
-
-**Примерная сложность**: 2 часа
-
----
-
 ## TICKET-033: Streamer Entitlements
 
 **Компонент**: `src/controllers/streamer/entitlementsController.ts`
@@ -993,29 +889,6 @@
 **Acceptance Criteria**:
 ```
 ✅ Submission events покрыты
-```
-
-**Примерная сложность**: 3 часа
-
----
-
-## TICKET-037: Realtime Credits State
-
-**Компонент**: `src/realtime/creditsState.ts`, `creditsSessionStore.ts`
-
-**Описание**:
-Тестирование credits state management.
-
-**Файл теста**: `tests/realtimeCreditsState.test.ts`
-
-**Что тестировать**:
-- [x] Session store operations
-- [x] Credits state updates
-- [x] Ticker logic
-
-**Acceptance Criteria**:
-```
-✅ Credits realtime покрыт
 ```
 
 **Примерная сложность**: 3 часа
@@ -1418,35 +1291,10 @@
 - [x] `vkvideoChannelPoints.ts`
 - [x] `vkvideoCore.ts`
 - [x] `vkvideoTokens.ts`
-- [x] `vkvideoRoles.ts`
 
 **Acceptance Criteria**:
 ```
 ✅ VKVideo API покрыт
-```
-
-**Примерная сложность**: 4 часа
-
----
-
-## TICKET-053: External APIs — Other (Discord, Boosty, Kick, Trovo)
-
-**Компонент**: `src/utils/discordApi.ts`, `boostyApi.ts`, `kickApi.ts`, `trovoApi.ts`
-
-**Описание**:
-Тестирование остальных external APIs.
-
-**Файл теста**: `tests/externalApis.test.ts`
-
-**Что тестировать**:
-- [x] Discord API - guild members, roles
-- [x] Boosty API - tier info
-- [x] Kick API - channel info
-- [x] Trovo API - channel info
-
-**Acceptance Criteria**:
-```
-✅ Все external APIs покрыты
 ```
 
 **Примерная сложность**: 4 часа

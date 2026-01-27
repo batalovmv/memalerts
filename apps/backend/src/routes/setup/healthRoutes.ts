@@ -153,8 +153,6 @@ export function registerHealthRoutes(app: Router) {
       twitchOutboxCounts,
       youtubeOutboxCounts,
       vkvideoOutboxCounts,
-      trovoOutboxCounts,
-      kickOutboxCounts,
     ] = await Promise.all([
       prisma.serviceHeartbeat.findMany({ orderBy: { id: 'asc' } }),
       getAiModerationQueueCounts(),
@@ -162,8 +160,6 @@ export function registerHealthRoutes(app: Router) {
       getChatOutboxQueueCounts('twitch'),
       getChatOutboxQueueCounts('youtube'),
       getChatOutboxQueueCounts('vkvideo'),
-      getChatOutboxQueueCounts('trovo'),
-      getChatOutboxQueueCounts('kick'),
     ]);
     const workers = rows.map((row) => {
       const lastSeenAt = row.lastSeenAt ? new Date(row.lastSeenAt).toISOString() : null;
@@ -187,8 +183,6 @@ export function registerHealthRoutes(app: Router) {
           twitch: twitchOutboxCounts,
           youtube: youtubeOutboxCounts,
           vkvideo: vkvideoOutboxCounts,
-          trovo: trovoOutboxCounts,
-          kick: kickOutboxCounts,
         },
       },
     });

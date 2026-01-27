@@ -7,12 +7,15 @@ import {
   getPublicChannelMemes,
   searchPublicChannelMemes,
 } from '../../controllers/public/channelPublicController.js';
+import { getActiveEvents } from '../../controllers/public/eventsController.js';
 
 export function registerPublicRoutes(app: Router) {
   app.get('/public/submissions/status', publicSubmissionsControlLimiter, submissionsPublicControlController.status);
   app.post('/public/submissions/enable', publicSubmissionsControlLimiter, submissionsPublicControlController.enable);
   app.post('/public/submissions/disable', publicSubmissionsControlLimiter, submissionsPublicControlController.disable);
   app.post('/public/submissions/toggle', publicSubmissionsControlLimiter, submissionsPublicControlController.toggle);
+
+  app.get('/public/events/active', getActiveEvents);
 
   app.get('/public/channels/:slug', optionalAuthenticate, getPublicChannelBySlug);
   app.get('/public/channels/:slug/memes', optionalAuthenticate, getPublicChannelMemes);

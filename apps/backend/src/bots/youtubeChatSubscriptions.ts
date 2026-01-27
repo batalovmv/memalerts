@@ -7,7 +7,6 @@ import {
   normalizeSlug,
   prismaAny,
   type YouTubeChannelState,
-  type YouTubeStreamDurationCfg,
 } from './youtubeChatbotShared.js';
 
 type SubRow = {
@@ -15,33 +14,7 @@ type SubRow = {
   userId: string;
   youtubeChannelId: string;
   slug: string;
-  creditsReconnectWindowMinutes: number;
-  streamDurationCommandJson: string | null;
 };
-
-function parseStreamDurationCfg(raw: string | null | undefined): YouTubeStreamDurationCfg | null {
-  try {
-    const s = String(raw || '').trim();
-    if (!s) return null;
-    const parsed = JSON.parse(s) as unknown;
-    const parsedRec = asRecord(parsed);
-    const triggerNormalized = String(parsedRec.triggerNormalized ?? parsedRec.trigger ?? '')
-      .trim()
-      .toLowerCase();
-    if (!triggerNormalized) return null;
-    const enabled = Boolean(parsedRec.enabled);
-    const onlyWhenLive = Boolean(parsedRec.onlyWhenLive);
-    const breakCreditMinutesRaw = Number(parsedRec.breakCreditMinutes);
-    const breakCreditMinutes = Number.isFinite(breakCreditMinutesRaw)
-      ? Math.max(0, Math.min(24 * 60, Math.floor(breakCreditMinutesRaw)))
-      : 60;
-    const responseTemplate =
-      parsedRec.responseTemplate === null ? null : String(parsedRec.responseTemplate ?? '').trim() || null;
-    return { enabled, triggerNormalized, responseTemplate, breakCreditMinutes, onlyWhenLive };
-  } catch {
-    return null;
-  }
-}
 
 async function fetchEnabledYouTubeSubscriptions(): Promise<SubRow[]> {
   const rows = await prismaAny.youTubeChatBotSubscription.findMany({
@@ -50,7 +23,7 @@ async function fetchEnabledYouTubeSubscriptions(): Promise<SubRow[]> {
       channelId: true,
       userId: true,
       youtubeChannelId: true,
-      channel: { select: { slug: true, creditsReconnectWindowMinutes: true, streamDurationCommandJson: true } },
+      channel: { select: { slug: true } },
     },
   });
 
@@ -82,12 +55,6 @@ async function fetchEnabledYouTubeSubscriptions(): Promise<SubRow[]> {
     const userId = String(row.userId ?? '').trim();
     const youtubeChannelId = String(row.youtubeChannelId ?? '').trim();
     const slug = normalizeSlug(String(channel.slug ?? ''));
-    const windowMinRaw = Number(channel.creditsReconnectWindowMinutes);
-    const creditsReconnectWindowMinutes = Number.isFinite(windowMinRaw)
-      ? Math.max(1, Math.min(24 * 60, Math.floor(windowMinRaw)))
-      : 60;
-    const streamDurationCommandJson =
-      typeof channel.streamDurationCommandJson === 'string' ? channel.streamDurationCommandJson : null;
     if (!channelId || !userId || !youtubeChannelId || !slug) continue;
 
     if (gate) {
@@ -95,7 +62,7 @@ async function fetchEnabledYouTubeSubscriptions(): Promise<SubRow[]> {
       if (gated === false) continue;
     }
 
-    out.push({ channelId, userId, youtubeChannelId, slug, creditsReconnectWindowMinutes, streamDurationCommandJson });
+    out.push({ channelId, userId, youtubeChannelId, slug });
   }
   return out;
 }
@@ -146,25 +113,15 @@ export function createYouTubeChatSubscriptions(params: {
 
       for (const s of subs) {
         const existing = states.get(s.channelId);
-        const streamDurationCfg = parseStreamDurationCfg(s.streamDurationCommandJson);
         if (!existing) {
           states.set(s.channelId, {
             channelId: s.channelId,
             userId: s.userId,
             youtubeChannelId: s.youtubeChannelId,
             slug: s.slug,
-            creditsReconnectWindowMinutes: s.creditsReconnectWindowMinutes,
-            streamDurationCfg,
             liveChatId: null,
             isLive: false,
-            firstPollAfterLive: true,
-            pageToken: null,
             lastLiveCheckAt: 0,
-            lastPollAt: 0,
-            nextPollAtMs: 0,
-            pollInFlight: false,
-            commandsTs: 0,
-            commands: [],
             botExternalAccountId: null,
           });
           states.get(s.channelId)!.botExternalAccountId = entitled.has(s.channelId)
@@ -179,8 +136,6 @@ export function createYouTubeChatSubscriptions(params: {
           existing.userId = s.userId;
           existing.youtubeChannelId = s.youtubeChannelId;
           existing.slug = s.slug;
-          existing.creditsReconnectWindowMinutes = s.creditsReconnectWindowMinutes;
-          existing.streamDurationCfg = streamDurationCfg;
           existing.botExternalAccountId = entitled.has(s.channelId) ? (overrides.get(s.channelId) ?? null) : null;
         }
       }

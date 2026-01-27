@@ -1,8 +1,6 @@
 import express from 'express';
 import request from 'supertest';
 import crypto from 'crypto';
-import type { Prisma } from '@prisma/client';
-
 import { prisma } from '../src/lib/prisma.js';
 import { webhookRoutes } from '../src/routes/webhooks.js';
 import { createChannel } from './factories/index.js';
@@ -30,7 +28,7 @@ function rand(): string {
   return Math.random().toString(16).slice(2);
 }
 
-describe('Twitch auto rewards: follow -> ExternalRewardEvent + PendingCoinGrant (once-ever)', () => {
+describe('Twitch follow EventSub payloads without auto rewards', () => {
   const originalEnv = { ...process.env };
 
   beforeEach(() => {
@@ -42,17 +40,12 @@ describe('Twitch auto rewards: follow -> ExternalRewardEvent + PendingCoinGrant 
     process.env = originalEnv;
   });
 
-  it('creates exactly one pending coin grant per user (onceEver) even if follow event repeats', async () => {
-    const channelData: Prisma.ChannelCreateInput & {
-      twitchAutoRewardsJson: { v: number; follow: { enabled: boolean; coins: number; onceEver: boolean } };
-    } = {
+  it('does not create coin grants when auto rewards are not configured', async () => {
+    const channel = await createChannel({
       slug: `ch_${rand()}`,
       name: `Channel ${rand()}`,
       twitchChannelId: `tw_${rand()}`,
-      // New JSONB column may not be in older Prisma typings during staged deploys.
-      twitchAutoRewardsJson: { v: 1, follow: { enabled: true, coins: 10, onceEver: true } },
-    };
-    const channel = await createChannel(channelData);
+    });
 
     const event = {
       user_id: `u_${rand()}`,
@@ -102,16 +95,15 @@ describe('Twitch auto rewards: follow -> ExternalRewardEvent + PendingCoinGrant 
     const pendingCount = await prisma.pendingCoinGrant.count({
       where: { provider: 'twitch', providerAccountId: event.user_id, channelId: channel.id },
     });
-    expect(pendingCount).toBe(1);
+    expect(pendingCount).toBe(0);
 
     const evCount = await prisma.externalRewardEvent.count({
       where: {
         provider: 'twitch',
         providerAccountId: event.user_id,
         channelId: channel.id,
-        eventType: 'twitch_follow',
       },
     });
-    expect(evCount).toBe(1);
+    expect(evCount).toBe(0);
   });
 });

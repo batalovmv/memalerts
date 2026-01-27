@@ -1,6 +1,4 @@
 import type { Request, Response } from 'express';
-import { handleTwitchAutoRewardsEvent } from './webhook/twitchEventSubAutoRewards.js';
-import { handleTwitchFollowEvent } from './webhook/twitchEventSubFollow.js';
 import { handleTwitchRedemptionEvent } from './webhook/twitchEventSubRedemption.js';
 import { handleTwitchStreamSessionEvent } from './webhook/twitchEventSubStreamSession.js';
 import { type EventSubContext } from './webhook/twitchEventSubShared.js';
@@ -29,8 +27,6 @@ export const webhookController = {
     };
 
     if (await handleTwitchRedemptionEvent(ctx)) return;
-    if (await handleTwitchFollowEvent(ctx)) return;
-    if (await handleTwitchAutoRewardsEvent(ctx)) return;
     if (await handleTwitchStreamSessionEvent(ctx)) return;
 
     res.status(200).json({ message: 'Event received' });

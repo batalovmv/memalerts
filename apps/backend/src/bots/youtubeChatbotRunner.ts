@@ -8,8 +8,6 @@ import { type ChatOutboxJobData } from '../queues/chatOutboxQueue.js';
 import { validateYoutubeChatbotEnv } from './env.js';
 import { clampInt, parseBool, parseIntSafe, type YouTubeChannelState } from './youtubeChatbotShared.js';
 import { createYouTubeChatSubscriptions } from './youtubeChatSubscriptions.js';
-import { createYouTubeChatCommands } from './youtubeChatCommands.js';
-import { createYouTubeChatPolling } from './youtubeChatPolling.js';
 import { createYouTubeChatOutbox } from './youtubeChatOutbox.js';
 
 validateYoutubeChatbotEnv();
@@ -31,7 +29,6 @@ async function start() {
   const backendBaseUrls = parseBaseUrls();
   const syncSeconds = Math.max(5, parseIntSafe(process.env.YOUTUBE_CHATBOT_SYNC_SECONDS, 20));
   const liveCheckSeconds = Math.max(5, parseIntSafe(process.env.YOUTUBE_CHATBOT_LIVE_CHECK_SECONDS, 20));
-  const commandsRefreshSeconds = Math.max(5, parseIntSafe(process.env.YOUTUBE_CHATBOT_COMMANDS_REFRESH_SECONDS, 30));
   const outboxPollMs = Math.max(500, parseIntSafe(process.env.YOUTUBE_CHATBOT_OUTBOX_POLL_MS, 1_000));
   const outboxBullmqEnabled = parseBool(process.env.CHAT_OUTBOX_BULLMQ_ENABLED);
   const outboxConcurrency = clampInt(parseInt(String(process.env.YOUTUBE_CHAT_OUTBOX_CONCURRENCY || ''), 10), 1, 10, 2);
@@ -87,15 +84,12 @@ async function start() {
   const stoppedRef = { value: false };
 
   let syncTimer: NodeJS.Timeout | null = null;
-  let pollTimer: NodeJS.Timeout | null = null;
   let outboxTimer: NodeJS.Timeout | null = null;
   let outboxWorker: Worker<ChatOutboxJobData> | null = null;
 
   const states = new Map<string, YouTubeChannelState>();
 
   const subscriptions = createYouTubeChatSubscriptions({ states, stoppedRef });
-  const chatCommands = createYouTubeChatCommands(states, { backendBaseUrls, commandsRefreshSeconds, stoppedRef });
-  const chatPolling = createYouTubeChatPolling(states, chatCommands, { liveCheckSeconds, stoppedRef });
   const chatOutbox = createYouTubeChatOutbox(states, {
     outboxBullmqEnabled,
     outboxConcurrency,
@@ -106,13 +100,13 @@ async function start() {
     outboxDedupWindowMs,
     outboxLockTtlMs,
     outboxLockDelayMs,
+    liveCheckSeconds,
     stoppedRef,
   });
 
   const shutdown = async () => {
     stoppedRef.value = true;
     if (syncTimer) clearInterval(syncTimer);
-    if (pollTimer) clearInterval(pollTimer);
     if (outboxTimer) clearInterval(outboxTimer);
     if (outboxWorker) {
       try {
@@ -137,14 +131,13 @@ async function start() {
   await prisma.$connect();
   await subscriptions.syncSubscriptions();
   syncTimer = setInterval(() => void subscriptions.syncSubscriptions(), syncSeconds * 1000);
-  pollTimer = setInterval(() => void chatPolling.pollChatsOnce(), 1_000);
   if (outboxBullmqEnabled) {
     outboxWorker = chatOutbox.startOutboxWorker();
   } else {
     outboxTimer = setInterval(() => void chatOutbox.processOutboxOnce(), outboxPollMs);
   }
 
-  logger.info('youtube_chatbot.started', { syncSeconds, liveCheckSeconds, commandsRefreshSeconds, outboxPollMs });
+  logger.info('youtube_chatbot.started', { syncSeconds, liveCheckSeconds, outboxPollMs });
 }
 
 void start().catch((e: unknown) => {

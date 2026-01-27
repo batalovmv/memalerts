@@ -233,66 +233,6 @@ export function mockStreamerOverlayTokenRotate(payload: unknown, onCall?: () => 
   });
 }
 
-export function mockStreamerCreditsToken(payload: unknown) {
-  return http.get('*/streamer/credits/token', () => HttpResponse.json(payload));
-}
-
-export function mockStreamerCreditsTokenRotate(payload: unknown, onCall?: () => void) {
-  return http.post('*/streamer/credits/token/rotate', () => {
-    onCall?.();
-    return HttpResponse.json(payload);
-  });
-}
-
-export function mockStreamerCreditsState(payload: unknown) {
-  return http.get('*/streamer/credits/state', () => HttpResponse.json(payload));
-}
-
-export function mockStreamerCreditsResetOk(onCall?: () => void) {
-  return http.post('*/streamer/credits/reset', () => {
-    onCall?.();
-    return HttpResponse.json({ ok: true });
-  });
-}
-
-export function mockStreamerCreditsReconnectWindow(payload: unknown, onCall?: () => void) {
-  return http.get('*/streamer/credits/reconnect-window', () => {
-    onCall?.();
-    return HttpResponse.json(payload);
-  });
-}
-
-export function mockStreamerCreditsReconnectWindowSetOk(onCall?: (body: unknown) => void) {
-  return http.post('*/streamer/credits/reconnect-window', async ({ request }) => {
-    const body = (await request.json().catch(() => null)) as unknown;
-    onCall?.(body);
-    return HttpResponse.json({ ok: true });
-  });
-}
-
-export function mockStreamerCreditsIgnoredChatters(payload: unknown, onCall?: () => void) {
-  return http.get('*/streamer/credits/ignored-chatters', () => {
-    onCall?.();
-    return HttpResponse.json(payload);
-  });
-}
-
-export function mockStreamerCreditsIgnoredChattersSetOk(onCall?: (body: unknown) => void) {
-  return http.post('*/streamer/credits/ignored-chatters', async ({ request }) => {
-    const body = (await request.json().catch(() => null)) as unknown;
-    onCall?.(body);
-    return HttpResponse.json({ ok: true });
-  });
-}
-
-export function mockStreamerCreditsSettingsSaveOk(onCall?: (body: unknown) => void) {
-  return http.post('*/streamer/credits/settings', async ({ request }) => {
-    const body = (await request.json().catch(() => null)) as unknown;
-    onCall?.(body);
-    return HttpResponse.json({ ok: true });
-  });
-}
-
 export function mockStreamerOverlayPresets(payload: unknown) {
   return http.get('*/streamer/overlay/presets', () => HttpResponse.json(payload));
 }
@@ -437,11 +377,11 @@ export function mockAuthAccountDeleteOk(assert?: (data: { id: string }) => void)
   });
 }
 
-export function mockOwnerDefaultBotStatus(provider: 'twitch' | 'youtube' | 'vkvideo' | 'trovo' | 'kick', payload: unknown) {
+export function mockOwnerDefaultBotStatus(provider: 'twitch' | 'youtube' | 'vkvideo', payload: unknown) {
   return http.get(`*/owner/bots/${provider}/default/status`, () => HttpResponse.json(payload));
 }
 
-export function mockOwnerDefaultBotDisconnect(provider: 'twitch' | 'youtube' | 'vkvideo' | 'trovo' | 'kick', onCall?: () => void) {
+export function mockOwnerDefaultBotDisconnect(provider: 'twitch' | 'youtube' | 'vkvideo', onCall?: () => void) {
   return http.delete(`*/owner/bots/${provider}/default`, () => {
     onCall?.();
     return HttpResponse.json({ ok: true });
@@ -456,11 +396,7 @@ export function mockStreamerCustomBotEntitlement(payload: unknown) {
   return http.get('*/streamer/entitlements/custom-bot', () => HttpResponse.json(payload));
 }
 
-export function mockStreamerFollowGreetings(payload: unknown) {
-  return http.get('*/streamer/bot/follow-greetings', () => HttpResponse.json(payload));
-}
-
-export function mockStreamerBotOverrideStatus(provider: 'twitch' | 'youtube' | 'vkvideo' | 'trovo' | 'kick', payload: unknown) {
+export function mockStreamerBotOverrideStatus(provider: 'twitch' | 'youtube' | 'vkvideo', payload: unknown) {
   return http.get(`*/streamer/bots/${provider}/bot`, () => HttpResponse.json(payload));
 }
 

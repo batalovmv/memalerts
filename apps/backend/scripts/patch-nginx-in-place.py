@@ -482,21 +482,6 @@ def _ensure_memalerts_api_proxy_locations(server_block: str, *, upstream_port: i
         )
         changed = changed or cy
 
-    # Overlay credits are served by backend under /overlay/credits/...; proxy only that subpath
-    # to avoid interfering with frontend static /overlay/.
-    server_block, c7 = _ensure_location_if_missing(
-        server_block,
-        location_header_regex=r"(^\s*location\s+\^~\s+/overlay/credits/\s*\{)",
-        location_block=(
-            f"    {MARKER}: api proxy\n"
-            "    location ^~ /overlay/credits/ {\n"
-            f"        proxy_pass {upstream};\n"
-            f"{_proxy_common_headers()}"
-            "    }\n"
-        ),
-    )
-    changed = changed or c7
-
     # Socket.IO (WebSocket upgrade).
     server_block, c8 = _ensure_location_if_missing(
         server_block,
@@ -796,5 +781,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
 

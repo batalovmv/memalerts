@@ -16,12 +16,6 @@ import {
   buildMemeAssetVisibilityFilter,
   loadViewerMemeState,
 } from '../memeViewerState.js';
-import {
-  applyDynamicPricingToItems,
-  collectChannelMemeIds,
-  loadDynamicPricingSnapshot,
-  normalizeDynamicPricingSettings,
-} from '../../../services/meme/dynamicPricing.js';
 
 function defaultPriceCoinsFromChannel(ctx: SearchContext): number {
   const raw = ctx.targetChannel?.defaultPriceCoins ?? null;
@@ -95,13 +89,7 @@ async function attachViewerState(ctx: SearchContext, items: Array<Record<string,
   });
   const withState = applyViewerMemeState(items, state);
   if (!ctx.targetChannelId) return withState;
-  const settings = normalizeDynamicPricingSettings(ctx.targetChannel ?? null);
-  const snapshot = await loadDynamicPricingSnapshot({
-    channelId: ctx.targetChannelId,
-    channelMemeIds: collectChannelMemeIds(withState),
-    settings,
-  });
-  return applyDynamicPricingToItems(withState, snapshot);
+  return withState;
 }
 
 function mergeChannelAnd(where: Prisma.ChannelMemeWhereInput, extra: Prisma.ChannelMemeWhereInput) {
@@ -386,7 +374,7 @@ export async function handleChannelSearchMode(ctx: SearchContext) {
     if (ctx.tagsStr) {
       const tagNames = parseTagNames(ctx.tagsStr);
       if (tagNames.length > 0) {
-        where.AND = tagNames.map((tag) => ({ aiSearchText: { contains: tag, mode: 'insensitive' } }));
+        where.AND = tagNames.map((tag: string) => ({ aiSearchText: { contains: tag, mode: 'insensitive' } }));
       }
     }
     if (ctx.qStr) {
@@ -461,7 +449,7 @@ export async function handleChannelSearchMode(ctx: SearchContext) {
   if (ctx.tagsStr) {
     const tagNames = parseTagNames(ctx.tagsStr);
     if (tagNames.length > 0) {
-      where.AND = tagNames.map((tag) => ({
+      where.AND = tagNames.map((tag: string) => ({
         tags: { some: { tag: { name: { contains: tag, mode: 'insensitive' } } } },
       }));
     }

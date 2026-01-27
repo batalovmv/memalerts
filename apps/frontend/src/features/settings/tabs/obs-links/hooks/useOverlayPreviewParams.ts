@@ -1,14 +1,11 @@
 import { useMemo } from 'react';
 
 import type { PreviewMeme } from '../types';
-import type { CreditsSettingsState } from './useCreditsSettings';
 import type { ObsLinkFormState } from './useObsLinkForm';
 
 type UseOverlayPreviewParamsOptions = {
-  overlayKind: 'memes' | 'credits';
   overlayToken: string;
   origin: string;
-  apiOrigin: string;
   previewMemes: PreviewMeme[];
   previewCount: number;
   previewSeed: number;
@@ -18,17 +15,13 @@ type UseOverlayPreviewParamsOptions = {
   previewShowSafeGuide: boolean;
   previewLoopEnabled: boolean;
   overlayForm: ObsLinkFormState;
-  creditsSettings: CreditsSettingsState;
-  i18nLanguage: string;
 };
 
 export type OverlayPreviewParamsState = ReturnType<typeof useOverlayPreviewParams>;
 
 export function useOverlayPreviewParams({
-  overlayKind,
   overlayToken,
   origin,
-  apiOrigin,
   previewMemes,
   previewCount,
   previewSeed,
@@ -38,8 +31,6 @@ export function useOverlayPreviewParams({
   previewShowSafeGuide,
   previewLoopEnabled,
   overlayForm,
-  creditsSettings,
-  i18nLanguage,
 }: UseOverlayPreviewParamsOptions) {
   const {
     overlayMode,
@@ -94,78 +85,7 @@ export function useOverlayPreviewParams({
     senderFontColor,
   } = overlayForm;
 
-  const {
-    creditsToken,
-    creditsUrl,
-    creditsAnchorX,
-    creditsAnchorY,
-    creditsBgInsetLeft,
-    creditsBgInsetRight,
-    creditsBgInsetTop,
-    creditsBgInsetBottom,
-    creditsMaxWidthPx,
-    creditsMaxHeightVh,
-    creditsTextAlign,
-    creditsContentPadLeft,
-    creditsContentPadRight,
-    creditsContentPadTop,
-    creditsContentPadBottom,
-    creditsSectionsOrder,
-    creditsShowDonors,
-    creditsShowChatters,
-    creditsTitleText,
-    creditsDonorsTitleText,
-    creditsChattersTitleText,
-    creditsShowNumbers,
-    creditsShowAvatars,
-    creditsAvatarSize,
-    creditsAvatarRadius,
-    creditsFontFamily,
-    creditsFontSize,
-    creditsFontWeight,
-    creditsFontColor,
-    creditsLineHeight,
-    creditsLetterSpacing,
-    creditsTitleEnabled,
-    creditsTitleSize,
-    creditsTitleWeight,
-    creditsTitleColor,
-    creditsTitleTransform,
-    creditsTextShadowBlur,
-    creditsTextShadowOpacity,
-    creditsTextShadowColor,
-    creditsTextStrokeWidth,
-    creditsTextStrokeOpacity,
-    creditsTextStrokeColor,
-    creditsTitleShadowBlur,
-    creditsTitleShadowOpacity,
-    creditsTitleShadowColor,
-    creditsTitleStrokeWidth,
-    creditsTitleStrokeOpacity,
-    creditsTitleStrokeColor,
-    creditsBackgroundMode,
-    creditsBgColor,
-    creditsBgOpacity,
-    creditsBlur,
-    creditsRadius,
-    creditsShadowBlur,
-    creditsShadowOpacity,
-    creditsBorderEnabled,
-    creditsBorderWidth,
-    creditsBorderColor,
-    creditsScrollSpeed,
-    creditsScrollDirection,
-    creditsLoop,
-    creditsStartDelayMs,
-    creditsEndFadeMs,
-    creditsSectionGapPx,
-    creditsLineGapPx,
-    creditsIndentPx,
-    creditsFadeInMs,
-  } = creditsSettings;
-
   const overlayUrl = overlayToken ? `${origin}/overlay/t/${overlayToken}` : '';
-  const creditsUrlResolved = creditsUrl || (creditsToken ? `${apiOrigin || origin}/overlay/credits/t/${creditsToken}` : '');
 
   const overlayPreviewBaseUrl = useMemo(() => {
     if (!overlayUrl) return '';
@@ -173,13 +93,6 @@ export function useOverlayPreviewParams({
     u.searchParams.set('demo', '1');
     return u.toString();
   }, [overlayUrl]);
-
-  const creditsPreviewBaseUrl = useMemo(() => {
-    if (!creditsUrlResolved) return '';
-    const u = new URL(creditsUrlResolved);
-    u.searchParams.set('demo', '1');
-    return u.toString();
-  }, [creditsUrlResolved]);
 
   const overlayPreviewParams = useMemo(() => {
     const target = Math.min(5, Math.max(1, previewCount));
@@ -320,155 +233,8 @@ export function useOverlayPreviewParams({
     urlVolume,
   ]);
 
-  const creditsPreviewParams = useMemo(() => {
-    const lang = String(i18nLanguage || '').toLowerCase().startsWith('ru') ? 'ru' : 'en';
-    return {
-      demo: '1',
-      lang,
-      previewBg,
-      anchorX: creditsAnchorX,
-      anchorY: creditsAnchorY,
-      bgInsetLeft: String(creditsBgInsetLeft),
-      bgInsetRight: String(creditsBgInsetRight),
-      bgInsetTop: String(creditsBgInsetTop),
-      bgInsetBottom: String(creditsBgInsetBottom),
-      maxWidthPx: String(creditsMaxWidthPx),
-      maxHeightVh: String(creditsMaxHeightVh),
-      textAlign: creditsTextAlign,
-      contentPadLeft: String(creditsContentPadLeft),
-      contentPadRight: String(creditsContentPadRight),
-      contentPadTop: String(creditsContentPadTop),
-      contentPadBottom: String(creditsContentPadBottom),
-      sectionsOrder: JSON.stringify(creditsSectionsOrder),
-      showDonors: creditsShowDonors ? '1' : '0',
-      showChatters: creditsShowChatters ? '1' : '0',
-      titleText: String(creditsTitleText),
-      donorsTitleText: String(creditsDonorsTitleText),
-      chattersTitleText: String(creditsChattersTitleText),
-      showNumbers: creditsShowNumbers ? '1' : '0',
-      showAvatars: creditsShowAvatars ? '1' : '0',
-      avatarSize: String(creditsAvatarSize),
-      avatarRadius: String(creditsAvatarRadius),
-      fontFamily: String(creditsFontFamily),
-      fontSize: String(creditsFontSize),
-      fontWeight: String(creditsFontWeight),
-      fontColor: String(creditsFontColor),
-      lineHeight: String(creditsLineHeight),
-      letterSpacing: String(creditsLetterSpacing),
-      titleEnabled: creditsTitleEnabled ? '1' : '0',
-      titleSize: String(creditsTitleSize),
-      titleWeight: String(creditsTitleWeight),
-      titleColor: String(creditsTitleColor),
-      titleTransform: creditsTitleTransform,
-      textShadowBlur: String(creditsTextShadowBlur),
-      textShadowOpacity: String(creditsTextShadowOpacity),
-      textShadowColor: String(creditsTextShadowColor),
-      textStrokeWidth: String(creditsTextStrokeWidth),
-      textStrokeOpacity: String(creditsTextStrokeOpacity),
-      textStrokeColor: String(creditsTextStrokeColor),
-      titleShadowBlur: String(creditsTitleShadowBlur),
-      titleShadowOpacity: String(creditsTitleShadowOpacity),
-      titleShadowColor: String(creditsTitleShadowColor),
-      titleStrokeWidth: String(creditsTitleStrokeWidth),
-      titleStrokeOpacity: String(creditsTitleStrokeOpacity),
-      titleStrokeColor: String(creditsTitleStrokeColor),
-      backgroundMode: creditsBackgroundMode,
-      bgColor: String(creditsBgColor),
-      bgOpacity: String(creditsBgOpacity),
-      blur: String(creditsBlur),
-      radius: String(creditsRadius),
-      shadowBlur: String(creditsShadowBlur),
-      shadowOpacity: String(creditsShadowOpacity),
-      borderEnabled: creditsBorderEnabled ? '1' : '0',
-      borderWidth: String(creditsBorderWidth),
-      borderColor: String(creditsBorderColor),
-      scrollSpeed: String(creditsScrollSpeed),
-      scrollDirection: creditsScrollDirection,
-      loop: creditsLoop ? '1' : '0',
-      startDelayMs: String(creditsStartDelayMs),
-      endFadeMs: String(creditsEndFadeMs),
-      sectionGapPx: String(creditsSectionGapPx),
-      lineGapPx: String(creditsLineGapPx),
-      indentPx: String(creditsIndentPx),
-      fadeInMs: String(creditsFadeInMs),
-      demoChatters: '24',
-      demoDonors: '12',
-    } satisfies Record<string, string>;
-  }, [
-    creditsAnchorX,
-    creditsAnchorY,
-    creditsAvatarRadius,
-    creditsAvatarSize,
-    creditsBgInsetBottom,
-    creditsBgInsetLeft,
-    creditsBgInsetRight,
-    creditsBgInsetTop,
-    creditsBgOpacity,
-    creditsBgColor,
-    creditsBackgroundMode,
-    creditsBlur,
-    creditsBorderColor,
-    creditsBorderEnabled,
-    creditsBorderWidth,
-    creditsChattersTitleText,
-    creditsContentPadBottom,
-    creditsContentPadLeft,
-    creditsContentPadRight,
-    creditsContentPadTop,
-    creditsDonorsTitleText,
-    creditsEndFadeMs,
-    creditsFadeInMs,
-    creditsFontColor,
-    creditsFontFamily,
-    creditsFontSize,
-    creditsFontWeight,
-    creditsIndentPx,
-    creditsLetterSpacing,
-    creditsLineHeight,
-    creditsLineGapPx,
-    creditsLoop,
-    creditsMaxHeightVh,
-    creditsMaxWidthPx,
-    creditsRadius,
-    creditsScrollDirection,
-    creditsScrollSpeed,
-    creditsSectionGapPx,
-    creditsSectionsOrder,
-    creditsShadowBlur,
-    creditsShadowOpacity,
-    creditsShowAvatars,
-    creditsShowChatters,
-    creditsShowDonors,
-    creditsShowNumbers,
-    creditsStartDelayMs,
-    creditsTextAlign,
-    creditsTextShadowBlur,
-    creditsTextShadowColor,
-    creditsTextShadowOpacity,
-    creditsTextStrokeColor,
-    creditsTextStrokeOpacity,
-    creditsTextStrokeWidth,
-    creditsTitleColor,
-    creditsTitleEnabled,
-    creditsTitleShadowBlur,
-    creditsTitleShadowColor,
-    creditsTitleShadowOpacity,
-    creditsTitleSize,
-    creditsTitleText,
-    creditsTitleTransform,
-    creditsTitleWeight,
-    creditsTitleStrokeColor,
-    creditsTitleStrokeOpacity,
-    creditsTitleStrokeWidth,
-    i18nLanguage,
-    previewBg,
-  ]);
-
-  const activePreviewBaseUrl = overlayKind === 'credits' ? creditsPreviewBaseUrl : overlayPreviewBaseUrl;
-  const activePreviewParams = overlayKind === 'credits' ? creditsPreviewParams : overlayPreviewParams;
-
   return {
-    activePreviewBaseUrl,
-    activePreviewParams,
+    activePreviewBaseUrl: overlayPreviewBaseUrl,
+    activePreviewParams: overlayPreviewParams,
   };
 }

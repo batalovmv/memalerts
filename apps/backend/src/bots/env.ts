@@ -13,12 +13,10 @@ const baseRunnerSchema = z.object({
   CHAT_BOT_TWITCH_USER_ID: z.string().min(1).optional(),
   CHATBOT_SYNC_SECONDS: z.coerce.number().int().optional(),
   CHATBOT_OUTBOX_POLL_MS: z.coerce.number().int().optional(),
-  CHATBOT_COMMANDS_REFRESH_SECONDS: z.coerce.number().int().optional(),
 
   YOUTUBE_BOT_REFRESH_TOKEN: z.string().min(1).optional(),
   YOUTUBE_CHATBOT_SYNC_SECONDS: z.coerce.number().int().optional(),
   YOUTUBE_CHATBOT_LIVE_CHECK_SECONDS: z.coerce.number().int().optional(),
-  YOUTUBE_CHATBOT_COMMANDS_REFRESH_SECONDS: z.coerce.number().int().optional(),
   YOUTUBE_CHATBOT_OUTBOX_POLL_MS: z.coerce.number().int().optional(),
 
   VKVIDEO_CHAT_BOT_ENABLED: z.string().min(1).optional(),
@@ -26,30 +24,8 @@ const baseRunnerSchema = z.object({
   VKVIDEO_PUBSUB_WS_URL: z.string().url().optional(),
   VKVIDEO_CHATBOT_SYNC_SECONDS: z.coerce.number().int().optional(),
   VKVIDEO_CHATBOT_OUTBOX_POLL_MS: z.coerce.number().int().optional(),
-  VKVIDEO_CHATBOT_COMMANDS_REFRESH_SECONDS: z.coerce.number().int().optional(),
   VKVIDEO_PUBSUB_REFRESH_SECONDS: z.coerce.number().int().optional(),
-  VKVIDEO_USER_ROLES_CACHE_TTL_MS: z.coerce.number().int().optional(),
-  VKVIDEO_CHANNEL_ROLES_USER_URL_TEMPLATE: z.string().min(1).optional(),
 
-  TROVO_ENABLED: z.string().min(1).optional(),
-  TROVO_CHAT_BOT_ENABLED: z.string().min(1).optional(),
-  TROVO_CHATBOT_SYNC_SECONDS: z.coerce.number().int().optional(),
-  TROVO_CHATBOT_OUTBOX_POLL_MS: z.coerce.number().int().optional(),
-  TROVO_CHATBOT_COMMANDS_REFRESH_SECONDS: z.coerce.number().int().optional(),
-  TROVO_CHAT_WS_URL: z.string().url().optional(),
-  TROVO_CHAT_TOKEN_URL: z.string().url().optional(),
-  TROVO_SEND_CHAT_URL: z.string().url().optional(),
-  TROVO_BOT_SCOPES: z.string().min(1).optional(),
-
-  KICK_CHAT_BOT_ENABLED: z.string().min(1).optional(),
-  KICK_CHATBOT_SYNC_SECONDS: z.coerce.number().int().optional(),
-  KICK_CHATBOT_OUTBOX_POLL_MS: z.coerce.number().int().optional(),
-  KICK_CHATBOT_COMMANDS_REFRESH_SECONDS: z.coerce.number().int().optional(),
-  KICK_CHAT_POLL_URL_TEMPLATE: z.string().min(1).optional(),
-  KICK_CHATBOT_INGEST_POLL_MS: z.coerce.number().int().optional(),
-  KICK_SEND_CHAT_URL: z.string().min(1).optional(),
-  KICK_BOT_SCOPES: z.string().min(1).optional(),
-  KICK_WEBHOOK_CALLBACK_URL: z.string().url().optional(),
   DOMAIN: z.string().min(1).optional(),
   PORT: z.coerce.number().int().optional(),
 });
@@ -91,14 +67,9 @@ function withBaseUrlValidation<T extends typeof baseRunnerSchema>(schema: T, lab
 const chatbotRunnerSchema = withBaseUrlValidation(baseRunnerSchema, 'chatbot runner');
 const youtubeChatbotRunnerSchema = withBaseUrlValidation(baseRunnerSchema, 'youtube chatbot runner');
 const vkvideoChatbotRunnerSchema = withBaseUrlValidation(baseRunnerSchema, 'vkvideo chatbot runner');
-const trovoChatbotRunnerSchema = withBaseUrlValidation(baseRunnerSchema, 'trovo chatbot runner');
-const kickChatbotRunnerSchema = withBaseUrlValidation(baseRunnerSchema, 'kick chatbot runner');
-
 export type ChatbotRunnerEnv = z.infer<typeof chatbotRunnerSchema>;
 export type YoutubeChatbotRunnerEnv = z.infer<typeof youtubeChatbotRunnerSchema>;
 export type VkvideoChatbotRunnerEnv = z.infer<typeof vkvideoChatbotRunnerSchema>;
-export type TrovoChatbotRunnerEnv = z.infer<typeof trovoChatbotRunnerSchema>;
-export type KickChatbotRunnerEnv = z.infer<typeof kickChatbotRunnerSchema>;
 
 function validateRunnerEnv<T>(schema: z.ZodType<T, z.ZodTypeDef, unknown>, label: string): T {
   const result = schema.safeParse(process.env);
@@ -119,12 +90,4 @@ export function validateYoutubeChatbotEnv(): YoutubeChatbotRunnerEnv {
 
 export function validateVkvideoChatbotEnv(): VkvideoChatbotRunnerEnv {
   return validateRunnerEnv(vkvideoChatbotRunnerSchema, 'vkvideo chatbot runner');
-}
-
-export function validateTrovoChatbotEnv(): TrovoChatbotRunnerEnv {
-  return validateRunnerEnv(trovoChatbotRunnerSchema, 'trovo chatbot runner');
-}
-
-export function validateKickChatbotEnv(): KickChatbotRunnerEnv {
-  return validateRunnerEnv(kickChatbotRunnerSchema, 'kick chatbot runner');
 }

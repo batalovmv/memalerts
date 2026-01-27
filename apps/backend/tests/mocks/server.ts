@@ -1,22 +1,15 @@
 import { setupServer } from 'msw/node';
-import { discordHandlers } from './discordApi.mock.js';
-import { kickHandlers } from './kickApi.mock.js';
 import { openaiHandlers } from './openaiApi.mock.js';
-import { trovoHandlers } from './trovoApi.mock.js';
 import { twitchHandlers } from './twitchApi.mock.js';
 import { vkHandlers } from './vkApi.mock.js';
 import { vkvideoHandlers } from './vkvideoApi.mock.js';
 import { youtubeHandlers } from './youtubeApi.mock.js';
 
 export const mockServer = setupServer(
-  ...boostyHandlers,
   ...twitchHandlers,
   ...youtubeHandlers,
-  ...discordHandlers,
   ...vkHandlers,
   ...vkvideoHandlers,
-  ...kickHandlers,
-  ...trovoHandlers,
   ...openaiHandlers
 );
 
@@ -44,4 +37,3 @@ export function resetMockHandlers() {
 export function stopMockServer() {
   mockServer.close();
 }
-import { boostyHandlers } from './boostyApi.mock.js';

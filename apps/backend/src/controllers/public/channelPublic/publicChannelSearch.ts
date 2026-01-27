@@ -31,12 +31,6 @@ import { buildSearchTerms } from '../../../shared/utils/searchTerms.js';
 import { loadLegacyTagsById } from '../../viewer/channelMemeListDto.js';
 import { parseTagNames } from '../../viewer/cache.js';
 import { applyViewerMemeState, buildChannelMemeVisibilityFilter, buildMemeAssetVisibilityFilter, loadViewerMemeState } from '../../viewer/memeViewerState.js';
-import {
-  applyDynamicPricingToItems,
-  collectChannelMemeIds,
-  loadDynamicPricingSnapshot,
-  normalizeDynamicPricingSettings,
-} from '../../../services/meme/dynamicPricing.js';
 
 export const searchPublicChannelMemes = async (req: AuthRequest, res: Response) => {
   const query = req.query as PublicChannelSearchQuery;
@@ -90,9 +84,6 @@ export const searchPublicChannelMemes = async (req: AuthRequest, res: Response) 
       id: true,
       memeCatalogMode: true,
       defaultPriceCoins: true,
-      dynamicPricingEnabled: true,
-      dynamicPricingMinMult: true,
-      dynamicPricingMaxMult: true,
     },
   });
   if (!channel)
@@ -110,7 +101,7 @@ export const searchPublicChannelMemes = async (req: AuthRequest, res: Response) 
   });
   if (poolVisibility) Object.assign(poolWhereBase, poolVisibility);
   if (tagNames.length > 0) {
-    poolWhereBase.AND = tagNames.map((tag) => ({ aiSearchText: { contains: tag, mode: queryMode } }));
+    poolWhereBase.AND = tagNames.map((tag: string) => ({ aiSearchText: { contains: tag, mode: queryMode } }));
   }
   if (q) {
     const terms = buildSearchTerms(q);
@@ -135,7 +126,7 @@ export const searchPublicChannelMemes = async (req: AuthRequest, res: Response) 
     else channelWhereBase.AND = [channelWhereBase.AND, channelVisibility];
   }
   if (tagNames.length > 0) {
-    const tagFilters = tagNames.map((tag) => ({
+    const tagFilters = tagNames.map((tag: string) => ({
       tags: { some: { tag: { name: { contains: tag, mode: queryMode } } } },
     }));
     if (!channelWhereBase.AND) channelWhereBase.AND = tagFilters;
@@ -261,19 +252,6 @@ export const searchPublicChannelMemes = async (req: AuthRequest, res: Response) 
         return tags && tags.length > 0 ? { ...item, tags } : item;
       });
       items = await attachViewerState(items);
-    }
-
-    if (items.length > 0) {
-      const dynamicSettings = normalizeDynamicPricingSettings(channel);
-      const snapshot = await loadDynamicPricingSnapshot({
-        channelId: channel.id,
-        channelMemeIds: collectChannelMemeIds(items as Array<Record<string, unknown>>),
-        settings: dynamicSettings,
-      });
-      items = applyDynamicPricingToItems(
-        items as Array<Record<string, unknown>>,
-        snapshot,
-      ) as PublicChannelMemeListItem[];
     }
 
     try {
@@ -419,19 +397,6 @@ export const searchPublicChannelMemes = async (req: AuthRequest, res: Response) 
         where: channelWhereBase,
       });
     }
-  }
-
-  if (items.length > 0) {
-    const dynamicSettings = normalizeDynamicPricingSettings(channel);
-    const snapshot = await loadDynamicPricingSnapshot({
-      channelId: channel.id,
-      channelMemeIds: collectChannelMemeIds(items as Array<Record<string, unknown>>),
-      settings: dynamicSettings,
-    });
-    items = applyDynamicPricingToItems(
-      items as Array<Record<string, unknown>>,
-      snapshot,
-    ) as PublicChannelMemeListItem[];
   }
 
   const nextCursor = hasMore && items.length > 0 ? encodeCursorFromItem(items[items.length - 1], cursorSchema) : null;

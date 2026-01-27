@@ -11,26 +11,11 @@ const youtubeApiMocks = vi.hoisted(() => ({
 const youtubeAuthMocks = vi.hoisted(() => ({
   fetchGoogleTokenInfo: vi.fn(),
 }));
-const trovoApiMocks = vi.hoisted(() => ({
-  getTrovoExternalAccount: vi.fn(),
-  getValidTrovoBotAccessToken: vi.fn(),
-}));
-const trovoAuthMocks = vi.hoisted(() => ({
-  fetchTrovoUserInfo: vi.fn(),
-}));
 const vkvideoApiMocks = vi.hoisted(() => ({
   getValidVkVideoBotAccessToken: vi.fn(),
   getVkVideoExternalAccount: vi.fn(),
   fetchVkVideoCurrentUser: vi.fn(),
 }));
-const kickApiMocks = vi.hoisted(() => ({
-  createKickEventSubscription: vi.fn(),
-  getKickExternalAccount: vi.fn(),
-  getValidKickAccessTokenByExternalAccountId: vi.fn(),
-  getValidKickBotAccessToken: vi.fn(),
-  listKickEventSubscriptions: vi.fn(),
-}));
-
 vi.mock('../src/utils/twitchApi.js', async () => {
   const actual = await vi.importActual('../src/utils/twitchApi.js');
   return { ...actual, ...twitchApiMocks };
@@ -43,23 +28,10 @@ vi.mock('../src/auth/providers/youtube.js', async () => {
   const actual = await vi.importActual('../src/auth/providers/youtube.js');
   return { ...actual, ...youtubeAuthMocks };
 });
-vi.mock('../src/utils/trovoApi.js', async () => {
-  const actual = await vi.importActual('../src/utils/trovoApi.js');
-  return { ...actual, ...trovoApiMocks };
-});
-vi.mock('../src/auth/providers/trovo.js', async () => {
-  const actual = await vi.importActual('../src/auth/providers/trovo.js');
-  return { ...actual, ...trovoAuthMocks };
-});
 vi.mock('../src/utils/vkvideoApi.js', async () => {
   const actual = await vi.importActual('../src/utils/vkvideoApi.js');
   return { ...actual, ...vkvideoApiMocks };
 });
-vi.mock('../src/utils/kickApi.js', async () => {
-  const actual = await vi.importActual('../src/utils/kickApi.js');
-  return { ...actual, ...kickApiMocks };
-});
-
 import express from 'express';
 import cookieParser from 'cookie-parser';
 import request from 'supertest';
@@ -95,10 +67,6 @@ describe('streamer bot settings', () => {
     process.env.REDIS_URL = '';
     process.env.AI_BULLMQ_ENABLED = '0';
     process.env.CHAT_OUTBOX_BULLMQ_ENABLED = '0';
-    process.env.TROVO_CLIENT_ID = 'trovo-client-id';
-    process.env.KICK_CLIENT_ID = 'kick-client-id';
-    process.env.KICK_USERINFO_URL = 'https://kick.example/oauth/userinfo';
-
     twitchApiMocks.getTwitchLoginByUserId.mockResolvedValue('streamer_login');
     youtubeApiMocks.fetchMyYouTubeChannelIdDetailed.mockResolvedValue({ channelId: 'yt-channel' });
     youtubeApiMocks.getValidYouTubeBotAccessToken.mockResolvedValue('yt-bot-token');
@@ -109,21 +77,9 @@ describe('streamer bot settings', () => {
       tokenExpiresAt: new Date(),
     });
     youtubeAuthMocks.fetchGoogleTokenInfo.mockResolvedValue(null);
-    trovoApiMocks.getTrovoExternalAccount.mockResolvedValue({ accessToken: 'trovo-user-token' });
-    trovoApiMocks.getValidTrovoBotAccessToken.mockResolvedValue('trovo-bot-token');
-    trovoAuthMocks.fetchTrovoUserInfo.mockResolvedValue({ user: { channel_id: 'trovo-1' } });
     vkvideoApiMocks.getValidVkVideoBotAccessToken.mockResolvedValue('vkvideo-bot-token');
     vkvideoApiMocks.getVkVideoExternalAccount.mockResolvedValue({ accessToken: 'vk-access' });
     vkvideoApiMocks.fetchVkVideoCurrentUser.mockResolvedValue({ ok: true, data: { channel: { url: 'x' } } });
-    kickApiMocks.getKickExternalAccount.mockResolvedValue({
-      id: 'kick-acc',
-      accessToken: 'kick-user-token',
-      scopes: 'events:subscribe',
-    });
-    kickApiMocks.getValidKickAccessTokenByExternalAccountId.mockResolvedValue('kick-access');
-    kickApiMocks.getValidKickBotAccessToken.mockResolvedValue('kick-bot-token');
-    kickApiMocks.listKickEventSubscriptions.mockResolvedValue({ ok: true, subscriptions: [] });
-    kickApiMocks.createKickEventSubscription.mockResolvedValue({ ok: true, subscriptionId: 'sub-1' });
   });
 
   it('enables bots for all providers and lists settings', async () => {
@@ -151,16 +107,6 @@ describe('streamer bot settings', () => {
         .set('Cookie', [`token=${encodeURIComponent(tokenCookie)}`])
         .send({ enabled: true }),
       request(app)
-        .patch('/streamer/bots/trovo')
-        .set('Host', 'example.com')
-        .set('Cookie', [`token=${encodeURIComponent(tokenCookie)}`])
-        .send({ enabled: true, trovoChannelId: 'trovo-1' }),
-      request(app)
-        .patch('/streamer/bots/kick')
-        .set('Host', 'example.com')
-        .set('Cookie', [`token=${encodeURIComponent(tokenCookie)}`])
-        .send({ enabled: true, kickChannelId: 'kick-1' }),
-      request(app)
         .patch('/streamer/bots/vkvideo')
         .set('Host', 'example.com')
         .set('Cookie', [`token=${encodeURIComponent(tokenCookie)}`])
@@ -173,18 +119,14 @@ describe('streamer bot settings', () => {
       expect(res.body?.ok).toBe(true);
     }
 
-    const [twitchSub, youtubeSub, trovoSub, kickSub, vkvideoSub] = await Promise.all([
+    const [twitchSub, youtubeSub, vkvideoSub] = await Promise.all([
       prisma.chatBotSubscription.findUnique({ where: { channelId: channel.id } }),
       prisma.youTubeChatBotSubscription.findUnique({ where: { channelId: channel.id } }),
-      prisma.trovoChatBotSubscription.findUnique({ where: { channelId: channel.id } }),
-      prisma.kickChatBotSubscription.findUnique({ where: { channelId: channel.id } }),
       prisma.vkVideoChatBotSubscription.findUnique({ where: { channelId: channel.id } }),
     ]);
 
     expect(twitchSub?.enabled).toBe(true);
     expect(youtubeSub?.enabled).toBe(true);
-    expect(trovoSub?.enabled).toBe(true);
-    expect(kickSub?.enabled).toBe(true);
     expect(vkvideoSub?.enabled).toBe(true);
 
     const list = await request(app)
@@ -197,8 +139,6 @@ describe('streamer bot settings', () => {
     const byProvider = new Map(items.map((i: { provider: string; enabled: boolean }) => [i.provider, i.enabled]));
     expect(byProvider.get('twitch')).toBe(true);
     expect(byProvider.get('youtube')).toBe(true);
-    expect(byProvider.get('trovo')).toBe(true);
-    expect(byProvider.get('kick')).toBe(true);
     expect(byProvider.get('vkvideo')).toBe(true);
   });
 

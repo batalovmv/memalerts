@@ -18,11 +18,8 @@ export const useBotSettings = () => {
   const twitchLinked = user?.channel?.twitchChannelId !== null && user?.channel?.twitchChannelId !== undefined ? true : linkedProviders.has('twitch');
   const youtubeLinked = linkedProviders.has('youtube');
   const vkvideoLinked = linkedProviders.has('vkvideo');
-  const trovoLinked = linkedProviders.has('trovo');
-  const kickLinked = linkedProviders.has('kick');
 
-  const [botTab, setBotTab] = useState<'commands' | 'twitch' | 'youtube' | 'vk' | 'trovo' | 'kick'>('commands');
-  const [menusOpen, setMenusOpen] = useState(true);
+  const [botTab, setBotTab] = useState<'twitch' | 'youtube' | 'vk'>('twitch');
 
   useEffect(() => {
     const sub = window.location.pathname.replace(/^\/settings\/?/, '');
@@ -32,8 +29,6 @@ export const useBotSettings = () => {
     if (provider === 'youtube') setBotTab('youtube');
     else if (provider === 'vk' || provider === 'vkvideo') setBotTab('vk');
     else if (provider === 'twitch') setBotTab('twitch');
-    else if (provider === 'trovo') setBotTab('trovo');
-    else if (provider === 'kick') setBotTab('kick');
   }, []);
 
   const subscription = useBotSubscription({ twitchLinked });
@@ -44,13 +39,9 @@ export const useBotSettings = () => {
   return {
     botTab,
     setBotTab,
-    menusOpen,
-    setMenusOpen,
     twitchLinked,
     youtubeLinked,
     vkvideoLinked,
-    trovoLinked,
-    kickLinked,
     ...subscription,
     ...integrations,
     ...overrides,

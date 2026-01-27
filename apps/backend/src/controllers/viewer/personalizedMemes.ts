@@ -17,12 +17,6 @@ import {
   buildMemeAssetVisibilityFilter,
   loadViewerMemeState,
 } from './memeViewerState.js';
-import {
-  applyDynamicPricingToItems,
-  collectChannelMemeIds,
-  loadDynamicPricingSnapshot,
-  normalizeDynamicPricingSettings,
-} from '../../services/meme/dynamicPricing.js';
 
 const MIN_TASTE_ACTIVATIONS = 5;
 
@@ -188,9 +182,6 @@ export const getPersonalizedMemes = async (req: AuthRequest, res: Response) => {
       slug: true,
       memeCatalogMode: true,
       defaultPriceCoins: true,
-      dynamicPricingEnabled: true,
-      dynamicPricingMinMult: true,
-      dynamicPricingMaxMult: true,
     },
   });
   if (!channel) {
@@ -214,13 +205,7 @@ export const getPersonalizedMemes = async (req: AuthRequest, res: Response) => {
       memeAssetIds,
     });
     const withState = applyViewerMemeState(items, state);
-    const settings = normalizeDynamicPricingSettings(channel);
-    const snapshot = await loadDynamicPricingSnapshot({
-      channelId: channel.id,
-      channelMemeIds: collectChannelMemeIds(withState),
-      settings,
-    });
-    return applyDynamicPricingToItems(withState, snapshot);
+    return withState;
   };
 
   if (!profileReady || !profile) {

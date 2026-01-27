@@ -36,15 +36,9 @@ export function registerMetricsRoutes(app: Router) {
         youtubeFailed,
         vkvideoPending,
         vkvideoFailed,
-        trovoPending,
-        trovoFailed,
-        kickPending,
-        kickFailed,
         twitchQueueCounts,
         youtubeQueueCounts,
         vkvideoQueueCounts,
-        trovoQueueCounts,
-        kickQueueCounts,
       ] = await Promise.all([
         pendingPromise,
         processingPromise,
@@ -56,23 +50,15 @@ export function registerMetricsRoutes(app: Router) {
         prisma.youTubeChatBotOutboxMessage.count({ where: outboxFailedWhere }),
         prisma.vkVideoChatBotOutboxMessage.count({ where: outboxPendingWhere }),
         prisma.vkVideoChatBotOutboxMessage.count({ where: outboxFailedWhere }),
-        prisma.trovoChatBotOutboxMessage.count({ where: outboxPendingWhere }),
-        prisma.trovoChatBotOutboxMessage.count({ where: outboxFailedWhere }),
-        prisma.kickChatBotOutboxMessage.count({ where: outboxPendingWhere }),
-        prisma.kickChatBotOutboxMessage.count({ where: outboxFailedWhere }),
         getChatOutboxQueueCounts('twitch'),
         getChatOutboxQueueCounts('youtube'),
         getChatOutboxQueueCounts('vkvideo'),
-        getChatOutboxQueueCounts('trovo'),
-        getChatOutboxQueueCounts('kick'),
       ]);
 
       setAiJobMetrics({ pending: aiPending, processing: aiProcessing, failedTotal: aiFailed });
       setBotOutboxMetrics({ platform: 'twitch', pending: twitchPending, failedTotal: twitchFailed });
       setBotOutboxMetrics({ platform: 'youtube', pending: youtubePending, failedTotal: youtubeFailed });
       setBotOutboxMetrics({ platform: 'vkvideo', pending: vkvideoPending, failedTotal: vkvideoFailed });
-      setBotOutboxMetrics({ platform: 'trovo', pending: trovoPending, failedTotal: trovoFailed });
-      setBotOutboxMetrics({ platform: 'kick', pending: kickPending, failedTotal: kickFailed });
 
       const now = Date.now();
       for (const row of heartbeatRows) {
@@ -88,8 +74,6 @@ export function registerMetricsRoutes(app: Router) {
         ['twitch', twitchQueueCounts],
         ['youtube', youtubeQueueCounts],
         ['vkvideo', vkvideoQueueCounts],
-        ['trovo', trovoQueueCounts],
-        ['kick', kickQueueCounts],
       ];
 
       for (const [platform, counts] of queueDepths) {

@@ -10,8 +10,6 @@ vi.mock('../../src/utils/logger.js', () => ({ logger: loggerMock }));
 
 import {
   validateChatbotEnv,
-  validateKickChatbotEnv,
-  validateTrovoChatbotEnv,
   validateVkvideoChatbotEnv,
   validateYoutubeChatbotEnv,
 } from '../../src/bots/env.js';
@@ -45,8 +43,6 @@ describe('bot env validation', () => {
     setBaseEnv();
 
     expect(validateChatbotEnv().CHATBOT_BACKEND_BASE_URL).toBe('https://api.example.com');
-    expect(validateKickChatbotEnv().CHATBOT_BACKEND_BASE_URL).toBe('https://api.example.com');
-    expect(validateTrovoChatbotEnv().CHATBOT_BACKEND_BASE_URL).toBe('https://api.example.com');
     expect(validateVkvideoChatbotEnv().CHATBOT_BACKEND_BASE_URL).toBe('https://api.example.com');
     expect(validateYoutubeChatbotEnv().CHATBOT_BACKEND_BASE_URL).toBe('https://api.example.com');
   });

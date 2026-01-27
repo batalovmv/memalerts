@@ -38,19 +38,4 @@ describe('internal endpoints are localhost-only (remoteAddress gating)', () => {
     expect(res.status).toBe(404);
   });
 
-  it('blocks /internal/credits/* from non-local addresses even with correct header', async () => {
-    const app = makeAppWithRemote('8.8.8.8');
-
-    let res = await request(app)
-      .post('/internal/credits/chatter')
-      .set('x-memalerts-internal', 'credits-event')
-      .send({ channelSlug: 'chan', userId: 'u1', displayName: 'User' });
-    expect(res.status).toBe(404);
-
-    res = await request(app)
-      .post('/internal/credits/donor')
-      .set('x-memalerts-internal', 'credits-event')
-      .send({ channelSlug: 'chan', name: 'Donor', amount: 10, currency: 'RUB' });
-    expect(res.status).toBe(404);
-  });
 });

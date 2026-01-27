@@ -9,7 +9,7 @@ type OutboxStatus = 'pending' | 'processing' | 'sent' | 'failed';
 type OutboxLastError = 'bot_not_joined' | string | null;
 
 type OutboxStatusResponse = {
-  provider?: 'twitch' | 'youtube' | 'vkvideo' | 'trovo' | 'kick' | string;
+  provider?: 'twitch' | 'youtube' | 'vkvideo' | string;
   id?: string;
   status?: OutboxStatus | string;
   attempts?: number;
@@ -27,7 +27,7 @@ export const useBotOutbox = () => {
   const [testMessage, setTestMessage] = useState('');
   const [sendingTestMessage, setSendingTestMessage] = useState(false);
   const [lastOutbox, setLastOutbox] = useState<null | {
-    provider: 'twitch' | 'youtube' | 'vkvideo' | 'trovo' | 'kick';
+    provider: 'twitch' | 'youtube' | 'vkvideo';
     id?: string;
     status?: string;
     attempts?: number;
@@ -40,7 +40,7 @@ export const useBotOutbox = () => {
     updatedAt?: string | null;
   }>(null);
   const [lastOutboxRequest, setLastOutboxRequest] = useState<null | {
-    provider: 'twitch' | 'youtube' | 'vkvideo' | 'trovo' | 'kick';
+    provider: 'twitch' | 'youtube' | 'vkvideo';
     message: string;
   }>(null);
 
@@ -50,7 +50,7 @@ export const useBotOutbox = () => {
   const outboxPollKeyRef = useRef<string>('');
 
   const queueBotSay = useCallback(
-    async (provider: 'twitch' | 'youtube' | 'vkvideo' | 'trovo' | 'kick', message: string) => {
+    async (provider: 'twitch' | 'youtube' | 'vkvideo', message: string) => {
       const msg = String(message || '').trim();
       if (!msg) {
         toast.error(t('admin.botTestMessageRequired', { defaultValue: 'Enter a message.' }));
@@ -73,9 +73,7 @@ export const useBotOutbox = () => {
         const normalizedProvider =
           usedProvider === 'twitch' ||
           usedProvider === 'youtube' ||
-          usedProvider === 'vkvideo' ||
-          usedProvider === 'trovo' ||
-          usedProvider === 'kick'
+          usedProvider === 'vkvideo'
             ? usedProvider
             : provider;
 
@@ -116,8 +114,8 @@ export const useBotOutbox = () => {
         if (apiError.response?.status === 404) {
           toast.error(
             rid
-              ? `${t('admin.botCommandsNotAvailable', { defaultValue: 'This server does not support bot features yet.' })} (${t('common.errorId', { defaultValue: 'Error ID' })}: ${rid})`
-              : t('admin.botCommandsNotAvailable', { defaultValue: 'This server does not support bot features yet.' })
+              ? `${t('admin.botFeaturesNotAvailable', { defaultValue: 'This server does not support bot features yet.' })} (${t('common.errorId', { defaultValue: 'Error ID' })}: ${rid})`
+              : t('admin.botFeaturesNotAvailable', { defaultValue: 'This server does not support bot features yet.' })
           );
           return;
         }
@@ -171,7 +169,7 @@ export const useBotOutbox = () => {
   );
 
   const sendTestMessage = useCallback(
-    async (provider: 'twitch' | 'youtube' | 'vkvideo' | 'trovo' | 'kick') => {
+    async (provider: 'twitch' | 'youtube' | 'vkvideo') => {
       const msg = (testMessage || t('admin.botDefaultTestMessage', { defaultValue: 'Bot connected ?' })).trim();
       await queueBotSay(provider, msg);
     },
@@ -273,7 +271,7 @@ export const useBotOutbox = () => {
   }, [lastOutbox?.id, lastOutbox?.provider, stopOutboxPolling, pollOutboxOnce, lastOutbox?.status]);
 
   const renderOutboxStatus = useCallback(
-    (provider: 'twitch' | 'youtube' | 'vkvideo' | 'trovo' | 'kick') => {
+    (provider: 'twitch' | 'youtube' | 'vkvideo') => {
       if (!lastOutbox || lastOutbox.provider !== provider) return null;
 
       const status = String(lastOutbox.status || 'unknown');

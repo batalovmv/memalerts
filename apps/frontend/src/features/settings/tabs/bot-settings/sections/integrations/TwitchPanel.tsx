@@ -2,10 +2,6 @@ import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 
 import { ToggleSwitch } from '../../components/ToggleSwitch';
-
-import { TwitchLegacyMenus } from './TwitchLegacyMenus';
-
-import type { UseBotCommandsResult } from '../../hooks/useBotCommands';
 import type { UseBotSettingsResult } from '../../hooks/useBotSettings';
 
 import { HelpTooltip } from '@/shared/ui';
@@ -13,10 +9,9 @@ import { SavingOverlay } from '@/shared/ui/StatusOverlays';
 
 type TwitchPanelProps = {
   settings: UseBotSettingsResult;
-  commands: UseBotCommandsResult;
 };
 
-export const TwitchPanel = ({ settings, commands }: TwitchPanelProps) => {
+export const TwitchPanel = ({ settings }: TwitchPanelProps) => {
   const { t } = useTranslation();
   const {
     twitchLinked,
@@ -32,8 +27,6 @@ export const TwitchPanel = ({ settings, commands }: TwitchPanelProps) => {
     loading,
     callToggle,
     isBusy,
-    showMenus,
-    menusDisabled,
     twitchBotNotConfiguredHint,
   } = settings;
 
@@ -147,7 +140,6 @@ export const TwitchPanel = ({ settings, commands }: TwitchPanelProps) => {
           </div>
         )}
 
-        <TwitchLegacyMenus settings={settings} commands={commands} showMenus={showMenus} menusDisabled={menusDisabled} />
       </div>
 
       {false && (

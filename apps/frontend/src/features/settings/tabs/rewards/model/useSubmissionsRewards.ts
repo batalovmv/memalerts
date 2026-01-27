@@ -48,21 +48,26 @@ export function useSubmissionsRewards({
         : 0;
       const poolCoins = rewardSettings.submissionRewardCoinsPool ? parseInt(rewardSettings.submissionRewardCoinsPool, 10) : 0;
 
-      if (Number.isNaN(uploadCoins) || uploadCoins < 0 || Number.isNaN(poolCoins) || poolCoins < 0) {
-        toast.error(t('admin.invalidSubmissionRewardCoins', 'Введите корректное число (0 или больше)'));
+      if (
+        Number.isNaN(uploadCoins) ||
+        uploadCoins < 0 ||
+        uploadCoins > 100 ||
+        Number.isNaN(poolCoins) ||
+        poolCoins < 0 ||
+        poolCoins > 100
+      ) {
+        toast.error(t('admin.invalidSubmissionRewardCoins', 'Введите корректное число (0-100)'));
         return;
       }
       const { api } = await import('@/lib/api');
       await api.patch('/streamer/channel/settings', {
-        // Approved meme reward only (do NOT include Twitch reward fields here)
+        // Approved meme bonus only (do NOT include Twitch reward fields here)
         submissionRewardCoinsUpload: uploadCoins,
         submissionRewardCoinsPool: poolCoins,
-        submissionRewardOnlyWhenLive: !!rewardSettings.submissionRewardOnlyWhenLive,
       });
       lastSavedApprovedRef.current = JSON.stringify({
         submissionRewardCoinsUpload: uploadCoins,
         submissionRewardCoinsPool: poolCoins,
-        submissionRewardOnlyWhenLive: !!rewardSettings.submissionRewardOnlyWhenLive,
       });
     } catch (error: unknown) {
       const apiError = error as { response?: { data?: { error?: string } } };
@@ -89,7 +94,6 @@ export function useSubmissionsRewards({
     const payload = JSON.stringify({
       submissionRewardCoinsUpload: Number.isFinite(uploadCoins) ? uploadCoins : 0,
       submissionRewardCoinsPool: Number.isFinite(poolCoins) ? poolCoins : 0,
-      submissionRewardOnlyWhenLive: !!rewardSettings.submissionRewardOnlyWhenLive,
     });
 
     if (payload === lastSavedApprovedRef.current) return;
@@ -105,7 +109,6 @@ export function useSubmissionsRewards({
   }, [
     rewardSettings.submissionRewardCoinsUpload,
     rewardSettings.submissionRewardCoinsPool,
-    rewardSettings.submissionRewardOnlyWhenLive,
     channelSlug,
     handleSaveApprovedMemeReward,
     lastSavedApprovedRef,

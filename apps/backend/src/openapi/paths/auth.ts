@@ -53,12 +53,6 @@ export function registerAuthPaths(ctx: OpenApiContext) {
     responseExample: { ok: true },
   });
 
-  registerJsonPath({
-    method: 'post',
-    path: '/auth/boosty/link',
-    tags: ['Auth'],
-  });
-
   registry.registerPath({
     method: 'get',
     path: '/auth/youtube/link/force-ssl',

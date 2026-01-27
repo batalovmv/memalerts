@@ -1,8 +1,12 @@
 import type { Response } from 'express';
 import type { AuthRequest } from '../../middleware/auth.js';
+import { Prisma } from '@prisma/client';
 import { prisma } from '../../lib/prisma.js';
 import { WalletService } from '../../services/WalletService.js';
 import { logger } from '../../utils/logger.js';
+import { withRetry } from '../../utils/retryTransaction.js';
+import { ensureEconomyStateWithStartBonus, ECONOMY_CONSTANTS } from '../../services/economy/economyService.js';
+import { emitWalletUpdated, relayWalletUpdatedToPeer, type WalletUpdatedEvent } from '../../realtime/walletBridge.js';
 
 export const getWallet = async (req: AuthRequest, res: Response) => {
   const channelId = req.query.channelId as string | undefined;
@@ -48,19 +52,50 @@ export const getWalletForChannel = async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ error: 'Channel not found' });
     }
 
-    // Use upsert to find or create wallet atomically (prevents race conditions)
-    const walletPromise = WalletService.getOrCreateWallet(prisma, {
-      userId: req.userId!,
-      channelId: channel.id,
-    });
-
     const walletTimeout = new Promise((_, reject) => {
       setTimeout(() => reject(new Error('Wallet operation timeout')), 5000);
     });
 
-    const wallet = (await Promise.race([walletPromise, walletTimeout])) as Awaited<typeof walletPromise>;
+    const walletPromise = withRetry(
+      () =>
+        prisma.$transaction(
+          async (tx) => {
+            const lockedWallet = await WalletService.getWalletForUpdate(tx, {
+              userId: req.userId!,
+              channelId: channel.id,
+            });
 
-    res.json(wallet);
+            const startBonus = await ensureEconomyStateWithStartBonus({
+              tx,
+              userId: req.userId!,
+              channelId: channel.id,
+              lockedWallet,
+            });
+
+            return { wallet: startBonus.wallet, startBonusGranted: startBonus.startBonusGranted };
+          },
+          { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
+        ),
+      { maxRetries: 4, baseDelayMs: 50 }
+    );
+
+    const result = (await Promise.race([walletPromise, walletTimeout])) as Awaited<typeof walletPromise>;
+
+    if (result.startBonusGranted) {
+      const io = req.app.get('io');
+      const walletUpdate: WalletUpdatedEvent = {
+        userId: req.userId!,
+        channelId: channel.id,
+        balance: result.wallet.balance,
+        delta: ECONOMY_CONSTANTS.startBonusCoins,
+        reason: 'start_bonus',
+        channelSlug: slug,
+      };
+      emitWalletUpdated(io, walletUpdate);
+      void relayWalletUpdatedToPeer(walletUpdate);
+    }
+
+    res.json(result.wallet);
   } catch (error) {
     const err = error as Error;
     logger.error('wallet.channel_fetch_failed', { errorMessage: err.message });

@@ -12,12 +12,14 @@ import { useDashboardModeration } from '@/features/dashboard/model/useDashboardM
 import { useDashboardSubmissions } from '@/features/dashboard/model/useDashboardSubmissions';
 import { useDashboardSubmissionsControl } from '@/features/dashboard/model/useDashboardSubmissionsControl';
 import { useMySubmissions } from '@/features/dashboard/model/useMySubmissions';
+import { useStreamRecap } from '@/features/dashboard/model/useStreamRecap';
 import { DashboardExpandedPanel } from '@/features/dashboard/ui/DashboardExpandedPanel';
 import { DashboardHeader } from '@/features/dashboard/ui/DashboardHeader';
 import { DashboardModals } from '@/features/dashboard/ui/DashboardModals';
 import { DashboardPanels } from '@/features/dashboard/ui/DashboardPanels';
 import { DashboardQuickActionsGrid } from '@/features/dashboard/ui/DashboardQuickActionsGrid';
 import { BulkUploadPanel } from '@/features/dashboard/ui/panels/bulk-upload/BulkUploadPanel';
+import { DashboardStreamRecapPanel } from '@/features/dashboard/ui/panels/stream-recap/DashboardStreamRecapPanel';
 import { useAutoplayMemes } from '@/shared/lib/hooks';
 import { Button, PageShell, Spinner } from '@/shared/ui';
 import { useAppSelector } from '@/store/hooks';
@@ -70,6 +72,12 @@ const DashboardPage = memo(function DashboardPage() {
     shouldAutoLoad: activePanel === 'submissions' && submissionsPanelTab === 'mine',
   });
   const { botsLoaded, botsLoading, visibleBots, anyBotEnabled, allBotsEnabled, toggleAllBots } = useDashboardBots({ user });
+  const {
+    recap: streamRecap,
+    loading: streamRecapLoading,
+    error: streamRecapError,
+    reload: reloadStreamRecap,
+  } = useStreamRecap({ user });
   const {
     memesCount,
     submissionsEnabled,
@@ -228,6 +236,15 @@ const DashboardPage = memo(function DashboardPage() {
 
               <div className="mt-6">
                 <BulkUploadPanel />
+              </div>
+
+              <div className="mt-6">
+                <DashboardStreamRecapPanel
+                  recap={streamRecap}
+                  loading={streamRecapLoading}
+                  error={streamRecapError}
+                  onReload={reloadStreamRecap}
+                />
               </div>
 
               {/* Expanded panel renders OUTSIDE the grid so the grid stays compact (cards 5/6 swap positions naturally). */}

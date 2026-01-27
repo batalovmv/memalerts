@@ -89,12 +89,7 @@ These endpoints **do not use auth cookies** and are protected by a **per-channel
   - `coinPerPointRatio`
   - `rewardIdForCoins`, `rewardEnabled`, `rewardTitle`, `rewardCost`, `rewardCoins`
   - `rewardOnlyWhenLive` (boolean, default `false`) — award coins for Twitch reward only when the stream is live
-  - **Kick rewards**: `kickRewardEnabled`, `kickRewardIdForCoins`, `kickCoinPerPointRatio`, `kickRewardCoins`, `kickRewardOnlyWhenLive`
-  - **Trovo spells**: `trovoManaCoinsPerUnit`, `trovoElixirCoinsPerUnit`
   - **VKVideo rewards**: `vkvideoRewardEnabled`, `vkvideoRewardIdForCoins`, `vkvideoCoinPerPointRatio`, `vkvideoRewardCoins`, `vkvideoRewardOnlyWhenLive`
-  - `youtubeLikeRewardEnabled` (boolean, default `false`)
-  - `youtubeLikeRewardCoins` (int, default `0`)
-  - `youtubeLikeRewardOnlyWhenLive` (boolean, default `false`)
   - `submissionRewardCoins`
   - `submissionRewardOnlyWhenLive` (boolean, default `false`) — award coins for approved submission only when the stream is live
   - `submissionsEnabled` (boolean, default `true`)
@@ -134,22 +129,6 @@ These endpoints **do not use auth cookies** and are protected by a **per-channel
   - `channel`: `{ id, slug, name } | null`
   - `wallets`: array of wallet rows
   - `externalAccounts`: array of linked accounts (see `/auth/accounts`)
-
-### POST `/rewards/youtube/like/claim`
-- **Auth**: `authenticate + requireBetaAccess`
-- **Body**:
-  - `channelSlug` (string, required)
-  - `videoId` (string, optional) — if not provided, backend will try to detect current live `videoId`
-- **Response**: `{ status: string, ... }`
-  - `status`:
-    - `disabled` — feature off / coins=0
-    - `need_youtube_link` — user has no YouTube `ExternalAccount`
-    - `need_relink_scopes` — needs `youtube.force-ssl` (see `GET /auth/youtube/link/force-ssl`)
-    - `not_live` — couldn’t detect current live `videoId` (or onlyWhenLive=true and `videoId` doesn’t match)
-    - `cooldown` — checks too frequent
-    - `not_liked` — like not found
-    - `already_awarded` — already awarded for this `videoId`
-    - `awarded` — awarded (response includes `coinsGranted`, `balance`)
 
 ### GET `/me/preferences`
 - **Auth**: `authenticate + requireBetaAccess`
@@ -277,12 +256,8 @@ These endpoints **do not use auth cookies** and are protected by a **per-channel
 - **Supported provider (link)**:
   - `twitch` (full OAuth)
   - `youtube` (full OAuth via Google OpenID userinfo)
-  - `discord` (full OAuth; needed for Boosty Discord roles / auto-join)
   - `vk` (full OAuth)
   - `vkvideo` (full OAuth VK Video Live, see `https://dev.live.vkvideo.ru/docs/main/authorization`)
-  - `trovo` (full OAuth)
-  - `kick` (full OAuth; OAuth endpoints configured via ENV)
-  - `boosty` — **manual mode** (redirects to frontend with `provider=boosty&mode=manual`, then linking is done via `POST /auth/boosty/link`)
 - **If user is not logged in**: redirects to frontend with `/?error=auth_required&reason=no_session`
 - **If you see `401 Unauthorized` instead of redirect**:
   - Frontend request **did not include cookies** → ensure `credentials: 'include'` (and enable credentials in fetch/axios).
@@ -299,7 +274,7 @@ These endpoints **do not use auth cookies** and are protected by a **per-channel
 
 ### GET `/auth/youtube/link/force-ssl`
 - **Auth**: `authenticate + requireBetaAccess`
-- **Purpose**: request extra scope `youtube.force-ssl` (needed for viewer rewards like `POST /rewards/youtube/like/claim`)
+- **Purpose**: request extra scope `youtube.force-ssl` (needed for sending YouTube chat messages)
 - **Response**: redirect to Google OAuth (same as `/auth/youtube/link`, but with expanded scopes)
 
 ### GET `/auth/:provider/link/callback`
@@ -314,19 +289,6 @@ These endpoints **do not use auth cookies** and are protected by a **per-channel
     - `id`, `provider`, `providerAccountId`
     - `displayName`, `login`, `avatarUrl`, `profileUrl`
     - `createdAt`, `updatedAt`
-
-### POST `/auth/boosty/link`
-- **Auth**: `authenticate + requireBetaAccess`
-- **Body (JSON)**:
-  - `accessToken` (string) **or** `token` (string alias)
-  - alternatively: `refreshToken` + `deviceId`
-  - `blogName` (optional) — for UI/profile link
-- **Response**: linked `ExternalAccount` (provider=`boosty`)
-- **Common errors**:
-  - `410 BOOSTY_LINK_DEPRECATED` — if rewards-through-Discord-roles mode is enabled
-  - `400 BOOSTY_LINK_MISSING_CREDENTIALS`
-  - `401 BOOSTY_INVALID_TOKEN`
-  - `409 BOOSTY_ACCOUNT_ALREADY_LINKED`
 
 ### DELETE `/auth/accounts/:externalAccountId`
 - **Auth**: `authenticate + requireBetaAccess`
@@ -498,17 +460,6 @@ Requires: `authenticate + requireBetaAccess` + role **`streamer|admin`**
   - preset shape (example):
     - `{ id: "p_...", name: "My preset", createdAt: 173..., payload: { v:1, overlayMode:"queue", overlayShowSender:true, overlayMaxConcurrent:3, style:{...} } }`
 
-### OBS Credits Overlay
-- **GET `/streamer/credits/token`** → `{ token, creditsStyleJson }`
-- **GET `/streamer/credits/state`** → `{ chatters, donors }`
-- **GET `/streamer/credits/reconnect-window`** → `{ creditsReconnectWindowMinutes }`
-- **GET `/streamer/credits/ignored-chatters`** → `{ items: string[] }`
-- **POST `/streamer/credits/ignored-chatters`** body `{ items: string[] }` → `{ ok: true, items }`
-- **POST `/streamer/credits/settings`** body: `{ creditsStyleJson: string }` (can be empty string → clears) → `{ ok, creditsStyleJson }`
-- **POST `/streamer/credits/token/rotate`** → `{ token }`
-- **POST `/streamer/credits/reset`** → `{ ok: true }`
-- **POST `/streamer/credits/reconnect-window`** body: `{ minutes }` → `{ creditsReconnectWindowMinutes }`
-
 ### Chat bot (streamer panel)
 - **Developer docs for running/ENV/debugging bots**: `docs/BOTS.md`
 - **POST `/streamer/bot/enable`** → `{ ok: true }`
@@ -520,31 +471,19 @@ Requires: `authenticate + requireBetaAccess` + role **`streamer|admin`**
   - response: `{ ok, outbox: { id, status, createdAt } }`
 - **GET `/streamer/bot/outbox/:provider/:id`** → `{ id, provider, status, createdAt, updatedAt, lastError? }`
 - **Twitch-only guard**:
-  - if `Channel.twitchChannelId == null`, then `enable/disable` and follow-greetings enable return `400`:
+  - if `Channel.twitchChannelId == null`, then `enable/disable` return `400`:
     - `{ error: "Bad Request", message: "This channel is not linked to Twitch" }`
-- **GET `/streamer/bot/commands`** → `{ items: [{ id, trigger, response, enabled, onlyWhenLive, allowedRoles, allowedUsers, createdAt, updatedAt }] }`
-- **POST `/streamer/bot/commands`**
-  - body `{ trigger, response, onlyWhenLive?, allowedRoles?, allowedUsers? }` → `201` command row; `409` if trigger already exists
-  - `onlyWhenLive` (optional, default `false`) — bot answers only when stream is live
-  - `allowedRoles` (optional) — array: `["vip","moderator","subscriber","follower"]`
-  - `allowedUsers` (optional) — array of Twitch logins (lowercase, without `@`), max 100 (validated by regex `^[a-z0-9_]{1,25}$`)
-  - **default rule**: if `allowedRoles=[]` and `allowedUsers=[]` → anyone can trigger the command
-  - ⚠️ Twitch IRC “follower” role is not derived from IRC tags (needs separate Helix check + cache); currently only whitelist by `allowedUsers` and roles `vip/moderator/subscriber` work in practice
-- **PATCH `/streamer/bot/commands/:id`**
-  - body `{ enabled?, onlyWhenLive?, allowedRoles?, allowedUsers? }` → updated command row
-  - body is partial; you must pass **at least one** field (any of the 4)
-- **DELETE `/streamer/bot/commands/:id`** → `{ ok: true }`
 - **GET `/streamer/bot/subscription`** → `{ enabled }` (if no subscription row — `enabled: false`)
 
 ### Bot integrations (streamer panel)
-- **GET `/streamer/bots`** → `{ items: [{ provider: "twitch"|"vkvideo"|"youtube"|"trovo"|"kick", enabled, updatedAt }] }`
+- **GET `/streamer/bots`** → `{ items: [{ provider: "twitch"|"vkvideo"|"youtube", enabled, updatedAt }] }`
 - **GET `/streamer/bots/vkvideo/candidates`** → `{ items: [{ id, name, profileUrl? }] }` (if VKVideo account is linked and user has multiple channels)
 - **PATCH `/streamer/bots/:provider`** → `{ ok: true }`
   - body for all providers: `{ enabled: boolean }`
   - **additionally for `provider="vkvideo"` when `enabled=true`**, pass `vkvideoChannelId`:
     - body: `{ enabled: true, vkvideoChannelId: string }`
     - or enable without `vkvideoChannelId`: `{ enabled: true }` — backend will try to detect channel via VKVideo `GET /v1/current_user` (requires VKVideo account linking). If multiple channels — pass `vkvideoChannelId` explicitly.
-  - **Important (runners)**: enabling via this endpoint updates DB state, but messages/commands will work only if the corresponding worker is running (see `docs/BOTS.md`).
+  - **Important (runners)**: enabling via this endpoint updates DB state, but messages will work only if the corresponding worker is running (see `docs/BOTS.md`).
   - **Twitch-only guard**: for `provider="twitch"` and `Channel.twitchChannelId == null` returns `400` just like `/streamer/bot/enable`.
   - ⚠️ if feature isn’t deployed / migrations not applied yet — backend may return `404` (frontend should show “unavailable”).
 
@@ -559,16 +498,12 @@ These endpoints manage linking a “custom bot” (per-channel override), separa
 - **GET `/streamer/bots/twitch/bot`** → `{ enabled, externalAccountId, updatedAt, lockedBySubscription }`
 - **GET `/streamer/bots/youtube/bot`** → `{ enabled, externalAccountId, updatedAt, lockedBySubscription }`
 - **GET `/streamer/bots/vkvideo/bot`** → `{ enabled, externalAccountId, updatedAt, lockedBySubscription }`
-- **GET `/streamer/bots/trovo/bot`** → `{ enabled, externalAccountId, updatedAt, lockedBySubscription }`
-- **GET `/streamer/bots/kick/bot`** → `{ enabled, externalAccountId, updatedAt, lockedBySubscription }`
   - `externalAccountId`: linked sender account (if any).
   - `lockedBySubscription=true`: linking exists, but **using the override is forbidden** (no `custom_bot` entitlement). UI should show “Locked by subscription” and prompt to upgrade.
 
 - **GET `/streamer/bots/twitch/bot/link`** → redirect to OAuth to link override
 - **GET `/streamer/bots/youtube/bot/link`** → redirect to OAuth to link override
 - **GET `/streamer/bots/vkvideo/bot/link`** → redirect to OAuth to link override
-- **GET `/streamer/bots/trovo/bot/link`** → redirect to OAuth to link override
-- **GET `/streamer/bots/kick/bot/link`** → redirect to OAuth to link override
   - **If subscription/entitlement missing**: returns `403` JSON:
     - `{ error: "Forbidden", code: "SUBSCRIPTION_REQUIRED", message }`
   - UX: do not do a “blind” `window.location.href` without a preflight — otherwise user will see raw JSON.
@@ -576,8 +511,6 @@ These endpoints manage linking a “custom bot” (per-channel override), separa
 - **DELETE `/streamer/bots/twitch/bot`** → `{ ok: true }` (unlink override)
 - **DELETE `/streamer/bots/youtube/bot`** → `{ ok: true }` (unlink override)
 - **DELETE `/streamer/bots/vkvideo/bot`** → `{ ok: true }` (unlink override)
-- **DELETE `/streamer/bots/trovo/bot`** → `{ ok: true }` (unlink override)
-- **DELETE `/streamer/bots/kick/bot`** → `{ ok: true }` (unlink override)
 
 Note about OAuth callback (bot_link):
 - If during `bot_link` you attempted to apply per-channel override without entitlement, backend will **not create/update** `*BotIntegration` and will redirect to frontend with:
@@ -590,28 +523,6 @@ Note about OAuth callback (bot_link):
   - UX: show button “Re-connect YouTube” → open `GET /auth/youtube/link` (with `redirect_to=/settings/accounts` or current page if allowlisted).
   - if server YouTube bot is not configured — backend returns `503`:
     - `code: "YOUTUBE_BOT_NOT_CONFIGURED"`
-- **GET `/streamer/bot/follow-greetings`** → `{ followGreetingsEnabled, followGreetingTemplate }`
-- **POST `/streamer/bot/follow-greetings/enable`** body optional `{ followGreetingTemplate }` → `{ ok, followGreetingsEnabled, followGreetingTemplate }`
-- **POST `/streamer/bot/follow-greetings/disable`** → `{ ok, followGreetingsEnabled, followGreetingTemplate }`
-- **PATCH `/streamer/bot/follow-greetings`** body `{ followGreetingTemplate }` → `{ ok, followGreetingsEnabled, followGreetingTemplate }`
-- **GET `/streamer/bot/stream-duration`** → `{ enabled, trigger, responseTemplate, breakCreditMinutes, onlyWhenLive }`
-- **PATCH `/streamer/bot/stream-duration`** body `{ enabled, trigger, responseTemplate, breakCreditMinutes, onlyWhenLive }` → same fields
-
-#### “Smart” bot command: stream duration
-- **Purpose**: bot answers a command (e.g. `!time`) with stream duration — **sum of online time** for the current session.
-- **Break credit**: offline gap **<= `breakCreditMinutes`** does not break the session; if **> `breakCreditMinutes`** — it’s considered a new stream (timer “resets”).
-- **responseTemplate**: string (or `null`) with placeholders:
-  - `{hours}` — hours (integer)
-  - `{minutes}` — minutes (remainder 0..59)
-  - `{totalMinutes}` — total minutes (integer)
-- **onlyWhenLive**: if `true` — bot answers only when stream is live (if offline — bot stays silent).
-- **Defaults** (if settings not saved yet):
-  - `enabled=false`
-  - `trigger="!time"`
-  - `responseTemplate="Stream time: {hours}h {minutes}m ({totalMinutes}m)"`
-  - `breakCreditMinutes=60`
-  - `onlyWhenLive=false`
-- **Important**: if feature isn’t deployed / migrations not applied yet — backend may return `404` (frontend should show “unavailable”).
 
 ## Owner panel (`/owner/*`) — admin only
 
@@ -649,14 +560,6 @@ Requires: `authenticate + requireBetaAccess` + role **admin**
 - **GET `/owner/bots/twitch/default/status`** → `{ enabled, externalAccountId, updatedAt }`
 - **GET `/owner/bots/twitch/default/link`** → redirect to OAuth
 - **DELETE `/owner/bots/twitch/default`** → `{ ok: true }`
-
-- **GET `/owner/bots/trovo/default/status`** → `{ enabled, externalAccountId, updatedAt }`
-- **GET `/owner/bots/trovo/default/link`** → redirect to OAuth
-- **DELETE `/owner/bots/trovo/default`** → `{ ok: true }`
-
-- **GET `/owner/bots/kick/default/status`** → `{ enabled, externalAccountId, updatedAt }`
-- **GET `/owner/bots/kick/default/link`** → redirect to OAuth
-- **DELETE `/owner/bots/kick/default`** → `{ ok: true }`
 
 ### Channel entitlements (admin-only)
 Purpose: manually enable/disable subscription-gated features for a channel (until payment system/Stripe webhooks exist).
@@ -703,7 +606,7 @@ Purpose: manually enable/disable subscription-gated features for a channel (unti
 ## Webhooks / Internal (not for frontend)
 
 - **POST `/webhooks/twitch/eventsub`** — Twitch EventSub (HMAC), frontend doesn’t need it.
-- **`/internal/*`** — localhost-only relay between prod/beta and credits events; frontend doesn’t need it.
+- **`/internal/*`** — localhost-only internal endpoints; frontend doesn’t need them.
 
 ## Socket.IO (Realtime)
 
@@ -719,7 +622,6 @@ Purpose: manually enable/disable subscription-gated features for a channel (unti
 - **`join:overlay`** `{ token }`
   - token is obtained via HTTP:
     - meme overlay: `GET /streamer/overlay/token`
-    - credits overlay: `GET /streamer/credits/token`
 - **`join:channel`** `(channelSlug)`
   - only authenticated `streamer/admin`, and slug must match the user’s channel
 - **`join:user`** `(userId)`
@@ -737,9 +639,6 @@ Purpose: manually enable/disable subscription-gated features for a channel (unti
 - **Submissions** (in `channel:{slugLower}` and optionally in `user:{id}`):
   - `submission:created|approved|rejected|needs_changes|resubmitted`
   - payload: `{ submissionId, channelId, submitterId?, moderatorId? }`
-- **Credits overlay**:
-  - `credits:config` → `{ creditsStyleJson }`
-  - `credits:state` → `{ chatters: [{name}], donors: [{name,amount,currency}] }`
 
 
 
