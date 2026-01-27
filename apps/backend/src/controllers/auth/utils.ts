@@ -33,8 +33,19 @@ function normalizeHost(host: string): string {
 }
 
 function deriveBaseDomain(domain: string): string {
-  const trimmed = normalizeHost(domain);
-  return trimmed.replace(/^beta\./, '').replace(/^www\./, '');
+  let base = normalizeHost(domain);
+  const prefixes = ['beta.', 'www.', 'api.'];
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const prefix of prefixes) {
+      if (base.startsWith(prefix)) {
+        base = base.slice(prefix.length);
+        changed = true;
+      }
+    }
+  }
+  return base;
 }
 
 function isAllowedOriginHost(hostname: string, req?: AuthRequest): boolean {
