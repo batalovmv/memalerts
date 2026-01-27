@@ -150,6 +150,7 @@ export async function handleCallback(req: AuthRequest, res: Response) {
         statePreview,
         stateCodeVerifier,
         stateUserId,
+        stateOrigin,
       });
     } catch (providerError) {
       if (providerError instanceof OAuthProviderError) {

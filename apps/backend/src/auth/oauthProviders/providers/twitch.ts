@@ -15,6 +15,19 @@ const LOGIN_SCOPES = [
 
 const BOT_SCOPES = ['chat:read', 'chat:edit'];
 
+function buildCallbackUrl(origin?: string | null): string | null {
+  if (!origin) return null;
+  try {
+    const url = new URL(origin);
+    url.pathname = '/auth/twitch/callback';
+    url.search = '';
+    url.hash = '';
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
+
 export const twitchOAuthProvider: OAuthProvider = {
   id: 'twitch',
   supportsLogin: true,
@@ -22,7 +35,7 @@ export const twitchOAuthProvider: OAuthProvider = {
   supportsBotLink: true,
   async buildAuthorizeUrl(params) {
     const clientId = process.env.TWITCH_CLIENT_ID;
-    const callbackUrl = process.env.TWITCH_CALLBACK_URL;
+    const callbackUrl = buildCallbackUrl(params.origin) ?? process.env.TWITCH_CALLBACK_URL;
     if (params.kind === 'login') {
       if (!clientId) {
         throw new OAuthProviderError('Missing TWITCH_CLIENT_ID', { reason: 'no_client_id', provider: 'twitch' });
@@ -58,11 +71,15 @@ export const twitchOAuthProvider: OAuthProvider = {
     return { authUrl };
   },
   async exchangeCode(params) {
+    const callbackUrl = buildCallbackUrl(params.stateOrigin) ?? process.env.TWITCH_CALLBACK_URL;
+    if (!callbackUrl) {
+      throw new OAuthProviderError('Missing TWITCH_CALLBACK_URL', { reason: 'no_callback_url', provider: 'twitch' });
+    }
     const tokenData = await exchangeTwitchCodeForToken({
       clientId: process.env.TWITCH_CLIENT_ID!,
       clientSecret: process.env.TWITCH_CLIENT_SECRET!,
       code: params.code,
-      redirectUri: process.env.TWITCH_CALLBACK_URL!,
+      redirectUri: callbackUrl,
     });
     debugLog('twitch.token.keys', { keys: Object.keys(tokenData || {}) });
 
