@@ -344,7 +344,7 @@ export function useStreamerProfileMemes({
               resp = await fetchChannelMemesSearch({
                 channelSlug: String(channelInfo.slug || normalizedSlug).toLowerCase(),
                 params: listParams,
-                preferPublic: true,
+                preferPublic: false,
                 timeoutMs: 15000,
               });
             } catch {

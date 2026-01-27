@@ -18,9 +18,7 @@ export function registerViewerRoutes(app: Router) {
   app.get('/channels/:slug', (req, res) => {
     if (isBetaDomain(req)) {
       return optionalAuthenticate(req as AuthRequest, res, () =>
-        requireBetaAccessOrGuestForbidden(req as AuthRequest, res, () =>
-          viewerController.getChannelBySlug(req as AuthRequest, res)
-        )
+        viewerController.getChannelBySlug(req as AuthRequest, res)
       );
     }
     return viewerController.getChannelBySlug(req as AuthRequest, res);
@@ -63,9 +61,7 @@ export function registerViewerRoutes(app: Router) {
   app.get('/channels/:slug/memes', (req, res) => {
     if (isBetaDomain(req)) {
       return optionalAuthenticate(req as AuthRequest, res, () =>
-        requireBetaAccessOrGuestForbidden(req as AuthRequest, res, () =>
-          viewerController.getChannelMemesPublic(req as AuthRequest, res)
-        )
+        viewerController.getChannelMemesPublic(req as AuthRequest, res)
       );
     }
     return viewerController.getChannelMemesPublic(req as AuthRequest, res);
@@ -74,9 +70,7 @@ export function registerViewerRoutes(app: Router) {
   app.get('/channels/:slug/leaderboard', (req, res) => {
     if (isBetaDomain(req)) {
       return optionalAuthenticate(req as AuthRequest, res, () =>
-        requireBetaAccessOrGuestForbidden(req as AuthRequest, res, () =>
-          viewerController.getChannelLeaderboard(req as AuthRequest, res)
-        )
+        viewerController.getChannelLeaderboard(req as AuthRequest, res)
       );
     }
     return optionalAuthenticate(req as AuthRequest, res, () =>
@@ -87,9 +81,7 @@ export function registerViewerRoutes(app: Router) {
   app.get('/channels/memes/search', (req, res) => {
     if (isBetaDomain(req)) {
       return optionalAuthenticate(req as AuthRequest, res, () =>
-        requireBetaAccessOrGuestForbidden(req as AuthRequest, res, () =>
-          viewerController.searchMemes(req as AuthRequest, res)
-        )
+        viewerController.searchMemes(req as AuthRequest, res)
       );
     }
     return optionalAuthenticate(req as AuthRequest, res, () => viewerController.searchMemes(req as AuthRequest, res));
@@ -98,9 +90,7 @@ export function registerViewerRoutes(app: Router) {
   app.get('/memes/stats', (req, res) => {
     if (isBetaDomain(req)) {
       return optionalAuthenticate(req as AuthRequest, res, () =>
-        requireBetaAccessOrGuestForbidden(req as AuthRequest, res, () =>
-          viewerController.getMemeStats(req as AuthRequest, res)
-        )
+        viewerController.getMemeStats(req as AuthRequest, res)
       );
     }
     return optionalAuthenticate(req as AuthRequest, res, () => viewerController.getMemeStats(req as AuthRequest, res));
@@ -109,9 +99,7 @@ export function registerViewerRoutes(app: Router) {
   app.get('/memes/pool', (req, res) => {
     if (isBetaDomain(req)) {
       return optionalAuthenticate(req as AuthRequest, res, () =>
-        requireBetaAccessOrGuestForbidden(req as AuthRequest, res, () =>
-          viewerController.getMemePool(req as AuthRequest, res)
-        )
+        viewerController.getMemePool(req as AuthRequest, res)
       );
     }
     return viewerController.getMemePool(req as AuthRequest, res);
