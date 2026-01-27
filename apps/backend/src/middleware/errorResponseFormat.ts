@@ -103,8 +103,6 @@ function pickHint(code: ErrorCode, body: unknown): string | undefined {
     case 'TWITCH_BOT_NOT_CONFIGURED':
     case 'YOUTUBE_BOT_NOT_CONFIGURED':
     case 'VKVIDEO_BOT_NOT_CONFIGURED':
-    case 'TROVO_BOT_NOT_CONFIGURED':
-    case 'KICK_BOT_NOT_CONFIGURED':
       return 'Enable the bot in channel settings.';
     default:
       return undefined;

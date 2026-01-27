@@ -75,6 +75,11 @@ export function registerVoteChatListener(params: VoteChatListenerParams) {
   client.on('message', onMessage);
 
   return () => {
-    client.off('message', onMessage);
+    // tmi.js Client typings omit EventEmitter methods; runtime supports removeListener.
+    const removeListener = (client as unknown as {
+      removeListener: (event: string, listener: (...args: unknown[]) => void) => void;
+    }).removeListener;
+    // Cast listener to generic EventEmitter signature to satisfy tmi.js typings gap.
+    removeListener('message', onMessage as (...args: unknown[]) => void);
   };
 }

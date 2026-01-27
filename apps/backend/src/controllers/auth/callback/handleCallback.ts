@@ -1,6 +1,6 @@
 import type { Response } from 'express';
 import type { AuthRequest } from '../../../middleware/auth.js';
-import type { ExternalAccountProvider, OAuthStateKind } from '@prisma/client';
+import type { ExternalAccountProvider, OAuthStateKind, Prisma } from '@prisma/client';
 import { prisma } from '../../../lib/prisma.js';
 import { loadAndConsumeOAuthState } from '../../../auth/oauthState.js';
 import { resolveOAuthProvider } from '../../../auth/oauthProviders/registry.js';
@@ -19,19 +19,21 @@ import { maybeGrantFirstUserAchievement } from '../../../services/achievements/a
 import { finalizeAuthResponse } from './finalizeAuthResponse.js';
 import { asRecord, buildRedirectWithError, getRedirectUrl, sanitizeRedirectTo, wantsJson } from '../utils.js';
 
-type AuthenticatedUserWithRelations = Awaited<ReturnType<typeof prisma.user.findUnique>>;
+const safeChannelSelect = {
+  id: true,
+  slug: true,
+  name: true,
+  twitchChannelId: true,
+  rewardIdForCoins: true,
+  coinPerPointRatio: true,
+  createdAt: true,
+} as const;
+
+type AuthenticatedUserWithRelations = Prisma.UserGetPayload<{
+  include: { wallets: true; channel: { select: typeof safeChannelSelect } };
+}>;
 
 export async function handleCallback(req: AuthRequest, res: Response) {
-  const safeChannelSelect = {
-    id: true,
-    slug: true,
-    name: true,
-    twitchChannelId: true,
-    rewardIdForCoins: true,
-    coinPerPointRatio: true,
-    createdAt: true,
-  } as const;
-
   const providerFromUrl = String(asRecord(req.params)?.provider || '')
     .trim()
     .toLowerCase() as ExternalAccountProvider;

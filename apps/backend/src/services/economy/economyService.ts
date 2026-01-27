@@ -1,4 +1,4 @@
-import type { Prisma, PrismaClient, StreamProvider } from '@prisma/client';
+import type { Prisma, PrismaClient, StreamProvider, Wallet } from '@prisma/client';
 import { prisma } from '../../lib/prisma.js';
 import { WalletService } from '../WalletService.js';
 import { getStreamStatusSnapshot } from '../../realtime/streamStatusStore.js';
@@ -303,9 +303,9 @@ export async function ensureEconomyStateWithStartBonus(params: {
   tx: Prisma.TransactionClient;
   userId: string;
   channelId: string;
-  lockedWallet: { userId: string; channelId: string; balance: number };
+  lockedWallet: Wallet;
   now?: Date;
-}): Promise<{ startBonusGranted: boolean; wallet: { balance: number } } > {
+}): Promise<{ startBonusGranted: boolean; wallet: Wallet }> {
   const { tx, userId, channelId, lockedWallet } = params;
   const now = params.now ?? new Date();
 

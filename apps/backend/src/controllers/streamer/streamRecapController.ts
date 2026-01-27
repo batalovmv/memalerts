@@ -1,4 +1,5 @@
 import type { Response } from 'express';
+import type { Prisma } from '@prisma/client';
 import type { AuthRequest } from '../../middleware/auth.js';
 import { prisma } from '../../lib/prisma.js';
 
@@ -36,27 +37,32 @@ export const getLatestStreamRecap = async (req: AuthRequest, res: Response) => {
   const start = session.startedAt;
   const end = session.endedAt ?? new Date();
 
-  const activationWhere = {
+  const activationWhere: Prisma.MemeActivationWhereInput = {
     channelId,
     status: 'done',
     OR: [
       { completedAt: { gte: start, lte: end } },
       { completedAt: null, createdAt: { gte: start, lte: end } },
     ],
-  } as const;
+  };
 
-  const [totalActivations, uniqueViewers, coinsAgg] = await Promise.all([
+  const [totalActivations, uniqueViewerRows, coinsAgg] = await Promise.all([
     prisma.memeActivation.count({ where: activationWhere }),
-    prisma.memeActivation.count({ where: activationWhere, distinct: ['userId'] }),
+    prisma.memeActivation.groupBy({
+      by: ['userId'],
+      where: activationWhere,
+      _count: { id: true },
+    }),
     prisma.memeActivation.aggregate({ where: activationWhere, _sum: { priceCoins: true } }),
   ]);
+  const uniqueViewers = uniqueViewerRows.length;
 
   const topMemeAgg = await prisma.memeActivation.groupBy({
     by: ['channelMemeId'],
     where: activationWhere,
-    _count: { _all: true },
+    _count: { id: true },
     _sum: { priceCoins: true },
-    orderBy: [{ _count: { _all: 'desc' } }, { _sum: { priceCoins: 'desc' } }],
+    orderBy: [{ _count: { id: 'desc' } }, { _sum: { priceCoins: 'desc' } }],
     take: 5,
   });
 
@@ -88,17 +94,17 @@ export const getLatestStreamRecap = async (req: AuthRequest, res: Response) => {
       priceCoins: meme?.priceCoins ?? 0,
       fileUrl: asset ? pickBestFileUrl(asset) : null,
       previewUrl: asset ? pickPreviewUrl(asset) : null,
-      activations: row._count._all,
-      coinsSpent: Number(row._sum.priceCoins ?? 0),
+      activations: row._count?.id ?? 0,
+      coinsSpent: Number(row._sum?.priceCoins ?? 0),
     };
   });
 
   const topViewerAgg = await prisma.memeActivation.groupBy({
     by: ['userId'],
     where: activationWhere,
-    _count: { _all: true },
+    _count: { id: true },
     _sum: { priceCoins: true },
-    orderBy: [{ _sum: { priceCoins: 'desc' } }, { _count: { _all: 'desc' } }],
+    orderBy: [{ _sum: { priceCoins: 'desc' } }, { _count: { id: 'desc' } }],
     take: 5,
   });
   const viewerIds = topViewerAgg.map((row) => row.userId);
@@ -116,8 +122,8 @@ export const getLatestStreamRecap = async (req: AuthRequest, res: Response) => {
       userId: row.userId,
       displayName: viewer?.displayName ?? 'Viewer',
       profileImageUrl: viewer?.profileImageUrl ?? null,
-      activations: row._count._all,
-      coinsSpent: Number(row._sum.priceCoins ?? 0),
+      activations: row._count?.id ?? 0,
+      coinsSpent: Number(row._sum?.priceCoins ?? 0),
     };
   });
 
@@ -159,7 +165,7 @@ export const getLatestStreamRecap = async (req: AuthRequest, res: Response) => {
       summary: {
         totalActivations,
         uniqueViewers,
-        coinsSpent: Number(coinsAgg._sum.priceCoins ?? 0),
+        coinsSpent: Number(coinsAgg._sum?.priceCoins ?? 0),
       },
       topMemes,
       topViewers,

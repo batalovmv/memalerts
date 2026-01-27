@@ -488,8 +488,9 @@ export const activateMeme = async (req: AuthRequest, res: Response) => {
     if (Array.isArray(result.eventAchievementGrants) && result.eventAchievementGrants.length > 0) {
       result.eventAchievementGrants.forEach((entry) => emitAchievementGrant(result.activation.userId, entry.key));
     }
-    if (Array.isArray(result.bonusGrants) && result.bonusGrants.length > 0 && result.authorId) {
-      result.bonusGrants.forEach((key) => emitAchievementGrant(result.authorId, key));
+    const authorId = result.authorId ?? null;
+    if (Array.isArray(result.bonusGrants) && result.bonusGrants.length > 0 && authorId) {
+      result.bonusGrants.forEach((key) => emitAchievementGrant(authorId, key));
     }
 
     void TasteProfileService.recordActivation({

@@ -132,8 +132,8 @@ async function pickAutoOptions(channelId: string): Promise<string[]> {
       channelId,
       createdAt: { gte: since, lte: now },
     },
-    _count: { _all: true },
-    orderBy: { _count: { _all: 'desc' } },
+    _count: { id: true },
+    orderBy: { _count: { id: 'desc' } },
     take: 6,
   });
 

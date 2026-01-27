@@ -68,7 +68,7 @@ export const getWheelState = async (req: AuthRequest, res: Response) => {
   }
 
   return res.json({
-    enabled: channel.wheelEnabled !== false,
+    enabled: channel.wheelEnabled ?? true,
     paidSpinCostCoins,
     freeSpinAvailable,
     freeSpinCooldownSeconds: cooldownSecondsRemaining,
@@ -246,7 +246,7 @@ export const spinWheel = async (req: AuthRequest, res: Response) => {
       },
       wallet: result.wallet,
       state: {
-        enabled: channel.wheelEnabled !== false,
+        enabled: channel.wheelEnabled ?? true,
         paidSpinCostCoins,
         freeSpinAvailable: freeState.freeSpinAvailable,
         freeSpinCooldownSeconds: freeState.cooldownSecondsRemaining,

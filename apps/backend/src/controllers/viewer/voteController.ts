@@ -5,7 +5,7 @@ import { CastVoteBodySchema, CastVoteParamsSchema, GetActiveVoteParamsSchema } f
 
 import { prisma } from '../../lib/prisma.js';
 import { ERROR_CODES } from '../../shared/errors.js';
-import { castVote, getActiveVoteSession } from '../../services/vote/voteService.js';
+import { castVote as castVoteService, getActiveVoteSession } from '../../services/vote/voteService.js';
 
 function normalizeSlug(raw: unknown): string {
   return String(raw ?? '').trim().toLowerCase();
@@ -53,7 +53,7 @@ export const castVoteForChannel = async (req: AuthRequest, res: Response) => {
     return res.status(401).json({ errorCode: ERROR_CODES.UNAUTHORIZED, error: 'Authentication required' });
   }
 
-  const result = await castVote({
+  const result = await castVoteService({
     channelId: channel.id,
     sessionId: params.sessionId,
     userId: req.userId,

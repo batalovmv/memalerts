@@ -12,7 +12,7 @@ import { getErrorMessage } from '../utils.js';
 import type { WalletUpdatedEvent } from '../../../realtime/walletBridge.js';
 import { ECONOMY_CONSTANTS, grantAccountLinkBonusTx } from '../../../services/economy/economyService.js';
 
-type AuthenticatedUserWithRelations = NonNullable<Awaited<ReturnType<typeof prisma.user.findUnique>>>;
+type AuthenticatedUserWithRelations = Prisma.UserGetPayload<{ include: { wallets: true } }>;
 
 type ApplyExternalAccountParams = {
   provider: ExternalAccountProvider;
@@ -42,15 +42,11 @@ function resolveLinkBonusChannelId(user: AuthenticatedUserWithRelations): string
   const direct = String(user.channelId || '').trim();
   if (direct) return direct;
 
-  const wallets = Array.isArray((user as { wallets?: unknown }).wallets)
-    ? ((user as { wallets: Array<{ channelId: string; updatedAt?: Date }> }).wallets || [])
-    : [];
+  const wallets = user.wallets ?? [];
   if (wallets.length === 0) return null;
 
   const sorted = [...wallets].sort((a, b) => {
-    const aTime = a.updatedAt instanceof Date ? a.updatedAt.getTime() : 0;
-    const bTime = b.updatedAt instanceof Date ? b.updatedAt.getTime() : 0;
-    return bTime - aTime;
+    return b.updatedAt.getTime() - a.updatedAt.getTime();
   });
   const top = sorted[0];
   return top?.channelId ? String(top.channelId) : null;
