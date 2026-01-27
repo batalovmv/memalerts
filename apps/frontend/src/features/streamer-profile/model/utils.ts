@@ -21,7 +21,11 @@ export function looksLikeSpaHtml(data: unknown): boolean {
 export function extractMemesFromResponse(resp: unknown): MemeDetail[] {
   if (Array.isArray(resp)) return resp as MemeDetail[];
   const rec = toRecord(resp);
-  if (rec && Array.isArray(rec.items)) return rec.items as MemeDetail[];
+  if (!rec) return [];
+  if (Array.isArray(rec.items)) return rec.items as MemeDetail[];
+  if (Array.isArray(rec.data)) return rec.data as MemeDetail[];
+  const data = toRecord(rec.data);
+  if (data && Array.isArray(data.items)) return data.items as MemeDetail[];
   return [];
 }
 
@@ -159,6 +163,34 @@ export async function fetchChannelMemesSearch(opts: {
   } catch {
     return await doPublic();
   }
+}
+
+export async function fetchChannelMemesPublic(opts: {
+  channelSlug: string;
+  limit: number;
+  sortBy: 'createdAt' | 'priceCoins';
+  sortOrder: 'asc' | 'desc';
+  cursor?: string | null;
+  timeoutMs?: number;
+}): Promise<{ items: MemeDetail[]; nextCursor?: string | null }> {
+  const slug = String(opts.channelSlug || '').trim();
+  const timeout = typeof opts.timeoutMs === 'number' ? opts.timeoutMs : 15000;
+  const params = new URLSearchParams();
+  params.set('limit', String(opts.limit));
+  params.set('sortBy', opts.sortBy);
+  params.set('sortOrder', opts.sortOrder);
+  if (opts.cursor) params.set('cursor', opts.cursor);
+  params.set('_ts', String(Date.now()));
+
+  const url = `/channels/${encodeURIComponent(slug)}/memes?${params.toString()}`;
+  const resp = await api.get<unknown>(url, {
+    timeout,
+    headers: { 'Cache-Control': 'no-store' },
+  });
+  const rec = toRecord(resp);
+  const items = rec ? extractMemesFromResponse(rec) : extractMemesFromResponse(resp);
+  const nextCursor = rec && typeof rec.nextCursor === 'string' ? rec.nextCursor : null;
+  return { items, nextCursor };
 }
 
 export function normalizeChannelInfo(raw: unknown, fallbackSlug: string): ChannelInfo | null {

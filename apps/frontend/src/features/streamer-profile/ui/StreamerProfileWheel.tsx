@@ -38,6 +38,10 @@ export function StreamerProfileWheel({
 }: StreamerProfileWheelProps) {
   const { t } = useTranslation();
 
+  const hasState = !!state;
+  const isEnabled = state?.enabled !== false;
+  if (!loading && (!hasState || !isEnabled)) return null;
+
   const freeCooldown = state ? formatCooldown(state.freeSpinCooldownSeconds ?? 0) : '';
   const freeAvailable = state?.freeSpinAvailable ?? false;
   const paidCost = state?.paidSpinCostCoins ?? 0;
@@ -61,58 +65,63 @@ export function StreamerProfileWheel({
   };
 
   return (
-    <section className="rounded-xl border border-white/10 bg-white/70 dark:bg-white/5 p-4">
-      <div className="flex flex-wrap items-start justify-between gap-2">
+    <section className="rounded-xl border border-white/10 bg-white/60 dark:bg-white/5 p-3">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="text-sm font-semibold text-gray-900 dark:text-white">
             {t('wheel.title', { defaultValue: 'Wheel of Fortune' })}
           </div>
-          <div className="text-xs text-gray-500 dark:text-gray-400">
-            {state?.enabled === false
-              ? t('wheel.disabled', { defaultValue: 'Wheel disabled by streamer' })
-              : t('wheel.subtitle', { defaultValue: 'Free spin daily + paid spins' })}
-          </div>
+          {state ? (
+            <div className="text-xs text-gray-500 dark:text-gray-400">
+              {freeAvailable
+                ? t('wheel.freeReady', { defaultValue: 'Free spin available now' })
+                : freeCooldown
+                  ? t('wheel.freeCooldown', { defaultValue: 'Free spin in {{time}}', time: freeCooldown })
+                  : t('wheel.subtitle', { defaultValue: 'Free spin daily + paid spins' })}
+              <div className="mt-1">
+                {t('wheel.paidCost', { defaultValue: 'Paid spin cost: {{count}} coins', count: paidCost })}
+              </div>
+              {state.prizeMultiplier && state.prizeMultiplier !== 1 ? (
+                <div className="mt-1">
+                  {t('wheel.multiplier', { defaultValue: 'Prize multiplier ×{{count}}', count: state.prizeMultiplier })}
+                </div>
+              ) : null}
+            </div>
+          ) : (
+            <div className="text-xs text-gray-500 dark:text-gray-400">
+              {t('wheel.loading', { defaultValue: 'Loading…' })}
+            </div>
+          )}
         </div>
-        {loading ? (
-          <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-            <Spinner className="h-3 w-3" />
-            {t('wheel.loading', { defaultValue: 'Loading…' })}
-          </div>
-        ) : null}
+        <div className="flex flex-wrap items-center gap-2">
+          {loading ? (
+            <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+              <Spinner className="h-3 w-3" />
+              {t('wheel.loading', { defaultValue: 'Loading…' })}
+            </div>
+          ) : state ? (
+            isAuthed ? (
+              <>
+                {freeAvailable ? (
+                  <Button type="button" size="sm" variant="primary" onClick={() => handleSpin('free')} disabled={spinning}>
+                    {spinning ? t('wheel.spinning', { defaultValue: 'Spinning…' }) : t('wheel.spinFree', { defaultValue: 'Free spin' })}
+                  </Button>
+                ) : null}
+                <Button type="button" size="sm" variant={freeAvailable ? 'secondary' : 'primary'} onClick={() => handleSpin('paid')} disabled={spinning}>
+                  {spinning ? t('wheel.spinning', { defaultValue: 'Spinning…' }) : t('wheel.spinPaid', { defaultValue: 'Spin for {{count}}', count: paidCost })}
+                </Button>
+              </>
+            ) : (
+              <Button type="button" size="sm" variant="secondary" onClick={onRequireAuth}>
+                {t('auth.login', { defaultValue: 'Log in' })}
+              </Button>
+            )
+          ) : null}
+        </div>
       </div>
 
-      {state && state.enabled !== false ? (
-        <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_auto] items-center">
-          <div className="text-xs text-gray-600 dark:text-gray-300">
-            {freeAvailable
-              ? t('wheel.freeReady', { defaultValue: 'Free spin available now' })
-              : freeCooldown
-                ? t('wheel.freeCooldown', { defaultValue: 'Free spin in {{time}}', time: freeCooldown })
-                : t('wheel.freeCooldown', { defaultValue: 'Free spin in {{time}}', time: '—' })}
-            <div className="mt-1">
-              {t('wheel.paidCost', { defaultValue: 'Paid spin cost: {{count}} coins', count: paidCost })}
-            </div>
-            {state.prizeMultiplier && state.prizeMultiplier !== 1 ? (
-              <div className="mt-1">
-                {t('wheel.multiplier', { defaultValue: 'Prize multiplier ×{{count}}', count: state.prizeMultiplier })}
-              </div>
-            ) : null}
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {freeAvailable ? (
-              <Button type="button" size="sm" variant="primary" onClick={() => handleSpin('free')} disabled={spinning}>
-                {spinning ? t('wheel.spinning', { defaultValue: 'Spinning…' }) : t('wheel.spinFree', { defaultValue: 'Free spin' })}
-              </Button>
-            ) : null}
-            <Button type="button" size="sm" variant={freeAvailable ? 'secondary' : 'primary'} onClick={() => handleSpin('paid')} disabled={spinning}>
-              {spinning ? t('wheel.spinning', { defaultValue: 'Spinning…' }) : t('wheel.spinPaid', { defaultValue: 'Spin for {{count}}', count: paidCost })}
-            </Button>
-          </div>
-        </div>
-      ) : null}
-
       {lastWinnerLabel ? (
-        <div className="mt-3 text-xs text-gray-500 dark:text-gray-400">
+        <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
           {t('wheel.lastSpin', { defaultValue: 'Last spin' })}: {lastWinnerLabel}
         </div>
       ) : null}

@@ -503,6 +503,21 @@ export const api: CustomAxiosInstance = {
   interceptors: axiosInstance.interceptors,
 };
 
+let lastUnauthorizedAt = 0;
+
+function emitUnauthorizedOnce() {
+  const now = Date.now();
+  if (now - lastUnauthorizedAt < 800) return;
+  lastUnauthorizedAt = now;
+  try {
+    window.dispatchEvent(
+      new CustomEvent('memalerts:auth:unauthorized', { detail: { ts: new Date().toISOString() } }),
+    );
+  } catch {
+    // ignore
+  }
+}
+
 axiosInstance.interceptors.response.use(
   (response: AxiosResponse) => response,
   (error: AxiosError) => {
@@ -516,7 +531,7 @@ axiosInstance.interceptors.response.use(
     }
     
     if (error.response?.status === 401) {
-      // Handle unauthorized - could dispatch logout action here if needed
+      emitUnauthorizedOnce();
     }
     
     // Ensure error object has proper structure
@@ -545,4 +560,3 @@ axiosInstance.interceptors.response.use(
     return Promise.reject(error);
   }
 );
-

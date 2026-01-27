@@ -17,8 +17,6 @@ import { useStreamerProfileSubmissionsStatus } from '@/features/streamer-profile
 import { useStreamerProfileVote } from '@/features/streamer-profile/model/useStreamerProfileVote';
 import { useStreamerProfileWallet } from '@/features/streamer-profile/model/useStreamerProfileWallet';
 import { useStreamerProfileWheel } from '@/features/streamer-profile/model/useStreamerProfileWheel';
-import { StreamerProfileAchievements } from '@/features/streamer-profile/ui/StreamerProfileAchievements';
-import { StreamerProfileEconomy } from '@/features/streamer-profile/ui/StreamerProfileEconomy';
 import { StreamerProfileErrorState } from '@/features/streamer-profile/ui/StreamerProfileErrorState';
 import { StreamerProfileEventBanner } from '@/features/streamer-profile/ui/StreamerProfileEventBanner';
 import { StreamerProfileHeader } from '@/features/streamer-profile/ui/StreamerProfileHeader';
@@ -109,7 +107,6 @@ const StreamerProfile = memo(function StreamerProfile() {
   const {
     achievements,
     loading: achievementsLoading,
-    error: achievementsError,
     reload: reloadAchievements,
   } = useStreamerProfileAchievements({ slug: normalizedSlug, isAuthed });
 
@@ -177,6 +174,9 @@ const StreamerProfile = memo(function StreamerProfile() {
 
   const isOwner = !!(user && channelInfo && user.channelId === channelInfo.id);
   const canViewBlocked = isAuthed && (user?.role === 'admin' || isOwner);
+  const showWheel = wheelLoading || (wheelState && wheelState.enabled !== false);
+  const showVote = isOwner || voteSession?.status === 'active';
+  const showEngagement = showWheel || showVote;
 
   useEffect(() => {
     if (!isAuthed && AUTH_REQUIRED_LIST_MODES.includes(listMode)) {
@@ -459,6 +459,14 @@ const StreamerProfile = memo(function StreamerProfile() {
           loading={loading}
           channelInfo={channelInfo}
           user={user}
+          isAuthed={isAuthed}
+          economy={channelInfo?.economy}
+          claimingDaily={claimingDaily}
+          claimingWatch={claimingWatch}
+          onClaimDaily={claimDailyBonus}
+          onClaimWatch={claimWatchBonus}
+          achievements={achievements}
+          achievementsLoading={achievementsLoading}
           isOwner={isOwner}
           mix={mix}
           onOpenSubmit={handleOpenSubmitModal}
@@ -472,49 +480,35 @@ const StreamerProfile = memo(function StreamerProfile() {
           onReload={reloadEvents}
         />
 
-        <StreamerProfileEconomy
-          economy={channelInfo?.economy}
-          isAuthed={isAuthed}
-          onClaimDaily={claimDailyBonus}
-          onClaimWatch={claimWatchBonus}
-          claimingDaily={claimingDaily}
-          claimingWatch={claimingWatch}
-          onRequireAuth={handleOpenAuthModal}
-        />
+        {showEngagement ? (
+          <div className="mb-4 grid gap-3 lg:grid-cols-2">
+            <StreamerProfileWheel
+              state={wheelState}
+              lastSpin={lastSpin}
+              lastSpinEvent={lastSpinEvent}
+              loading={wheelLoading}
+              spinning={wheelSpinning}
+              isAuthed={isAuthed}
+              onSpin={handleWheelSpin}
+              onRequireAuth={handleOpenAuthModal}
+            />
 
-        <StreamerProfileWheel
-          state={wheelState}
-          lastSpin={lastSpin}
-          lastSpinEvent={lastSpinEvent}
-          loading={wheelLoading}
-          spinning={wheelSpinning}
-          isAuthed={isAuthed}
-          onSpin={handleWheelSpin}
-          onRequireAuth={handleOpenAuthModal}
-        />
-
-        <StreamerProfileVote
-          session={voteSession}
-          myVoteIndex={myVoteIndex}
-          loading={voteLoading}
-          voting={voteCasting}
-          creating={voteCreating}
-          closing={voteClosing}
-          isOwner={isOwner}
-          isAuthed={isAuthed}
-          onVote={handleCastVote}
-          onCreate={handleVoteCreate}
-          onClose={handleVoteClose}
-          onRequireAuth={handleOpenAuthModal}
-        />
-
-        <StreamerProfileAchievements
-          achievements={achievements}
-          loading={achievementsLoading}
-          error={achievementsError}
-          isAuthed={isAuthed}
-          onReload={reloadAchievements}
-        />
+            <StreamerProfileVote
+              session={voteSession}
+              myVoteIndex={myVoteIndex}
+              loading={voteLoading}
+              voting={voteCasting}
+              creating={voteCreating}
+              closing={voteClosing}
+              isOwner={isOwner}
+              isAuthed={isAuthed}
+              onVote={handleCastVote}
+              onCreate={handleVoteCreate}
+              onClose={handleVoteClose}
+              onRequireAuth={handleOpenAuthModal}
+            />
+          </div>
+        ) : null}
 
         <StreamerProfileSearch
           searchQuery={searchQuery}

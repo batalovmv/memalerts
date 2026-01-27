@@ -34,6 +34,9 @@ export function useStreamerProfileWheel({ slug }: UseStreamerProfileWheelParams)
       const raw = await api.get<unknown>(`/channels/${slug}/wheel`, { timeout: 12000 });
       const parsed = GetWheelStateResponseSchema.parse(raw);
       setState(parsed);
+    } catch {
+      // Wheel is optional for viewers; ignore load errors.
+      setState(null);
     } finally {
       setLoading(false);
     }

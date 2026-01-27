@@ -6,6 +6,7 @@ import type { MutableRefObject } from 'react';
 
 import {
   extractMemesFromResponse,
+  fetchChannelMemesPublic,
   fetchChannelMemesSearch,
   fetchMemesPool,
   mergeMemesById,
@@ -134,6 +135,8 @@ export function useStreamerProfileMemes({
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [memesOffset, setMemesOffset] = useState(0);
+  const [cursorMode, setCursorMode] = useState(false);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [searchResults, setSearchResults] = useState<MemeDetail[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -261,10 +264,14 @@ export function useStreamerProfileMemes({
       setMemes(cached.items);
       setHasMore(cached.hasMore);
       setMemesOffset(cached.offset);
+      setCursorMode(false);
+      setNextCursor(null);
     } else {
       setMemes([]);
       setHasMore(true);
       setMemesOffset(0);
+      setCursorMode(false);
+      setNextCursor(null);
     }
     setSearchResults([]);
 
@@ -379,16 +386,40 @@ export function useStreamerProfileMemes({
               timeoutMs: 15000,
             });
           } catch {
-            // Back-compat fallback: some backends may only support channelId on the non-public endpoint.
-            const fallbackParams = new URLSearchParams(listParams);
-            fallbackParams.delete('channelSlug');
-            fallbackParams.set('channelId', channelInfo.id);
-            resp = await api.get<unknown>(`/channels/memes/search?${fallbackParams.toString()}`, {
-              timeout: 15000,
-              headers: { 'Cache-Control': 'no-store' },
-            });
+            try {
+              const publicList = await fetchChannelMemesPublic({
+                channelSlug: String(channelInfo.slug || normalizedSlug).toLowerCase(),
+                limit: MEMES_PER_PAGE,
+                sortBy: 'createdAt',
+                sortOrder: 'desc',
+                timeoutMs: 15000,
+              });
+              setCursorMode(true);
+              setNextCursor(publicList.nextCursor ?? null);
+              setMemes(publicList.items);
+              setHasMore(Boolean(publicList.nextCursor));
+              setMemesOffset(0);
+              listCacheRef.current.set(cacheKey, {
+                items: publicList.items,
+                offset: 0,
+                hasMore: Boolean(publicList.nextCursor),
+                timestamp: Date.now(),
+              });
+              return;
+            } catch {
+              // Back-compat fallback: some backends may only support channelId on the non-public endpoint.
+              const fallbackParams = new URLSearchParams(listParams);
+              fallbackParams.delete('channelSlug');
+              fallbackParams.set('channelId', channelInfo.id);
+              resp = await api.get<unknown>(`/channels/memes/search?${fallbackParams.toString()}`, {
+                timeout: 15000,
+                headers: { 'Cache-Control': 'no-store' },
+              });
+            }
           }
           const initial = extractMemesFromResponse(resp);
+          setCursorMode(false);
+          setNextCursor(null);
           setMemes(initial);
           setHasMore(initial.length === MEMES_PER_PAGE);
           setMemesOffset(0);
@@ -428,6 +459,38 @@ export function useStreamerProfileMemes({
 
     setLoadingMore(true);
     try {
+      if (cursorMode) {
+        if (!nextCursor) {
+          setHasMore(false);
+          return;
+        }
+        const channelSlug = String(channelInfo.slug || normalizedSlug).toLowerCase();
+        const publicList = await fetchChannelMemesPublic({
+          channelSlug,
+          limit: MEMES_PER_PAGE,
+          sortBy: 'createdAt',
+          sortOrder: 'desc',
+          cursor: nextCursor,
+          timeoutMs: 15000,
+        });
+        if (publicList.items.length > 0) {
+          setMemes((prev) => {
+            const merged = [...prev, ...publicList.items];
+            const cacheKey = `${channelInfo.id}:${channelInfo.memeCatalogMode || 'channel'}:${listMode}:${trendingScope}:${trendingPeriod}`;
+            listCacheRef.current.set(cacheKey, {
+              items: merged,
+              offset: prev.length,
+              hasMore: Boolean(publicList.nextCursor),
+              timestamp: Date.now(),
+            });
+            return merged;
+          });
+        }
+        setNextCursor(publicList.nextCursor ?? null);
+        setHasMore(Boolean(publicList.nextCursor));
+        return;
+      }
+
       const nextOffset = memesOffset + MEMES_PER_PAGE;
       let newMemes: MemeDetail[] = [];
       const channelSlug = String(channelInfo.slug || normalizedSlug).toLowerCase();
@@ -515,12 +578,14 @@ export function useStreamerProfileMemes({
     canIncludeAi,
     canIncludeFileHash,
     channelInfo,
+    cursorMode,
     hasMore,
     isForYou,
     isListMode,
     listMode,
     loadingMore,
     memesOffset,
+    nextCursor,
     normalizedSlug,
     searchQuery,
     tagFilter,

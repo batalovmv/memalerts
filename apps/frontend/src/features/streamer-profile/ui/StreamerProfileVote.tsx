@@ -52,9 +52,11 @@ export function StreamerProfileVote({
   const isActive = session?.status === 'active';
   const winnerIndex = session?.winnerIndex ?? null;
 
+  if (!isOwner && (!session || session.status !== 'active')) return null;
+
   return (
-    <section className="rounded-xl border border-white/10 bg-white/70 dark:bg-white/5 p-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
+    <section className="rounded-xl border border-white/10 bg-white/60 dark:bg-white/5 p-3">
+      <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
           <div className="text-sm font-semibold text-gray-900 dark:text-white">
             {t('vote.title', { defaultValue: 'Vote for best meme' })}
@@ -66,15 +68,15 @@ export function StreamerProfileVote({
                 : t('vote.ended', { defaultValue: 'Vote ended' })}
               {timeLeft && isActive ? ` · ${t('vote.endsIn', { defaultValue: 'Ends in {{time}}', time: timeLeft })}` : ''}
             </div>
-          ) : (
+          ) : isOwner ? (
             <div className="text-xs text-gray-500 dark:text-gray-400">
               {t('vote.none', { defaultValue: 'No active vote' })}
             </div>
-          )}
+          ) : null}
         </div>
-        <div className="flex items-center gap-2">
-          {isOwner ? (
-            session?.status === 'active' ? (
+        {isOwner ? (
+          <div className="flex items-center gap-2">
+            {session?.status === 'active' ? (
               <Button type="button" size="sm" variant="secondary" onClick={onClose} disabled={closing}>
                 {closing ? t('vote.closing', { defaultValue: 'Closing…' }) : t('vote.close', { defaultValue: 'Close vote' })}
               </Button>
@@ -82,9 +84,9 @@ export function StreamerProfileVote({
               <Button type="button" size="sm" variant="primary" onClick={onCreate} disabled={creating}>
                 {creating ? t('vote.creating', { defaultValue: 'Starting…' }) : t('vote.start', { defaultValue: 'Start vote' })}
               </Button>
-            )
-          ) : null}
-        </div>
+            )}
+          </div>
+        ) : null}
       </div>
 
       {loading ? (
@@ -93,7 +95,7 @@ export function StreamerProfileVote({
           {t('vote.loading', { defaultValue: 'Loading vote…' })}
         </div>
       ) : session ? (
-        <div className="mt-4 grid gap-3 sm:grid-cols-3">
+        <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {session.options.map((option) => {
             const isWinner = winnerIndex === option.index;
             const isSelected = myVoteIndex === option.index;
@@ -103,7 +105,7 @@ export function StreamerProfileVote({
                 type="button"
                 className={[
                   'group relative overflow-hidden rounded-xl border p-3 text-left transition',
-                  isWinner ? 'border-emerald-400/70 bg-emerald-50/60 dark:bg-emerald-500/10' : 'border-white/10 bg-white/60 dark:bg-white/5',
+                  isWinner ? 'border-emerald-400/70 bg-emerald-50/60 dark:bg-emerald-500/10' : 'border-white/10 bg-white/50 dark:bg-white/5',
                   isSelected ? 'ring-2 ring-primary/60' : 'hover:border-primary/40',
                 ].join(' ')}
                 onClick={() => {
@@ -150,9 +152,9 @@ export function StreamerProfileVote({
         </div>
       ) : null}
 
-      {!session && !isOwner ? (
+      {!session && isOwner ? (
         <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-          {t('vote.wait', { defaultValue: 'The streamer will start a vote when ready.' })}
+          {t('vote.ownerHint', { defaultValue: 'Start a vote when you are ready.' })}
         </div>
       ) : null}
     </section>
