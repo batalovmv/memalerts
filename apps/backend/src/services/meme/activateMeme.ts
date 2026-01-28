@@ -388,16 +388,20 @@ export const activateMeme = async (req: AuthRequest, res: Response) => {
           });
           for (const threshold of VIRAL_THRESHOLDS) {
             if (totalActivations < threshold.count) continue;
-            let created = false;
-            try {
-              await tx.memeViralBonus.create({
-                data: { channelMemeId: resolvedChannelMeme.id, threshold: threshold.count },
-              });
-              created = true;
-            } catch (error: unknown) {
-              if (!isUniqueError(error)) throw error;
-            }
-            if (!created) continue;
+            // Use upsert to avoid unique constraint errors that abort PostgreSQL transactions
+            const existing = await tx.memeViralBonus.findUnique({
+              where: {
+                channelMemeId_threshold: {
+                  channelMemeId: resolvedChannelMeme.id,
+                  threshold: threshold.count,
+                },
+              },
+            });
+            if (existing) continue; // Already granted
+
+            await tx.memeViralBonus.create({
+              data: { channelMemeId: resolvedChannelMeme.id, threshold: threshold.count },
+            });
 
             if (authorId && threshold.coins > 0) {
               const updated = await WalletService.incrementBalance(tx, { userId: authorId, channelId }, threshold.coins);

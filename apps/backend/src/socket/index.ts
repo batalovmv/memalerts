@@ -413,9 +413,12 @@ export function setupSocketIO(io: Server) {
       callback?.(result);
 
       if (result.ok) {
+        const channelRoom = `channel:${socketData.channelId}:overlay`;
+        // Stop current playback first
+        io.to(channelRoom).emit('activation:stop');
         broadcastQueueState(socketData.channelId);
         if (result.next) {
-          io.to(`channel:${socketData.channelId}:overlay`).emit('activation:play', result.next);
+          io.to(channelRoom).emit('activation:play', result.next);
         }
       }
     });
@@ -437,6 +440,8 @@ export function setupSocketIO(io: Server) {
       callback?.(result);
 
       if (result.ok) {
+        // Stop current playback
+        io.to(`channel:${socketData.channelId}:overlay`).emit('activation:stop');
         broadcastQueueState(socketData.channelId);
       }
     });
@@ -486,6 +491,8 @@ export function setupSocketIO(io: Server) {
       callback?.(result);
       if (result.ok) {
         broadcastQueueState(socketData.channelId);
+        // Notify overlay to pause current playback
+        io.to(`channel:${socketData.channelId}:overlay`).emit('activation:pause');
       }
     });
 
@@ -502,22 +509,61 @@ export function setupSocketIO(io: Server) {
       callback?.(result);
       if (result.ok) {
         broadcastQueueState(socketData.channelId);
+        const channelRoom = `channel:${socketData.channelId}:overlay`;
         if (result.next) {
-          io.to(`channel:${socketData.channelId}:overlay`).emit('activation:play', result.next);
+          io.to(channelRoom).emit('activation:play', result.next);
+        } else {
+          // Resume paused playback (no new meme to start)
+          io.to(channelRoom).emit('activation:resume');
         }
       }
     });
 
     socket.on('activation:ackDone', async (data: { activationId: string }) => {
-      // Update activation status
+      // Legacy handler: now delegates to the proper queue advancement logic.
+      // Previously this only updated activation status without advancing the queue.
+      const socketData = socket.data as SocketData;
+      const channelId = socketData.channelId;
+      if (!channelId) {
+        debugLog('[socket] activation:ackDone ignored (no channelId)', { socketId: socket.id });
+        return;
+      }
+
+      const activationId = String(data?.activationId || '').trim();
+      if (!activationId) {
+        debugLog('[socket] activation:ackDone ignored (no activationId)', { socketId: socket.id });
+        return;
+      }
+
+      // Verify this activation is the current one for this channel.
       const { prisma } = await import('../lib/prisma.js');
-      try {
-        await prisma.memeActivation.update({
-          where: { id: data.activationId },
-          data: { status: 'done' },
-        });
-      } catch (error) {
-        debugError('Error updating activation:', error);
+      const channel = await prisma.channel.findFirst({
+        where: { id: channelId, currentActivationId: activationId },
+        select: { id: true },
+      });
+
+      if (!channel) {
+        // Activation already finished or not current — just update status if needed.
+        try {
+          await prisma.memeActivation.updateMany({
+            where: { id: activationId, status: { in: ['playing', 'queued'] } },
+            data: { status: 'done' },
+          });
+        } catch (error) {
+          debugError('Error updating activation status:', error);
+        }
+        return;
+      }
+
+      // Advance the queue properly.
+      const result = await QueueService.finishCurrent(channel.id, 'natural');
+
+      if (result.ok) {
+        broadcastQueueState(channel.id);
+
+        if (result.next) {
+          io.to(`channel:${channel.id}:overlay`).emit('activation:play', result.next);
+        }
       }
     });
 

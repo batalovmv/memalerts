@@ -13,15 +13,16 @@ export class CooccurrenceService {
     const startTime = Date.now();
 
     // 1. Получить все активации сгруппированные по пользователям
+    // Prisma 5 requires specific field for _count in having, using id to count rows
     const userActivations = await prisma.memeActivation.groupBy({
       by: ['userId'],
       where: {
         status: { in: [...COMPLETED_STATUSES] },
       },
-      _count: { _all: true },
+      _count: { id: true },
       having: {
-        _count: {
-          _all: {
+        id: {
+          _count: {
             gte: 2, // Минимум 2 активации для co-occurrence
           },
         },

@@ -291,12 +291,31 @@ export class QueueService {
               }
             }
 
-            if (clearedCount > 0) {
-              await tx.channel.update({
-                where: { id: channelId },
-                data: { queueRevision: { increment: 1 } },
+            // Also stop the currently playing meme
+            const channel = await tx.channel.findUnique({
+              where: { id: channelId },
+              select: { currentActivationId: true },
+            });
+
+            if (channel?.currentActivationId) {
+              await tx.memeActivation.updateMany({
+                where: { id: channel.currentActivationId, status: 'playing' },
+                data: {
+                  status: 'cancelled',
+                  endedAt: now,
+                  endedReason: 'cleared',
+                },
               });
             }
+
+            // Reset currentActivationId and increment revision
+            await tx.channel.update({
+              where: { id: channelId },
+              data: {
+                currentActivationId: null,
+                queueRevision: { increment: 1 },
+              },
+            });
 
             return { ok: true, clearedCount, refundTotal, refundedCount };
           },

@@ -126,14 +126,15 @@ async function pickAutoOptions(channelId: string): Promise<string[]> {
   const activeSession = await getActiveStreamSession(channelId);
   const since = activeSession?.startedAt ?? new Date(now.getTime() - AUTO_LOOKBACK_HOURS * 60 * 60 * 1000);
 
+  // Prisma 5 requires specific field for _count, using id to count rows
   const top = await prisma.memeActivation.groupBy({
     by: ['channelMemeId'],
     where: {
       channelId,
       createdAt: { gte: since, lte: now },
     },
-    _count: { _all: true },
-    orderBy: { _count: { _all: 'desc' } },
+    _count: { id: true },
+    orderBy: { _count: { id: 'desc' } },
     take: 6,
   });
 
