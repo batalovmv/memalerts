@@ -155,7 +155,7 @@ export class QueueService {
 
               if (channel?.overlayPlaybackPaused) {
                 return {
-                  ok: true,
+                  ok: true as const,
                   finishedId: activation.id,
                   finishedReason: reason,
                   refunded: refundAmount > 0,
@@ -195,7 +195,7 @@ export class QueueService {
               }
 
               return {
-                ok: true,
+                ok: true as const,
                 finishedId: activation.id,
                 finishedReason: reason,
                 refunded: refundAmount > 0,
@@ -262,7 +262,7 @@ export class QueueService {
             });
 
             if (!queued.length) {
-              return { ok: true, clearedCount: 0, refundTotal: 0, refundedCount: 0 };
+              return { ok: true as const, clearedCount: 0, refundTotal: 0, refundedCount: 0 };
             }
 
             const now = new Date();
@@ -317,7 +317,7 @@ export class QueueService {
               },
             });
 
-            return { ok: true, clearedCount, refundTotal, refundedCount };
+            return { ok: true as const, clearedCount, refundTotal, refundedCount };
           },
           { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
         ),
@@ -346,7 +346,7 @@ export class QueueService {
         intakePaused: !current.activationsEnabled,
         changed: false,
       });
-      return { ok: true, intakePaused: !current.activationsEnabled };
+      return { ok: true as const, intakePaused: !current.activationsEnabled };
     }
 
     const channel = await prisma.channel.update({
@@ -363,7 +363,7 @@ export class QueueService {
       changed: true,
     });
 
-    return { ok: true, intakePaused: !channel.activationsEnabled };
+    return { ok: true as const, intakePaused: !channel.activationsEnabled };
   }
 
   static async setPlaybackPaused(channelId: string, paused: boolean) {
@@ -377,7 +377,7 @@ export class QueueService {
         playbackPaused: current.overlayPlaybackPaused,
         changed: false,
       });
-      return { ok: true, playbackPaused: current.overlayPlaybackPaused };
+      return { ok: true as const, playbackPaused: current.overlayPlaybackPaused };
     }
 
     const channel = await prisma.channel.update({
@@ -394,7 +394,7 @@ export class QueueService {
       changed: true,
     });
 
-    return { ok: true, playbackPaused: channel.overlayPlaybackPaused };
+    return { ok: true as const, playbackPaused: channel.overlayPlaybackPaused };
   }
 
   /**
@@ -425,7 +425,7 @@ export class QueueService {
             const currentActivationId = channel?.currentActivationId ?? null;
             if (currentActivationId) {
               return {
-                ok: true,
+                ok: true as const,
                 playbackPaused,
                 alreadyCurrent: true,
                 currentActivationId,
@@ -451,7 +451,7 @@ export class QueueService {
 
             if (!nextRow) {
               return {
-                ok: true,
+                ok: true as const,
                 playbackPaused,
                 alreadyCurrent: false,
                 currentActivationId: null,
@@ -465,7 +465,7 @@ export class QueueService {
             });
             if (!channelUpdate?.count) {
               return {
-                ok: true,
+                ok: true as const,
                 playbackPaused,
                 alreadyCurrent: true,
                 currentActivationId: null,
@@ -483,7 +483,7 @@ export class QueueService {
                 data: { currentActivationId: null },
               });
               return {
-                ok: true,
+                ok: true as const,
                 playbackPaused,
                 alreadyCurrent: false,
                 currentActivationId: null,
@@ -492,7 +492,7 @@ export class QueueService {
             }
 
             return {
-              ok: true,
+              ok: true as const,
               playbackPaused,
               alreadyCurrent: false,
               currentActivationId: nextRow.id,
