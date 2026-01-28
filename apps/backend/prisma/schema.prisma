@@ -801,6 +801,10 @@ model MemeAsset {
   favoritedBy     UserMemeFavorite[]
   blockedByUsers  UserMemeBlocklist[]
   blockedByChannels ChannelMemeBlocklist[]
+  /// Co-occurrence связи (этот мем как первый в паре)
+  cooccurrencesAs1 MemeCooccurrence[] @relation("CooccurrenceMeme1")
+  /// Co-occurrence связи (этот мем как второй в паре)
+  cooccurrencesAs2 MemeCooccurrence[] @relation("CooccurrenceMeme2")
   globalStats30d  GlobalMemeStats30d?
   globalDailyStats GlobalMemeDailyStats[]
   createdById     String?
@@ -815,6 +819,31 @@ model MemeAsset {
   @@index([aiStatus])
   @@index([qualityScore])
   @@index([createdAt])
+}
+
+/// Хранит количество совместных активаций пар мемов
+/// Если пользователь активировал мем A и мем B — это co-occurrence
+model MemeCooccurrence {
+  id            String    @id @default(cuid())
+
+  /// ID первого мема (всегда меньший по алфавиту для уникальности)
+  memeAssetId1  String
+  memeAsset1    MemeAsset @relation("CooccurrenceMeme1", fields: [memeAssetId1], references: [id], onDelete: Cascade)
+
+  /// ID второго мема
+  memeAssetId2  String
+  memeAsset2    MemeAsset @relation("CooccurrenceMeme2", fields: [memeAssetId2], references: [id], onDelete: Cascade)
+
+  /// Количество пользователей, активировавших оба мема
+  cooccurrences Int       @default(0)
+
+  /// Последнее обновление
+  updatedAt     DateTime  @updatedAt
+
+  @@unique([memeAssetId1, memeAssetId2])
+  @@index([memeAssetId1])
+  @@index([memeAssetId2])
+  @@index([cooccurrences])
 }
 
 model UserBanState {
