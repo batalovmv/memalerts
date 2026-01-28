@@ -224,12 +224,30 @@ export default function OverlayView() {
       transports: ['websocket'],
     });
 
+    let pingInterval: ReturnType<typeof setInterval> | null = null;
+
     newSocket.on('connect', () => {
       if (overlayToken) {
         newSocket.emit('join:overlay', { token: overlayToken });
       } else if (slug) {
         // Back-compat only; new OBS links should use tokenized route.
         newSocket.emit('join:channel', slug);
+      }
+
+      // Send periodic ping to maintain "overlay connected" status on backend.
+      // Backend expects ping every 40s (stale threshold), so we ping every 25s for safety.
+      if (pingInterval) clearInterval(pingInterval);
+      pingInterval = setInterval(() => {
+        newSocket.emit('overlay:ping');
+      }, 25_000);
+      // Also send an immediate ping after joining.
+      newSocket.emit('overlay:ping');
+    });
+
+    newSocket.on('disconnect', () => {
+      if (pingInterval) {
+        clearInterval(pingInterval);
+        pingInterval = null;
       }
     });
 
@@ -336,6 +354,10 @@ export default function OverlayView() {
     socketRef.current = newSocket;
 
     return () => {
+      if (pingInterval) {
+        clearInterval(pingInterval);
+        pingInterval = null;
+      }
       socketRef.current = null;
       newSocket.disconnect();
     };
