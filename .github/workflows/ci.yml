@@ -76,6 +76,8 @@ jobs:
       - run: pnpm --filter @memalerts/${{ matrix.app }} build
       - run: pnpm --filter @memalerts/${{ matrix.app }} test
         if: matrix.app == 'backend'
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:54329/memalerts_test
       - run: pnpm --filter @memalerts/${{ matrix.app }} test:ci
         if: matrix.app == 'frontend'
 
