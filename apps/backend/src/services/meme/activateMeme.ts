@@ -445,9 +445,14 @@ export const activateMeme = async (req: AuthRequest, res: Response) => {
       });
     }
 
+    if (!result.activation) {
+      throw new Error('Activation not created');
+    }
+
+    const activation = result.activation;
     const channelSlug = String(channel.slug || '').toLowerCase();
     const overlayRow = await prisma.channelMeme.findUnique({
-      where: { id: result.activation.channelMemeId },
+      where: { id: activation.channelMemeId },
       select: {
         id: true,
         title: true,
@@ -470,8 +475,8 @@ export const activateMeme = async (req: AuthRequest, res: Response) => {
     const overlayMemeAssetId = String(channelMeme?.memeAssetId ?? poolAsset?.id ?? '');
 
     io.to(`channel:${channelSlug}`).emit('activation:new', {
-      id: result.activation.id,
-      memeId: result.activation.channelMemeId,
+      id: activation.id,
+      memeId: activation.channelMemeId,
       type: overlayType,
       fileUrl: overlayFileUrl,
       durationMs: overlayDurationMs,
@@ -494,8 +499,8 @@ export const activateMeme = async (req: AuthRequest, res: Response) => {
 
     if (result.coinsSpent && result.coinsSpent > 0) {
       const walletUpdateData: WalletUpdatedEvent = {
-        userId: result.activation.userId,
-        channelId: result.activation.channelId,
+        userId: activation.userId,
+        channelId: activation.channelId,
         balance: result.wallet.balance,
         delta: -result.coinsSpent,
         reason: 'meme_activation',
@@ -508,7 +513,7 @@ export const activateMeme = async (req: AuthRequest, res: Response) => {
     if (result.authorReward && result.authorReward > 0 && result.authorId && result.authorWalletBalance !== null) {
       const authorUpdate: WalletUpdatedEvent = {
         userId: result.authorId,
-        channelId: result.activation.channelId,
+        channelId: activation.channelId,
         balance: result.authorWalletBalance,
         delta: result.authorReward,
         reason: 'meme_activation_author_reward',
@@ -555,23 +560,24 @@ export const activateMeme = async (req: AuthRequest, res: Response) => {
       io.to(`user:${userId}`).emit('achievement:granted', { key, channelId: channelId, channelSlug: channel.slug });
     };
     if (Array.isArray(result.achievementGrants) && result.achievementGrants.length > 0) {
-      result.achievementGrants.forEach((key) => emitAchievementGrant(result.activation.userId, key));
+      result.achievementGrants.forEach((key) => emitAchievementGrant(activation.userId, key));
     }
     if (Array.isArray(result.eventAchievementGrants) && result.eventAchievementGrants.length > 0) {
-      result.eventAchievementGrants.forEach((entry) => emitAchievementGrant(result.activation.userId, entry.key));
+      result.eventAchievementGrants.forEach((entry) => emitAchievementGrant(activation.userId, entry.key));
     }
-    if (Array.isArray(result.bonusGrants) && result.bonusGrants.length > 0 && result.authorId) {
-      result.bonusGrants.forEach((key) => emitAchievementGrant(result.authorId, key));
+    const authorId = result.authorId;
+    if (Array.isArray(result.bonusGrants) && result.bonusGrants.length > 0 && authorId) {
+      result.bonusGrants.forEach((key) => emitAchievementGrant(authorId, key));
     }
 
     void TasteProfileService.recordActivation({
       userId: req.userId!,
-      channelMemeId: result.activation.channelMemeId,
+      channelMemeId: activation.channelMemeId,
     }).catch((error) => {
       const errMsg = error instanceof Error ? error.message : String(error ?? 'unknown');
       logger.warn('taste_profile.record_failed', {
         userId: req.userId,
-        channelMemeId: result.activation.channelMemeId,
+        channelMemeId: activation.channelMemeId,
         error: errMsg,
       });
     });
@@ -589,7 +595,7 @@ export const activateMeme = async (req: AuthRequest, res: Response) => {
     }
 
     res.json({
-      activation: result.activation,
+      activation,
       wallet: result.wallet,
       originalPrice: result.originalPrice,
       finalPrice: result.finalPrice,

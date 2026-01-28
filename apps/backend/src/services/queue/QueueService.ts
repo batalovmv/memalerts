@@ -86,7 +86,7 @@ export class QueueService {
     });
 
     try {
-      const result = await withRetry(
+      const result = await withRetry<FinishResult>(
         () =>
           prisma.$transaction(
             async (tx) => {
@@ -208,16 +208,29 @@ export class QueueService {
         { maxRetries: 3 }
       );
 
-      logger.info('queue.finish.result', {
-        channelId,
-        reason,
-        ok: result.ok,
-        code: result.ok ? null : result.code,
-        finishedId: result.ok ? result.finishedId : null,
-        nextId: result.ok ? result.next?.activationId ?? null : null,
-        refundAmount: result.ok ? result.refundAmount : null,
-        playbackPaused: result.ok ? result.playbackPaused ?? false : null,
-      });
+      const finishLog = result.ok
+        ? {
+            channelId,
+            reason,
+            ok: true,
+            code: null,
+            finishedId: result.finishedId,
+            nextId: result.next?.activationId ?? null,
+            refundAmount: result.refundAmount,
+            playbackPaused: result.playbackPaused ?? false,
+          }
+        : {
+            channelId,
+            reason,
+            ok: false,
+            code: result.code,
+            finishedId: null,
+            nextId: null,
+            refundAmount: null,
+            playbackPaused: null,
+          };
+
+      logger.info('queue.finish.result', finishLog);
 
       return result;
     } catch (error: unknown) {
@@ -246,7 +259,7 @@ export class QueueService {
       initiatorRole: initiator?.role ?? null,
     });
 
-    const result = await withRetry(
+    const result = await withRetry<ClearResult>(
       () =>
         prisma.$transaction(
           async (tx) => {
@@ -385,7 +398,7 @@ export class QueueService {
   static async resumePlayback(channelId: string): Promise<ResumeResult> {
     logger.info('queue.resume.start', { channelId });
 
-    const result = await withRetry(
+    const result = await withRetry<ResumeResult>(
       () =>
         prisma.$transaction(
           async (tx) => {

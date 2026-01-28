@@ -19,19 +19,14 @@ export class CooccurrenceService {
         status: { in: [...COMPLETED_STATUSES] },
       },
       _count: { _all: true },
-      having: {
-        _count: {
-          _all: {
-            gte: 2, // Минимум 2 активации для co-occurrence
-          },
-        },
-      },
     });
+
+    const activeUsers = userActivations.filter((entry) => entry._count._all >= 2);
 
     const cooccurrenceMap = new Map<string, number>();
 
     // 2. Для каждого пользователя найти пары активированных мемов
-    for (const { userId } of userActivations) {
+    for (const { userId } of activeUsers) {
       const activations = await prisma.memeActivation.findMany({
         where: {
           userId,
