@@ -9,7 +9,7 @@ BEGIN
         SELECT 1
         FROM pg_type t
         JOIN pg_namespace n ON n.oid = t.typnamespace
-        WHERE t.typname = 'ExternalRewardProvider' AND n.nspname = 'public'
+        WHERE t.typname = 'ExternalRewardProvider' AND n.nspname = current_schema()
     ) THEN
         CREATE TYPE "ExternalRewardProvider" AS ENUM ('kick', 'trovo', 'vkvideo');
     END IF;
@@ -38,7 +38,7 @@ BEGIN
         SELECT 1 FROM pg_constraint WHERE conname = 'ExternalWebhookDeliveryDedup_externalEventId_fkey'
     ) THEN
         -- Only add FK if ExternalRewardEvent table exists (some DBs may not have the ledger yet).
-        IF to_regclass('public."ExternalRewardEvent"') IS NOT NULL THEN
+        IF to_regclass('"ExternalRewardEvent"') IS NOT NULL THEN
             ALTER TABLE "ExternalWebhookDeliveryDedup"
             ADD CONSTRAINT "ExternalWebhookDeliveryDedup_externalEventId_fkey"
             FOREIGN KEY ("externalEventId") REFERENCES "ExternalRewardEvent"("id") ON DELETE SET NULL ON UPDATE CASCADE;

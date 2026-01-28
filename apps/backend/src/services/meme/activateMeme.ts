@@ -11,8 +11,10 @@ import { emitWalletUpdated, relayWalletUpdatedToPeer, type WalletUpdatedEvent } 
 import { logger } from '../../utils/logger.js';
 import { withRetry } from '../../utils/retryTransaction.js';
 import { TasteProfileService } from '../taste/TasteProfileService.js';
+import { CooccurrenceService } from '../recommendations/CooccurrenceService.js';
 import { ECONOMY_CONSTANTS } from '../economy/economyService.js';
 import { processActivationAchievements, processEventAchievements } from '../achievements/achievementService.js';
+import { broadcastQueueState } from '../../socket/queueBroadcast.js';
 
 type PoolChannelRow = {
   id: string;
@@ -226,6 +228,15 @@ export const activateMeme = async (req: AuthRequest, res: Response) => {
           ? calculatePriceWithDiscount(priceBeforeDiscount, promotion.discountPercent)
           : priceBeforeDiscount;
 
+        const intakeChannel = await tx.channel.findUnique({
+          where: { id: channelId },
+          select: { activationsEnabled: true },
+        });
+        if (!intakeChannel) throw new Error('Meme is not available');
+        if (!intakeChannel.activationsEnabled) {
+          return { intakePaused: true };
+        }
+
         const wallet = await WalletService.getWalletForUpdate(tx, {
           userId: req.userId!,
           channelId,
@@ -255,6 +266,47 @@ export const activateMeme = async (req: AuthRequest, res: Response) => {
             status: 'queued',
           },
         });
+
+        let shouldStartImmediately = false;
+        let startedActivationId: string | null = null;
+        let activationForResponse = activation;
+
+        const channelState = await tx.channel.findUnique({
+          where: { id: channelId },
+          select: {
+            currentActivationId: true,
+            overlayPlaybackPaused: true,
+          },
+        });
+        if (!channelState) throw new Error('Meme is not available');
+
+        if (!channelState.currentActivationId && !channelState.overlayPlaybackPaused) {
+          const updateResult = await tx.channel.updateMany({
+            where: {
+              id: channelId,
+              currentActivationId: null,
+            },
+            data: {
+              currentActivationId: activation.id,
+              queueRevision: { increment: 1 },
+            },
+          });
+
+          if (updateResult.count > 0) {
+            await tx.memeActivation.update({
+              where: { id: activation.id },
+              data: { status: 'playing', playedAt: now },
+            });
+            shouldStartImmediately = true;
+            startedActivationId = activation.id;
+            activationForResponse = { ...activation, status: 'playing', playedAt: now };
+          }
+        } else {
+          await tx.channel.update({
+            where: { id: channelId },
+            data: { queueRevision: { increment: 1 } },
+          });
+        }
 
         const authorId = channelMeme?.memeAsset?.createdById ?? poolAsset?.createdById ?? null;
         const authorReward = Math.max(0, Math.floor(finalPrice * ECONOMY_CONSTANTS.authorActivationShare));
@@ -361,7 +413,7 @@ export const activateMeme = async (req: AuthRequest, res: Response) => {
         }
 
         return {
-          activation,
+          activation: activationForResponse,
           wallet: updatedWallet,
           senderDisplayName: sender?.displayName ?? null,
           originalPrice: priceBeforeDiscount,
@@ -376,12 +428,22 @@ export const activateMeme = async (req: AuthRequest, res: Response) => {
           eventAchievementGrants: eventAchievementResult.grants,
           bonusWalletUpdates,
           bonusGrants,
+          shouldStartImmediately,
+          startedActivationId,
+          intakePaused: false,
         };
           },
           { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
         ),
       { maxRetries: 5, baseDelayMs: 50 }
     );
+
+    if (result.intakePaused) {
+      return res.status(423).json({
+        error: 'Activations are paused',
+        code: 'INTAKE_PAUSED',
+      });
+    }
 
     const channelSlug = String(channel.slug || '').toLowerCase();
     const overlayRow = await prisma.channelMeme.findUnique({
@@ -405,6 +467,7 @@ export const activateMeme = async (req: AuthRequest, res: Response) => {
     const overlayDurationMs =
       overlayRow?.memeAsset?.durationMs ?? channelMeme?.memeAsset.durationMs ?? (poolAsset?.durationMs ?? 0);
     const overlayTitle = overlayRow?.title ?? channelMeme?.title ?? String(poolAsset?.aiAutoTitle || 'Meme').slice(0, 80);
+    const overlayMemeAssetId = String(channelMeme?.memeAssetId ?? poolAsset?.id ?? '');
 
     io.to(`channel:${channelSlug}`).emit('activation:new', {
       id: result.activation.id,
@@ -415,6 +478,19 @@ export const activateMeme = async (req: AuthRequest, res: Response) => {
       title: overlayTitle,
       senderDisplayName: result.senderDisplayName,
     });
+
+    broadcastQueueState(channelId);
+
+    if (result.shouldStartImmediately && result.startedActivationId) {
+      io.to(`channel:${channelId}:overlay`).emit('activation:play', {
+        activationId: result.startedActivationId,
+        memeTitle: overlayTitle,
+        memeAssetId: overlayMemeAssetId,
+        fileUrl: overlayFileUrl,
+        durationMs: overlayDurationMs,
+        senderName: result.senderDisplayName,
+      });
+    }
 
     if (result.coinsSpent && result.coinsSpent > 0) {
       const walletUpdateData: WalletUpdatedEvent = {
@@ -499,6 +575,18 @@ export const activateMeme = async (req: AuthRequest, res: Response) => {
         error: errMsg,
       });
     });
+
+    const cooccurrenceMemeAssetId = channelMeme?.memeAssetId ?? poolAsset?.id ?? null;
+    if (cooccurrenceMemeAssetId) {
+      void CooccurrenceService.recordActivation(req.userId!, cooccurrenceMemeAssetId).catch((error) => {
+        const errMsg = error instanceof Error ? error.message : String(error ?? 'unknown');
+        logger.warn('cooccurrence.record_failed', {
+          userId: req.userId,
+          memeAssetId: cooccurrenceMemeAssetId,
+          error: errMsg,
+        });
+      });
+    }
 
     res.json({
       activation: result.activation,

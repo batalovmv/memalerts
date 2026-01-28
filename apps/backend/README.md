@@ -58,6 +58,10 @@ API поднимется на `http://localhost:3001`, health-check: `GET /healt
 - OpenAPI JSON: `http://localhost:3001/docs/openapi.json`
 - Версионирование: текущий API считается **v1**. Эндпоинты доступны без префикса и через `/v1/*` (предпочтительно для новых интеграций).
 
+### Персонализированные рекомендации
+- `GET /channels/:slug/memes/personalized` (beta, auth required)
+- `exploration` — доля случайных мемов (0..0.3, по умолчанию 0.1 = 10%)
+
 ## Devcontainer (VS Code)
 
 Если используешь Dev Containers, конфиг лежит в `.devcontainer/`:

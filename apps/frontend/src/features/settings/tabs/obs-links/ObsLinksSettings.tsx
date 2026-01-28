@@ -2,6 +2,7 @@
 import { useTranslation } from 'react-i18next';
 
 import { LinksList } from './components/LinksList';
+import { DockSettings } from './components/DockSettings';
 import { useObsLinks } from './hooks/useObsLinks';
 
 const LinkEditor = lazy(() => import('./components/LinkEditor'));
@@ -36,6 +37,8 @@ export function ObsLinksSettings() {
           rotatingOverlayToken={rotatingOverlayToken}
           onRotateOverlayToken={handleRotateOverlayToken}
         />
+
+        <DockSettings />
 
         <Suspense
           fallback={<div className="glass p-4 text-sm text-gray-700 dark:text-gray-200">{t('common.loading', { defaultValue: 'Loading:' })}</div>}

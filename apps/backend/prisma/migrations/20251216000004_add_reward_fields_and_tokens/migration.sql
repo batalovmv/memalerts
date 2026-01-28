@@ -1,11 +1,11 @@
 -- AlterTable
-ALTER TABLE "Channel" ADD COLUMN "rewardEnabled" BOOLEAN NOT NULL DEFAULT false,
-ADD COLUMN "rewardTitle" TEXT,
-ADD COLUMN "rewardCost" INTEGER,
-ADD COLUMN "rewardCoins" INTEGER;
+ALTER TABLE "Channel" ADD COLUMN IF NOT EXISTS "rewardEnabled" BOOLEAN NOT NULL DEFAULT false,
+ADD COLUMN IF NOT EXISTS "rewardTitle" TEXT,
+ADD COLUMN IF NOT EXISTS "rewardCost" INTEGER,
+ADD COLUMN IF NOT EXISTS "rewardCoins" INTEGER;
 
 -- AlterTable
-ALTER TABLE "User" ADD COLUMN "twitchAccessToken" TEXT,
-ADD COLUMN "twitchRefreshToken" TEXT;
+ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "twitchAccessToken" TEXT,
+ADD COLUMN IF NOT EXISTS "twitchRefreshToken" TEXT;
 
 

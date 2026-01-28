@@ -1,3 +1,3 @@
 -- AlterTable
-ALTER TABLE "Channel" ADD COLUMN "defaultPriceCoins" INTEGER DEFAULT 100;
+ALTER TABLE "Channel" ADD COLUMN IF NOT EXISTS "defaultPriceCoins" INTEGER DEFAULT 100;
 

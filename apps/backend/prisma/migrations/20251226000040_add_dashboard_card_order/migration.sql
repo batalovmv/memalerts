@@ -2,6 +2,6 @@
 -- Nullable: null means "use frontend default order".
 
 ALTER TABLE "Channel"
-ADD COLUMN "dashboardCardOrder" jsonb;
+ADD COLUMN IF NOT EXISTS "dashboardCardOrder" jsonb;
 
 

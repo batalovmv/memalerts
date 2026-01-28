@@ -432,6 +432,13 @@ const finalMemes = mixExploration(
 const explorationRatio = Math.min(0.3, Math.max(0, parseFloat(req.query.exploration) || 0.1));
 ```
 
+5. Обнови документацию:
+- `apps/backend/docs/FRONTEND_API_CHEATSHEET.md`
+- `apps/backend/docs/FRONTEND_API_CHEATSHEET.en.md`
+- `README.md`
+- `apps/backend/README.md`
+- `apps/backend/ARCHITECTURE.md`
+
 После изменений запусти: pnpm --filter @memalerts/backend test
 ```
 

@@ -1,3 +1,3 @@
 -- AlterTable
-ALTER TABLE "Channel" ADD COLUMN "chatRewardsJson" JSONB;
+ALTER TABLE "Channel" ADD COLUMN IF NOT EXISTS "chatRewardsJson" JSONB;
 

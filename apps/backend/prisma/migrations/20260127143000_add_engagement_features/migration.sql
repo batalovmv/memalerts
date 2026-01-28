@@ -1,7 +1,7 @@
 -- Add wheel settings to Channel
-ALTER TABLE "Channel" ADD COLUMN "wheelEnabled" BOOLEAN NOT NULL DEFAULT true;
-ALTER TABLE "Channel" ADD COLUMN "wheelPaidSpinCostCoins" INTEGER;
-ALTER TABLE "Channel" ADD COLUMN "wheelPrizeMultiplier" DOUBLE PRECISION NOT NULL DEFAULT 1.0;
+ALTER TABLE "Channel" ADD COLUMN IF NOT EXISTS "wheelEnabled" BOOLEAN NOT NULL DEFAULT true;
+ALTER TABLE "Channel" ADD COLUMN IF NOT EXISTS "wheelPaidSpinCostCoins" INTEGER;
+ALTER TABLE "Channel" ADD COLUMN IF NOT EXISTS "wheelPrizeMultiplier" DOUBLE PRECISION NOT NULL DEFAULT 1.0;
 
 -- Add streak and wheel tracking to ChannelViewerEconomy
 ALTER TABLE "ChannelViewerEconomy" ADD COLUMN "loginStreakLastClaimAt" TIMESTAMP(3);

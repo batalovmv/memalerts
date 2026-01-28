@@ -74,7 +74,18 @@ CREATE INDEX IF NOT EXISTS "Promotion_isActive_idx" ON "Promotion"("isActive");
 CREATE INDEX IF NOT EXISTS "Promotion_startDate_endDate_idx" ON "Promotion"("startDate", "endDate");
 
 -- AddForeignKey
-ALTER TABLE "MemeTag" ADD CONSTRAINT "MemeTag_memeId_fkey" FOREIGN KEY ("memeId") REFERENCES "Meme"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$
+BEGIN
+    IF to_regclass('"MemeTag"') IS NOT NULL
+        AND to_regclass('"Meme"') IS NOT NULL
+        AND NOT EXISTS (
+            SELECT 1 FROM pg_constraint WHERE conname = 'MemeTag_memeId_fkey'
+        ) THEN
+        ALTER TABLE "MemeTag"
+            ADD CONSTRAINT "MemeTag_memeId_fkey"
+            FOREIGN KEY ("memeId") REFERENCES "Meme"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+    END IF;
+END $$;
 
 -- AddForeignKey
 ALTER TABLE "MemeTag" ADD CONSTRAINT "MemeTag_tagId_fkey" FOREIGN KEY ("tagId") REFERENCES "Tag"("id") ON DELETE CASCADE ON UPDATE CASCADE;

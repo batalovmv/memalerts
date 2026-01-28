@@ -37,14 +37,16 @@ BEGIN
       ON DELETE CASCADE ON UPDATE CASCADE;
   END IF;
 
-  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ChannelMemeDailyStats_memeId_fkey') THEN
+  IF to_regclass('"Meme"') IS NOT NULL
+      AND NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ChannelMemeDailyStats_memeId_fkey') THEN
     ALTER TABLE "ChannelMemeDailyStats"
       ADD CONSTRAINT "ChannelMemeDailyStats_memeId_fkey"
       FOREIGN KEY ("memeId") REFERENCES "Meme"("id")
       ON DELETE CASCADE ON UPDATE CASCADE;
   END IF;
 
-  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'GlobalMemeDailyStats_memeId_fkey') THEN
+  IF to_regclass('"Meme"') IS NOT NULL
+      AND NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'GlobalMemeDailyStats_memeId_fkey') THEN
     ALTER TABLE "GlobalMemeDailyStats"
       ADD CONSTRAINT "GlobalMemeDailyStats_memeId_fkey"
       FOREIGN KEY ("memeId") REFERENCES "Meme"("id")

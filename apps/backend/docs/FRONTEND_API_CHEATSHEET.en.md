@@ -116,6 +116,17 @@ These endpoints **do not use auth cookies** and are protected by a **per-channel
   - mode `"channel"`: `{ id, channelId, title, type, fileUrl, durationMs, priceCoins, status, createdAt, createdBy: { id, displayName } }` (id = `ChannelMeme.id`)
   - mode `"pool_all"`: `{ id, channelId, channelMemeId, memeAssetId, title, type, fileUrl, durationMs, priceCoins, createdAt, createdBy }` (id = `MemeAsset.id`)
 
+### GET `/channels/:slug/memes/personalized`
+- **Auth**: `authenticate + requireBetaAccess`
+- **Query**:
+  - `limit` (default 20, clamp 1..50)
+  - `candidates` (default `max(100, limit * 5)`, clamp `limit..500`)
+  - `exploration` (optional, ratio 0..0.3; default `0.1` = 10% random memes)
+- **Response**:
+  - `{ items, profileReady, totalActivations, mode }`
+  - `mode`: `"personalized"` or `"fallback"` (if taste profile not ready)
+  - `items`: same DTOs as channel list (includes viewer state)
+
 ### GET `/channels/:slug/wallet`
 - **Auth**: `authenticate + requireBetaAccess`
 - **Response**: wallet (upsert; if none existed — it will create it)

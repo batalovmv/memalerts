@@ -1,6 +1,6 @@
 -- AlterTable
-ALTER TABLE "Channel" ADD COLUMN "primaryColor" TEXT,
-ADD COLUMN "secondaryColor" TEXT,
-ADD COLUMN "accentColor" TEXT;
+ALTER TABLE "Channel" ADD COLUMN IF NOT EXISTS "primaryColor" TEXT,
+ADD COLUMN IF NOT EXISTS "secondaryColor" TEXT,
+ADD COLUMN IF NOT EXISTS "accentColor" TEXT;
 
 
