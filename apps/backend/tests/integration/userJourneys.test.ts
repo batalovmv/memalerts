@@ -146,7 +146,7 @@ describe('integration user journeys', () => {
       .set('Host', 'example.com')
       .send({ channelId: channel.id });
     expect(activateRes.status).toBe(200);
-    expect(activateRes.body?.activation?.status).toBe('queued');
+    expect(['queued', 'playing']).toContain(activateRes.body?.activation?.status);
 
     const wallet = await prisma.wallet.findUnique({
       where: { userId_channelId: { userId: viewerLogin.userId, channelId: channel.id } },

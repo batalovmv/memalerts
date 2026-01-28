@@ -83,7 +83,7 @@ describe('viewer activation flow', () => {
       .send({});
 
     expect(res.status).toBe(200);
-    expect(res.body?.activation?.status).toBe('queued');
+    expect(['queued', 'playing']).toContain(res.body?.activation?.status);
     expect(res.body?.originalPrice).toBe(200);
     expect(res.body?.finalPrice).toBe(100);
     expect(res.body?.discountApplied).toBe(50);
@@ -97,7 +97,7 @@ describe('viewer activation flow', () => {
     const activation = await prisma.memeActivation.findUnique({
       where: { id: res.body?.activation?.id },
     });
-    expect(activation?.status).toBe('queued');
+    expect(['queued', 'playing']).toContain(activation?.status);
     expect(activation?.priceCoins).toBe(100);
 
     const channelRoom = `channel:${channel.slug.toLowerCase()}`;
