@@ -13,13 +13,14 @@ export function NowPlaying({ queueState, skip }: NowPlayingProps) {
   const [elapsed, setElapsed] = useState(0);
 
   useEffect(() => {
-    if (!current?.startedAt) {
+    const startedAt = current?.startedAt;
+    if (!startedAt) {
       setElapsed(0);
       return;
     }
 
     const interval = window.setInterval(() => {
-      const ms = Date.now() - new Date(current.startedAt).getTime();
+      const ms = Date.now() - new Date(startedAt).getTime();
       setElapsed(Math.max(0, ms));
     }, 100);
 
