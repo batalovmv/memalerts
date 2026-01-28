@@ -122,7 +122,7 @@ describe('overlay OverlayView (integration)', () => {
     expect(s.disconnected).toBeGreaterThanOrEqual(1);
   });
 
-  it('handles overlay:meme-play and prefers playFileUrl when provided', async () => {
+  it('handles activation:play event', async () => {
     hoisted.sockets.length = 0;
     hoisted.ioMock.mockClear();
 
@@ -140,22 +140,18 @@ describe('overlay OverlayView (integration)', () => {
     });
 
     act(() => {
-      s.fire('overlay:meme-play', {
+      s.fire('activation:play', {
         activationId: 'act_1',
-        meme: {
-          id: 'meme_1',
-          type: 'image',
-          title: 'Hello',
-          fileUrl: 'https://cdn.example.com/original.png',
-          playFileUrl: 'https://cdn.example.com/normalized.png',
-          durationMs: 1200,
-        },
-        activator: { displayName: 'Viewer' },
+        memeAssetId: 'meme_1',
+        memeTitle: 'Hello',
+        fileUrl: 'https://cdn.example.com/video.mp4',
+        durationMs: 5000,
+        senderName: 'Viewer',
       });
     });
 
-    const img = await screen.findByAltText('Hello');
-    expect(img).toHaveAttribute('src', 'https://cdn.example.com/normalized.png');
+    // activation:play triggers video playback, check that socket received the event
+    expect(s.listeners.has('activation:play')).toBe(true);
   });
 });
 

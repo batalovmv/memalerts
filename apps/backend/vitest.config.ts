@@ -33,6 +33,10 @@ function resolveTestDatabaseBase(): string {
   const explicit = process.env.TEST_DATABASE_URL_BASE;
   if (explicit) return ensurePoolParams(stripSchemaParam(explicit));
 
+  // Use DATABASE_URL if provided (e.g. in CI)
+  const fromEnv = process.env.DATABASE_URL;
+  if (fromEnv) return ensurePoolParams(stripSchemaParam(fromEnv));
+
   // Safe local default for developer machines without env configuration.
   // Default to local test container (memalerts_postgres_test) on localhost:5433.
   return ensurePoolParams('postgresql://postgres:postgres@localhost:5433/memalerts_test');
