@@ -449,14 +449,14 @@ export const activateMeme = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    if (!activation) {
+    if (!result.activation) {
       return res.status(500).json({
         error: 'Activation creation failed',
         code: 'INTERNAL_ERROR',
       });
     }
 
-    const activation = activation;
+    const activation = result.activation;
     const channelSlug = String(channel.slug || '').toLowerCase();
     const overlayRow = await prisma.channelMeme.findUnique({
       where: { id: activation.channelMemeId },
