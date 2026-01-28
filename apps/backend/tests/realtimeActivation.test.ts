@@ -210,13 +210,22 @@ describe('realtime activation events', () => {
       status: 'approved',
     });
 
-    const streamerToken = makeJwt({ userId: streamer.id, role: streamer.role, channelId: channel.id });
+    // Create overlay token for the channel
+    const overlayToken = jwt.sign(
+      { kind: 'overlay', v: 1, channelId: channel.id, channelSlug: channel.slug, tv: 1 },
+      process.env.JWT_SECRET!,
+      { expiresIn: '5m' },
+    );
     const viewerToken = makeJwt({ userId: viewer.id, role: viewer.role, channelId: null });
 
-    const socket = connectClient(url, streamerToken);
+    const socket = connectClient(url, '');
 
     try {
       await waitForEvent(socket, 'connect', 4000);
+
+      // Join as overlay to set channelId on socket
+      socket.emit('join:overlay', { token: overlayToken });
+      await new Promise((r) => setTimeout(r, 200)); // Wait for join to be processed
 
       const res = await request(server.app)
         .post(`/memes/${meme.id}/activate`)
