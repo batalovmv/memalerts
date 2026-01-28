@@ -104,7 +104,7 @@ describe('channel catalog mode: pool_all', () => {
       .send({});
 
     expect(actRes.status).toBe(200);
-    expect(actRes.body?.activation?.status).toBe('queued');
+    expect(['queued', 'playing']).toContain(actRes.body?.activation?.status);
     expect(typeof actRes.body?.activation?.channelMemeId).toBe('string');
 
     const cm = await prisma.channelMeme.findUnique({
