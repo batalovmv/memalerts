@@ -1,4 +1,4 @@
-import type { Prisma, PrismaClient } from '@prisma/client';
+import { Prisma, type PrismaClient } from '@prisma/client';
 
 import { prisma } from '../../lib/prisma.js';
 import { WalletService } from '../WalletService.js';
@@ -14,87 +14,28 @@ export type AchievementDefinition = {
   rewardCoins?: number;
 };
 
-export const GLOBAL_ACHIEVEMENTS: AchievementDefinition[] = [
-  {
-    key: 'first_100',
-    title: 'Первопроходец',
-    description: 'Один из первых 100 пользователей платформы.',
-    scope: 'global',
-  },
-  {
-    key: 'memelord',
-    title: 'Мемлорд',
-    description: '100 активаций мемов на всех каналах.',
-    scope: 'global',
-    target: 100,
-  },
-  {
-    key: 'speedster',
-    title: 'Скорострел',
-    description: '3 активации за минуту.',
-    scope: 'global',
-    target: 3,
-  },
-  {
-    key: 'night_watch',
-    title: 'Ночной дозор',
-    description: 'Активация после полуночи.',
-    scope: 'global',
-    target: 1,
-  },
-  {
-    key: 'early_bird',
-    title: 'Ранняя пташка',
-    description: 'Активация до 8 утра.',
-    scope: 'global',
-    target: 1,
-  },
-  {
-    key: 'viral_500',
-    title: 'Вирусный',
-    description: 'Ваш мем набрал 500 активаций.',
-    scope: 'global',
-    target: 500,
-  },
-];
+export const GLOBAL_ACHIEVEMENTS: AchievementDefinition[] = [];
 
 export const CHANNEL_ACHIEVEMENTS: AchievementDefinition[] = [
   {
     key: 'channel_newbie',
     title: 'Новичок',
-    description: 'Первый мем на канале.',
+    description: 'Первая активация мема на канале.',
     scope: 'channel',
     target: 1,
     rewardCoins: 20,
   },
   {
-    key: 'channel_fan',
-    title: 'Фанат',
-    description: '50 активаций на канале.',
+    key: 'channel_regular_7d',
+    title: 'Завсегдатай',
+    description: 'Активации в 7 разных дней на канале.',
     scope: 'channel',
-    target: 50,
-    rewardCoins: 50,
+    target: 7,
   },
   {
-    key: 'channel_legend',
-    title: 'Легенда',
-    description: '100 активаций на канале.',
-    scope: 'channel',
-    target: 100,
-    rewardCoins: 100,
-  },
-  {
-    key: 'channel_contributor',
-    title: 'Контрибьютор',
-    description: '10 одобренных мемов на канале.',
-    scope: 'channel',
-    target: 10,
-    rewardCoins: 30,
-  },
-  {
-    key: 'quality_wave',
-    title: 'На волне',
-    description: '10 одобренных мемов подряд на канале.',
+    key: 'channel_explorer_10',
+    title: 'Исследователь',
+    description: 'Активировал 10 разных мемов на канале.',
     scope: 'channel',
     target: 10,
   },
@@ -207,77 +148,62 @@ export async function processActivationAchievements(params: {
   channelId: string;
   occurredAt: Date;
 }): Promise<{ walletUpdates: AchievementWalletUpdate[]; grants: string[] }> {
-  const { tx, userId, channelId, occurredAt } = params;
+  const { tx, userId, channelId } = params;
 
   const existing = await tx.userAchievement.findMany({
-    where: {
-      userId,
-      OR: [{ channelId: null }, { channelId }],
-    },
-    select: { key: true, channelId: true },
+    where: { userId, channelId },
+    select: { key: true },
   });
-
-  const globalAchieved = new Set(existing.filter((e) => !e.channelId).map((e) => e.key));
-  const channelAchieved = new Set(existing.filter((e) => e.channelId === channelId).map((e) => e.key));
-
-  const since = new Date(occurredAt.getTime() - 60_000);
-  const [channelActivations, globalActivations, recentActivations] = await Promise.all([
-    tx.memeActivation.count({ where: { userId, channelId } }),
-    tx.memeActivation.count({ where: { userId } }),
-    tx.memeActivation.count({ where: { userId, createdAt: { gte: since } } }),
-  ]);
+  const channelAchieved = new Set(existing.map((e) => e.key));
 
   const walletUpdates: AchievementWalletUpdate[] = [];
   const grants: string[] = [];
 
-  const channelCandidates: Array<{ key: string; target: number; rewardCoins: number }> = [
-    { key: 'channel_newbie', target: 1, rewardCoins: 20 },
-    { key: 'channel_fan', target: 50, rewardCoins: 50 },
-    { key: 'channel_legend', target: 100, rewardCoins: 100 },
-  ];
+  const channelActivations = await tx.memeActivation.count({ where: { userId, channelId } });
 
-  for (const def of channelCandidates) {
-    if (channelAchieved.has(def.key)) continue;
-    if (channelActivations < def.target) continue;
-    const grant = await grantAchievement({
-      tx,
-      userId,
-      channelId,
-      key: def.key,
-      rewardCoins: def.rewardCoins,
-    });
+  if (!channelAchieved.has('channel_newbie') && channelActivations >= 1) {
+    const rewardCoins = 20;
+    const grant = await grantAchievement({ tx, userId, channelId, key: 'channel_newbie', rewardCoins });
     if (grant.granted) {
-      grants.push(def.key);
+      grants.push('channel_newbie');
       if (grant.balance !== undefined) {
         walletUpdates.push({
           userId,
           channelId,
           balance: grant.balance,
-          delta: def.rewardCoins,
-          reason: `achievement:${def.key}`,
+          delta: rewardCoins,
+          reason: 'achievement:channel_newbie',
         });
       }
     }
   }
 
-  if (!globalAchieved.has('memelord') && globalActivations >= 100) {
-    const grant = await grantAchievement({ tx, userId, key: 'memelord' });
-    if (grant.granted) grants.push('memelord');
+  if (!channelAchieved.has('channel_explorer_10')) {
+    const uniqueRows = await tx.memeActivation.groupBy({
+      by: ['channelMemeId'],
+      where: { userId, channelId },
+      _count: { _all: true },
+    });
+    const uniqueMemesCount = uniqueRows.length;
+    if (uniqueMemesCount >= 10) {
+      const grant = await grantAchievement({ tx, userId, channelId, key: 'channel_explorer_10' });
+      if (grant.granted) grants.push('channel_explorer_10');
+    }
   }
 
-  if (!globalAchieved.has('speedster') && recentActivations >= 3) {
-    const grant = await grantAchievement({ tx, userId, key: 'speedster' });
-    if (grant.granted) grants.push('speedster');
-  }
-
-  const hour = occurredAt.getHours();
-  if (!globalAchieved.has('night_watch') && hour >= 0 && hour < 5) {
-    const grant = await grantAchievement({ tx, userId, key: 'night_watch' });
-    if (grant.granted) grants.push('night_watch');
-  }
-  if (!globalAchieved.has('early_bird') && hour >= 0 && hour < 8) {
-    const grant = await grantAchievement({ tx, userId, key: 'early_bird' });
-    if (grant.granted) grants.push('early_bird');
+  if (!channelAchieved.has('channel_regular_7d')) {
+    const rows = await tx.$queryRaw<Array<{ count: number }>>(
+      Prisma.sql`
+        SELECT COUNT(DISTINCT DATE("createdAt"))::int AS "count"
+        FROM "MemeActivation"
+        WHERE "userId" = ${userId} AND "channelId" = ${channelId}
+      `,
+    );
+    const distinctDaysCount = rows[0]?.count ?? 0;
+    if (distinctDaysCount >= 7) {
+      const grant = await grantAchievement({ tx, userId, channelId, key: 'channel_regular_7d' });
+      if (grant.granted) grants.push('channel_regular_7d');
+    }
   }
 
   return { walletUpdates, grants };
@@ -376,62 +302,12 @@ export async function processSubmissionApprovalAchievements(params: {
   channelId: string;
   streakCount?: number | null;
 }): Promise<{ walletUpdates: AchievementWalletUpdate[]; grants: string[] }> {
-  const { tx, userId, channelId } = params;
-
-  const existing = await tx.userAchievement.findMany({
-    where: { userId, channelId },
-    select: { key: true },
-  });
-  const achieved = new Set(existing.map((e) => e.key));
-
-  const grants: string[] = [];
-
-  const approvedCount = await tx.memeSubmission.count({
-    where: { submitterUserId: userId, channelId, status: 'approved' },
-  });
-
-  const walletUpdates: AchievementWalletUpdate[] = [];
-
-  if (!achieved.has('channel_contributor') && approvedCount >= 10) {
-    const grant = await grantAchievement({
-      tx,
-      userId,
-      channelId,
-      key: 'channel_contributor',
-      rewardCoins: 30,
-    });
-    if (grant.granted && grant.balance !== undefined) {
-      walletUpdates.push({
-        userId,
-        channelId,
-        balance: grant.balance,
-        delta: 30,
-        reason: 'achievement:channel_contributor',
-      });
-      grants.push('channel_contributor');
-    }
-  }
-
-  if (!achieved.has('quality_wave')) {
-    let streakCount = Math.max(0, Math.floor(params.streakCount ?? 0));
-    if (!streakCount) {
-      const streak = await tx.channelSubmissionStreak.findUnique({
-        where: { channelId_userId: { channelId, userId } },
-        select: { streakCount: true },
-      });
-      streakCount = Math.max(0, Math.floor(streak?.streakCount ?? 0));
-    }
-    if (streakCount >= 10) {
-      const grant = await grantAchievement({ tx, userId, channelId, key: 'quality_wave' });
-      if (grant.granted) grants.push('quality_wave');
-    }
-  }
-
-  return { walletUpdates, grants };
+  void params;
+  return { walletUpdates: [], grants: [] };
 }
 
 export async function buildUserAchievementsSnapshot(params: {
-  client?: PrismaClient;
+  client?: PrismaClient | Prisma.TransactionClient;
   userId: string;
   channelId: string;
   now?: Date;
@@ -445,60 +321,39 @@ export async function buildUserAchievementsSnapshot(params: {
     select: { key: true, channelId: true, achievedAt: true },
   });
 
-  const achievedGlobal = new Map<string, Date>();
   const achievedChannel = new Map<string, Date>();
   for (const row of existing) {
     if (row.channelId) {
       achievedChannel.set(row.key, row.achievedAt);
-    } else {
-      achievedGlobal.set(row.key, row.achievedAt);
     }
   }
 
-  const since = new Date(Date.now() - 60_000);
-  const [globalActivations, channelActivations, recentActivations, approvedCount, streakRow, viralActivations] = await Promise.all([
-    client.memeActivation.count({ where: { userId } }),
+  const [channelActivations, uniqueRows, distinctDayRows] = await Promise.all([
     client.memeActivation.count({ where: { userId, channelId } }),
-    client.memeActivation.count({ where: { userId, createdAt: { gte: since } } }),
-    client.memeSubmission.count({ where: { submitterUserId: userId, channelId, status: 'approved' } }),
-    client.channelSubmissionStreak.findUnique({
-      where: { channelId_userId: { channelId, userId } },
-      select: { streakCount: true },
+    client.memeActivation.groupBy({
+      by: ['channelMemeId'],
+      where: { userId, channelId },
+      _count: { _all: true },
     }),
-    client.memeActivation.count({
-      where: { channelMeme: { memeAsset: { createdById: userId } } },
-    }),
+    client.$queryRaw<Array<{ count: number }>>(
+      Prisma.sql`
+        SELECT COUNT(DISTINCT DATE("createdAt"))::int AS "count"
+        FROM "MemeActivation"
+        WHERE "userId" = ${userId} AND "channelId" = ${channelId}
+      `,
+    ),
   ]);
-  const streakCount = Math.max(0, Math.floor(streakRow?.streakCount ?? 0));
 
-  const global = GLOBAL_ACHIEVEMENTS.map((def) => {
-    let progress: number | undefined;
-    if (def.key === 'memelord') progress = globalActivations;
-    if (def.key === 'speedster') progress = recentActivations;
-    if (def.key === 'viral_500') progress = viralActivations;
-    if (def.key === 'night_watch' || def.key === 'early_bird' || def.key === 'first_100') {
-      progress = achievedGlobal.has(def.key) ? 1 : 0;
-    }
-    const achievedAt = achievedGlobal.get(def.key);
-    return {
-      key: def.key,
-      title: def.title,
-      description: def.description,
-      scope: def.scope,
-      target: def.target,
-      progress,
-      rewardCoins: def.rewardCoins,
-      achievedAt: achievedAt ? achievedAt.toISOString() : null,
-    };
-  });
+  const uniqueMemesCount = uniqueRows.length;
+  const distinctDaysCount = distinctDayRows[0]?.count ?? 0;
+
+  const global: Array<Record<string, unknown>> = [];
 
   const channel = CHANNEL_ACHIEVEMENTS.map((def) => {
     let progress: number | undefined;
-    if (def.key === 'channel_contributor') progress = approvedCount;
-    if (def.key === 'channel_newbie' || def.key === 'channel_fan' || def.key === 'channel_legend') {
-      progress = channelActivations;
-    }
-    if (def.key === 'quality_wave') progress = streakCount;
+    if (def.key === 'channel_newbie') progress = channelActivations;
+    if (def.key === 'channel_regular_7d') progress = distinctDaysCount;
+    if (def.key === 'channel_explorer_10') progress = uniqueMemesCount;
     const achievedAt = achievedChannel.get(def.key);
     return {
       key: def.key,
@@ -516,8 +371,121 @@ export async function buildUserAchievementsSnapshot(params: {
   return { global, channel, events: events.length ? events : undefined };
 }
 
+export type StreamerChannelAchievementItem = {
+  key: string;
+  title: string;
+  description?: string;
+  scope: 'channel';
+  target?: number;
+  progress?: number;
+  achievedAt?: string | null;
+};
+
+export async function buildChannelStreamerAchievementsSnapshot(params: {
+  client?: PrismaClient | Prisma.TransactionClient;
+  channelId: string;
+}): Promise<StreamerChannelAchievementItem[]> {
+  const client = params.client ?? prisma;
+  const { channelId } = params;
+
+  const [channel, activationsCount, firstActivation] = await Promise.all([
+    client.channel.findUnique({
+      where: { id: channelId },
+      select: { submissionsEnabled: true },
+    }),
+    client.memeActivation.count({ where: { channelId } }),
+    client.memeActivation.findFirst({
+      where: { channelId },
+      orderBy: { createdAt: 'asc' },
+      select: { createdAt: true },
+    }),
+  ]);
+
+  const submissionsEnabled = channel?.submissionsEnabled !== false;
+
+  const uniqueActivatorsRows = await client.$queryRaw<Array<{ count: number }>>(
+    Prisma.sql`
+      SELECT COUNT(DISTINCT "userId")::int AS "count"
+      FROM "MemeActivation"
+      WHERE "channelId" = ${channelId}
+    `,
+  );
+  const uniqueActivatorsCount = uniqueActivatorsRows[0]?.count ?? 0;
+
+  const tenthUniqueRows = await client.$queryRaw<Array<{ firstAt: Date }>>(
+    Prisma.sql`
+      SELECT MIN("createdAt") AS "firstAt"
+      FROM "MemeActivation"
+      WHERE "channelId" = ${channelId}
+      GROUP BY "userId"
+      ORDER BY "firstAt" ASC
+      OFFSET 9 LIMIT 1
+    `,
+  );
+  const tenthUniqueAt = tenthUniqueRows[0]?.firstAt ?? null;
+
+  const approvedCount = await client.memeSubmission.count({
+    where: { channelId, status: 'approved' },
+  });
+
+  const tenthApproved = await client.memeSubmission.findMany({
+    where: { channelId, status: 'approved' },
+    orderBy: { createdAt: 'asc' },
+    skip: 9,
+    take: 1,
+    select: { createdAt: true },
+  });
+  const tenthApprovedAt = tenthApproved[0]?.createdAt ?? null;
+
+  const fifthAuthorRows = await client.$queryRaw<Array<{ firstAt: Date }>>(
+    Prisma.sql`
+      SELECT MIN("createdAt") AS "firstAt"
+      FROM "MemeSubmission"
+      WHERE "channelId" = ${channelId} AND "status" = 'approved'
+      GROUP BY "submitterUserId"
+      ORDER BY "firstAt" ASC
+      OFFSET 4 LIMIT 1
+    `,
+  );
+  const fifthAuthorAt = fifthAuthorRows[0]?.firstAt ?? null;
+
+  const openUnlocked = submissionsEnabled && approvedCount >= 10 && fifthAuthorAt !== null;
+  const openAchievedAt =
+    openUnlocked && tenthApprovedAt && fifthAuthorAt ? new Date(Math.max(tenthApprovedAt.getTime(), fifthAuthorAt.getTime())) : null;
+
+  return [
+    {
+      key: 'streamer_channel_launched',
+      title: 'Канал запущен',
+      description: 'На канале была хотя бы одна активация мема.',
+      scope: 'channel',
+      target: 1,
+      progress: activationsCount,
+      achievedAt: firstActivation ? firstActivation.createdAt.toISOString() : null,
+    },
+    {
+      key: 'streamer_open_channel',
+      title: 'Открытый канал',
+      description: 'Сабмишены включены, одобрено 10 мемов от 5 авторов.',
+      scope: 'channel',
+      target: 10,
+      progress: approvedCount,
+      achievedAt: openAchievedAt ? openAchievedAt.toISOString() : null,
+    },
+    {
+      key: 'streamer_live_channel_10',
+      title: 'Живой канал',
+      description: '10 уникальных активаторов.',
+      scope: 'channel',
+      target: 10,
+      progress: uniqueActivatorsCount,
+      achievedAt: tenthUniqueAt ? tenthUniqueAt.toISOString() : null,
+    },
+  ];
+}
+
 export async function buildActiveEventAchievementsSnapshot(params: {
-  client?: PrismaClient;
+  client?: PrismaClient | Prisma.TransactionClient;
   userId: string;
   now?: Date;
 }): Promise<EventAchievementSnapshotItem[]> {
@@ -583,22 +551,4 @@ export async function buildActiveEventAchievementsSnapshot(params: {
   }
 
   return items;
-}
-
-export async function maybeGrantFirstUserAchievement(userId: string): Promise<void> {
-  const totalUsers = await prisma.user.count();
-  if (totalUsers > 100) return;
-
-  try {
-    await prisma.userAchievement.create({
-      data: {
-        userId,
-        channelId: null,
-        key: 'first_100',
-      },
-    });
-  } catch (error: unknown) {
-    if (isUniqueError(error)) return;
-    throw error;
-  }
 }

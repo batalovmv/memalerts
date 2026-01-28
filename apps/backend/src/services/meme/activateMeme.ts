@@ -12,7 +12,7 @@ import { logger } from '../../utils/logger.js';
 import { withRetry } from '../../utils/retryTransaction.js';
 import { TasteProfileService } from '../taste/TasteProfileService.js';
 import { ECONOMY_CONSTANTS } from '../economy/economyService.js';
-import { grantGlobalAchievement, processActivationAchievements, processEventAchievements } from '../achievements/achievementService.js';
+import { processActivationAchievements, processEventAchievements } from '../achievements/achievementService.js';
 
 type PoolChannelRow = {
   id: string;
@@ -51,11 +51,11 @@ const TIMING_WINDOW_MS = 30_000;
 const TIMING_THRESHOLD = 5;
 const TIMING_REFUND_RATE = 0.1;
 
-const VIRAL_THRESHOLDS: Array<{ count: number; coins: number; key?: string }> = [
+const VIRAL_THRESHOLDS: Array<{ count: number; coins: number }> = [
   { count: 10, coins: 20 },
   { count: 50, coins: 50 },
   { count: 100, coins: 100 },
-  { count: 500, coins: 300, key: 'viral_500' },
+  { count: 500, coins: 300 },
 ];
 
 function isUniqueError(error: unknown): boolean {
@@ -356,10 +356,6 @@ export const activateMeme = async (req: AuthRequest, res: Response) => {
                 delta: threshold.coins,
                 reason: 'viral_bonus',
               });
-            }
-            if (authorId && threshold.key === 'viral_500') {
-              const grant = await grantGlobalAchievement({ tx, userId: authorId, key: threshold.key });
-              if (grant.granted) bonusGrants.push(threshold.key);
             }
           }
         }

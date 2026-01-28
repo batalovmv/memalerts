@@ -119,8 +119,38 @@ export async function getStatus(req: AuthRequest, res: Response) {
     const betaDuration = Date.now() - betaStartTime;
     debugLog('[DEBUG] getStatus betaAccess query completed', { userId, found: !!betaAccess, betaDuration });
 
+    const betaStatus = betaAccess?.status ?? null;
+    let hasAccess = false;
+    if (betaStatus === 'revoked') {
+      hasAccess = false;
+    } else if (user?.hasBetaAccess || betaStatus === 'approved') {
+      hasAccess = true;
+    }
+
+    if (hasAccess && user && !user.hasBetaAccess && betaStatus === 'approved') {
+      try {
+        await prisma.user.update({
+          where: { id: userId },
+          data: { hasBetaAccess: true },
+        });
+      } catch (error) {
+        debugError('[DEBUG] getStatus failed to sync hasBetaAccess from approved betaAccess', error);
+      }
+    }
+
+    if (!hasAccess && user?.hasBetaAccess && betaStatus === 'revoked') {
+      try {
+        await prisma.user.update({
+          where: { id: userId },
+          data: { hasBetaAccess: false },
+        });
+      } catch (error) {
+        debugError('[DEBUG] getStatus failed to sync hasBetaAccess from revoked betaAccess', error);
+      }
+    }
+
     const response = {
-      hasAccess: user?.hasBetaAccess || false,
+      hasAccess,
       request: betaAccess,
     };
     debugLog('[DEBUG] getStatus sending response', { userId, hasAccess: response.hasAccess });

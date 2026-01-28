@@ -9,6 +9,7 @@ import Header from '@/components/Header';
 import { useSocket } from '@/contexts/SocketContext';
 import { useStreamerProfileChannel } from '@/features/streamer-profile/model/useStreamerProfileChannel';
 import { useStreamerProfileAchievements } from '@/features/streamer-profile/model/useStreamerProfileAchievements';
+import { useStreamerProfileStreamerAchievements } from '@/features/streamer-profile/model/useStreamerProfileStreamerAchievements';
 import { useActiveEvents } from '@/features/streamer-profile/model/useActiveEvents';
 import { useStreamerProfileEconomy } from '@/features/streamer-profile/model/useStreamerProfileEconomy';
 import { useStreamerProfileMemes } from '@/features/streamer-profile/model/useStreamerProfileMemes';
@@ -70,6 +71,11 @@ const StreamerProfile = memo(function StreamerProfile() {
     isAuthed,
     reloadNonce,
   });
+
+  const {
+    achievements: streamerAchievements,
+    loading: streamerAchievementsLoading,
+  } = useStreamerProfileStreamerAchievements({ slug: normalizedSlug });
 
   const { wallet, syncWalletFromUser, refreshWallet } = useStreamerProfileWallet({
     user,
@@ -459,6 +465,8 @@ const StreamerProfile = memo(function StreamerProfile() {
         <StreamerProfileHeader
           loading={loading}
           channelInfo={channelInfo}
+          streamerAchievements={streamerAchievements}
+          streamerAchievementsLoading={streamerAchievementsLoading}
           user={user}
           isOwner={isOwner}
           mix={mix}

@@ -27,6 +27,20 @@ function clampInt(n: number, min: number, max: number, fallback: number): number
   return Math.floor(n);
 }
 
+function calculateFreshnessBoost(createdAt: Date): number {
+  const createdAtMs = createdAt?.getTime?.();
+  if (!Number.isFinite(createdAtMs)) return 1.0;
+
+  const daysSinceCreation = (Date.now() - createdAtMs) / (1000 * 60 * 60 * 24);
+
+  if (daysSinceCreation < 1) return 2.0; // Сегодня — двойной буст
+  if (daysSinceCreation < 3) return 1.7; // 1-3 дня — 1.7x
+  if (daysSinceCreation < 7) return 1.4; // Неделя — 1.4x
+  if (daysSinceCreation < 14) return 1.2; // 2 недели — 1.2x
+  if (daysSinceCreation < 30) return 1.1; // Месяц — 1.1x
+  return 1.0; // Старше — без буста
+}
+
 type ScoredItem = {
   item: ChannelMemeListItemDto | Record<string, unknown>;
   score: number;
@@ -288,7 +302,9 @@ async function buildChannelPersonalizedItems(
         : Array.isArray(row.memeAsset.aiAutoTagNames)
           ? row.memeAsset.aiAutoTagNames
           : [];
-    const score = TasteProfileService.scoreMemeForUser(profile, { tagNames });
+    const baseScore = TasteProfileService.scoreMemeForUser(profile, { tagNames });
+    const freshnessBoost = calculateFreshnessBoost(row.createdAt);
+    const score = baseScore * freshnessBoost;
     const item = toChannelMemeListItemDto(req, channelId, row);
     const itemWithTags =
       legacyTags && legacyTags.length > 0 ? ({ ...item, tags: legacyTags } as ChannelMemeListItemDto) : item;
@@ -333,7 +349,9 @@ async function buildPoolPersonalizedItems(
         : Array.isArray(row.aiAutoTagNames)
           ? row.aiAutoTagNames
           : [];
-    const score = TasteProfileService.scoreMemeForUser(profile, { tagNames });
+    const baseScore = TasteProfileService.scoreMemeForUser(profile, { tagNames });
+    const freshnessBoost = calculateFreshnessBoost(row.createdAt);
+    const score = baseScore * freshnessBoost;
     const item = mapPoolAssetToItem(req, channelId, row, defaultPriceCoins, legacyTagsById);
     return { item, score, createdAt: row.createdAt, key: row.id, tagNames };
   });

@@ -17,6 +17,7 @@ logs/
 
 # Runtime
 tmp-runtime/
+tmp/
 *.pid
 
 # Coverage

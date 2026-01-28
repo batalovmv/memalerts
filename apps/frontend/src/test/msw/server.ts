@@ -85,6 +85,20 @@ export const server = setupServer(
     })
   ),
   http.options('*/channels/:slug/achievements/me', () => new HttpResponse(null, { status: 204, headers: corsHeaders })),
+  http.get('/channels/:slug/achievements/streamer', () =>
+    HttpResponse.json({
+      achievements: [],
+    })
+  ),
+  http.options('/channels/:slug/achievements/streamer', () => new HttpResponse(null, { status: 204, headers: corsHeaders })),
+  http.get('*/channels/:slug/achievements/streamer', () =>
+    HttpResponse.json({
+      achievements: [],
+    })
+  ),
+  http.options('*/channels/:slug/achievements/streamer', () =>
+    new HttpResponse(null, { status: 204, headers: corsHeaders })
+  ),
   http.get('*/channels/:slug/votes/active', () => HttpResponse.json({ session: null })),
   http.options('*/channels/:slug/votes/active', () => new HttpResponse(null, { status: 204, headers: corsHeaders })),
   http.get('*/channels/:slug/wheel', () =>

@@ -2,7 +2,7 @@ import { useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import type { ChannelInfo } from '@/features/streamer-profile/model/types';
-import type { User } from '@memalerts/api-contracts';
+import type { AchievementItem, User } from '@memalerts/api-contracts';
 
 import { resolveMediaUrl } from '@/lib/urls';
 import { Button, HelpTooltip, Pill } from '@/shared/ui';
@@ -10,6 +10,8 @@ import { Button, HelpTooltip, Pill } from '@/shared/ui';
 type StreamerProfileHeaderProps = {
   loading: boolean;
   channelInfo: ChannelInfo | null;
+  streamerAchievements: AchievementItem[] | null;
+  streamerAchievementsLoading: boolean;
   user: User | null;
   isOwner: boolean;
   mix: (cssVar: '--primary-color' | '--secondary-color' | '--accent-color', percent: number) => string;
@@ -20,6 +22,8 @@ type StreamerProfileHeaderProps = {
 export function StreamerProfileHeader({
   loading,
   channelInfo,
+  streamerAchievements,
+  streamerAchievementsLoading,
   user,
   isOwner,
   mix,
@@ -63,6 +67,8 @@ export function StreamerProfileHeader({
     return null;
   }
 
+  const unlockedStreamerAchievements = (streamerAchievements ?? []).filter((item) => !!item.achievedAt).slice(0, 3);
+
   return (
     <div className="mb-8 pb-6">
       <div className="flex items-center justify-between">
@@ -84,6 +90,24 @@ export function StreamerProfileHeader({
             <div className="flex items-center gap-2">
               <h1 className="text-4xl font-bold mb-2 dark:text-white">{channelInfo.name}</h1>
             </div>
+
+            {!streamerAchievementsLoading && unlockedStreamerAchievements.length > 0 ? (
+              <div className="mb-2 flex flex-wrap gap-2">
+                {unlockedStreamerAchievements.map((item) => (
+                  <Pill
+                    key={item.key}
+                    variant="neutral"
+                    size="sm"
+                    className="ring-0 px-2.5 py-1 text-gray-800 dark:text-gray-100"
+                    title={item.description || item.title}
+                    style={{ backgroundColor: mix('--primary-color', 10) }}
+                  >
+                    {item.title}
+                  </Pill>
+                ))}
+              </div>
+            ) : null}
+
             <div className="mt-4 flex gap-4 text-sm">
               <Pill
                 variant="neutral"

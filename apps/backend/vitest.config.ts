@@ -29,28 +29,13 @@ function ensurePoolParams(raw: string): string {
   return url.toString();
 }
 
-function isLocalhostHostname(hostname: string): boolean {
-  return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1';
-}
-
 function resolveTestDatabaseBase(): string {
   const explicit = process.env.TEST_DATABASE_URL_BASE;
   if (explicit) return ensurePoolParams(stripSchemaParam(explicit));
 
-  const fallback = process.env.DATABASE_URL;
-  if (fallback) {
-    const url = new URL(fallback);
-    if (!isLocalhostHostname(url.hostname)) {
-      throw new Error(
-        'Refusing to run tests against non-local DATABASE_URL; set TEST_DATABASE_URL_BASE explicitly to a local database'
-      );
-    }
-    return ensurePoolParams(stripSchemaParam(url.toString()));
-  }
-
   // Safe local default for developer machines without env configuration.
-  // Default to local test container (memalerts-test-pg) on localhost:54329.
-  return ensurePoolParams('postgresql://postgres:postgres@localhost:54329/memalerts_test');
+  // Default to local test container (memalerts_postgres_test) on localhost:5433.
+  return ensurePoolParams('postgresql://postgres:postgres@localhost:5433/memalerts_test');
 }
 
 const base = resolveTestDatabaseBase();

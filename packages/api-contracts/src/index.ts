@@ -18,6 +18,7 @@ export * from './endpoints/memes/list';
 export * from './endpoints/memes/get';
 export * from './endpoints/memes/activate';
 export * from './endpoints/achievements/getChannel';
+export * from './endpoints/achievements/getChannelStreamer';
 export * from './endpoints/streamRecap/getLatest';
 export * from './endpoints/bonuses/claimDaily';
 export * from './endpoints/bonuses/claimWatch';

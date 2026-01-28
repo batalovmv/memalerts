@@ -1,6 +1,8 @@
 import type { Response } from 'express';
 import type { AuthRequest } from '../../middleware/auth.js';
 import { prisma } from '../../lib/prisma.js';
+import { TasteProfileService } from '../../services/taste/TasteProfileService.js';
+import { logger } from '../../utils/logger.js';
 
 async function resolveChannelBySlug(slug: string) {
   if (!slug) return null;
@@ -54,6 +56,13 @@ export const addFavorite = async (req: AuthRequest, res: Response) => {
     update: {},
   });
 
+  void TasteProfileService.recordFavorite({
+    userId: req.userId!,
+    memeAssetId,
+  }).catch((error) => {
+    logger.warn('taste_profile.favorite_failed', { userId: req.userId, memeAssetId, error });
+  });
+
   return res.json({ ok: true, isFavorite: true });
 };
 
@@ -105,6 +114,13 @@ export const addHidden = async (req: AuthRequest, res: Response) => {
     },
     create: { userId: req.userId, channelId: channel.id, memeAssetId },
     update: {},
+  });
+
+  void TasteProfileService.recordHidden({
+    userId: req.userId!,
+    memeAssetId,
+  }).catch((error) => {
+    logger.warn('taste_profile.hidden_failed', { userId: req.userId, memeAssetId, error });
   });
 
   return res.json({ ok: true, isHidden: true });

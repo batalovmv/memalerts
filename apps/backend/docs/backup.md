@@ -24,16 +24,16 @@ pg_restore --clean --if-exists --no-owner --dbname "$DATABASE_URL" /backups/mema
 If `pg_restore` is not available on your workstation, you can still verify dumps via Docker:
 
 ```bash
-# Create a local dump from a running Postgres container (example name: l5r_postgres)
-docker exec l5r_postgres pg_dump -U l5r -d l5r -F c > ./tmp/backup.dump
+# Create a local dump from a running Postgres container (example name: memalerts_postgres)
+docker exec memalerts_postgres pg_dump -U postgres -d memalerts -F c > ./tmp/backup.dump
 
 # Verify the dump is readable (no restore needed yet)
 docker run --rm -v "$(pwd)/tmp:/backups" postgres:16 pg_restore --list /backups/backup.dump >/dev/null
 
 # Optional restore drill (temp DB inside the container)
-docker exec l5r_postgres psql -U l5r -d l5r -c "DROP DATABASE IF EXISTS l5r_restore_test"
-docker exec l5r_postgres psql -U l5r -d l5r -c "CREATE DATABASE l5r_restore_test"
-docker exec l5r_postgres pg_restore -U l5r -d l5r_restore_test --clean --if-exists /tmp/backup.dump
+docker exec memalerts_postgres psql -U postgres -d memalerts -c "DROP DATABASE IF EXISTS memalerts_restore_test"
+docker exec memalerts_postgres psql -U postgres -d memalerts -c "CREATE DATABASE memalerts_restore_test"
+docker exec memalerts_postgres pg_restore -U postgres -d memalerts_restore_test --clean --if-exists /tmp/backup.dump
 ```
 
 ## Backup script example (VPS only, do not commit)
