@@ -64,6 +64,15 @@ model Channel {
   overlayPresetsJson            String?  @db.Text
   // Increment to invalidate previously issued overlay tokens.
   overlayTokenVersion           Int      @default(1)
+  // === Dock ===
+  dockTokenHash                 String?  @unique
+  dockTokenVersion              Int      @default(1)
+  // === Queue controls ===
+  activationsEnabled            Boolean  @default(true) // intake pause
+  overlayPlaybackPaused         Boolean  @default(false) // playback pause
+  // === Queue state ===
+  queueRevision                 Int      @default(0) // monotonic revision counter
+  currentActivationId           String? // ID of current playing activation
   // Streamer dashboard layout (cross-device). Null => use frontend default order.
   // Stored as JSON array of card ids (strings). Normalized/validated by API.
   dashboardCardOrder            Json?    @db.JsonB
@@ -1015,7 +1024,14 @@ model MemeActivation {
   volume          Float    @default(1)
 
   // Status
-  status          String   @default("queued") // 'queued' | 'playing' | 'done' | 'cancelled'
+  status          String   @default("queued") // 'queued' | 'playing' | 'done' | 'skipped' | 'cancelled'
+
+  // End state
+  endedAt         DateTime? // when it ended (any reason)
+  endedReason     String? // 'natural' | 'skipped_by_streamer' | 'skipped_by_mod' | 'cleared' | 'error' | 'timeout'
+  endedById       String? // who ended it (userId)
+  endedByRole     String? // 'streamer' | 'mod' | 'system'
+  refundedAt      DateTime? // refund applied (priceCoins)
 
   // Timestamps
   createdAt       DateTime @default(now())
@@ -1025,6 +1041,7 @@ model MemeActivation {
   @@index([channelMemeId, status])
   @@index([userId, createdAt])
   @@index([channelId, createdAt])
+  @@index([channelId, status, createdAt])
 }
 
 model MemeVoteSession {

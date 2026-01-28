@@ -1,7 +1,7 @@
 -- Add economy settings to Channel
-ALTER TABLE "Channel" ADD COLUMN "economyMemesPerHour" INTEGER NOT NULL DEFAULT 2;
-ALTER TABLE "Channel" ADD COLUMN "economyRewardMultiplier" DOUBLE PRECISION NOT NULL DEFAULT 1.0;
-ALTER TABLE "Channel" ADD COLUMN "economyApprovalBonusCoins" INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE "Channel" ADD COLUMN IF NOT EXISTS "economyMemesPerHour" INTEGER NOT NULL DEFAULT 2;
+ALTER TABLE "Channel" ADD COLUMN IF NOT EXISTS "economyRewardMultiplier" DOUBLE PRECISION NOT NULL DEFAULT 1.0;
+ALTER TABLE "Channel" ADD COLUMN IF NOT EXISTS "economyApprovalBonusCoins" INTEGER NOT NULL DEFAULT 0;
 
 -- Stream provider enum
 DO $$ BEGIN

@@ -11,6 +11,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'http';
 import { Server } from 'socket.io';
 import { setupSocketIO } from './socket/index.js';
 import { maybeSetupSocketIoRedisAdapter } from './socket/redisAdapter.js';
+import { initQueueBroadcast } from './socket/queueBroadcast.js';
 import { setupRoutes } from './routes/index.js';
 import { registerApiV1Routes } from './routes/setup/apiV1Routes.js';
 import { errorHandler } from './middleware/errorHandler.js';
@@ -29,6 +30,7 @@ import { startTagAutoApprovalScheduler } from './jobs/tagAutoApprovalScheduler.j
 import { startMemeAssetQualityScoreScheduler } from './jobs/memeAssetQualityScore.js';
 import { startDuplicateMergeScheduler } from './jobs/duplicateMerge.js';
 import { startHealthMonitorScheduler } from './jobs/healthMonitor.js';
+import { startCooccurrenceRecalculationScheduler } from './jobs/cooccurrenceRecalculation.js';
 import { logger } from './utils/logger.js';
 import { startAiModerationWorker } from './workers/aiModerationWorker.js';
 import { startTranscodeWorker } from './workers/transcodeWorker.js';
@@ -109,6 +111,7 @@ const io = new Server(httpServer, {
     credentials: true,
   },
 });
+initQueueBroadcast(io);
 
 const PORT = process.env.PORT || 3001;
 const SHUTDOWN_TIMEOUT_MS = Number.parseInt(String(process.env.SHUTDOWN_TIMEOUT_MS || '30000'), 10);
@@ -485,6 +488,8 @@ async function startServer() {
     startTopStats30dRollupScheduler();
     // Performance: meme daily rollups for viewer stats (day/week/month via 1/7/30).
     startMemeDailyStatsRollupScheduler();
+    // Recommendations: co-occurrence matrix recalculation.
+    startCooccurrenceRecalculationScheduler();
     // Safety: delayed purge of globally hidden MemeAssets (quarantine-based).
     startMemeAssetPurgeScheduler();
     // Optional: BullMQ AI worker (horizontal scaling).

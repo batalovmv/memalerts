@@ -12,10 +12,22 @@ ALTER TABLE "User"
 -- 2) Enums for provider + state kind (Prisma enums compile to PostgreSQL enum types)
 DO $$
 BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'ExternalAccountProvider') THEN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_type t
+    JOIN pg_namespace n ON n.oid = t.typnamespace
+    WHERE t.typname = 'ExternalAccountProvider'
+      AND n.nspname = current_schema()
+  ) THEN
     CREATE TYPE "ExternalAccountProvider" AS ENUM ('twitch', 'youtube', 'vkplay', 'trovo', 'boosty');
   END IF;
-  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'OAuthStateKind') THEN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_type t
+    JOIN pg_namespace n ON n.oid = t.typnamespace
+    WHERE t.typname = 'OAuthStateKind'
+      AND n.nspname = current_schema()
+  ) THEN
     CREATE TYPE "OAuthStateKind" AS ENUM ('login', 'link');
   END IF;
 END $$;

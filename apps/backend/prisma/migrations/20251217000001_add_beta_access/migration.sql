@@ -1,5 +1,5 @@
 -- AlterTable
-ALTER TABLE "User" ADD COLUMN "hasBetaAccess" BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "hasBetaAccess" BOOLEAN NOT NULL DEFAULT false;
 
 -- CreateTable
 CREATE TABLE "BetaAccess" (

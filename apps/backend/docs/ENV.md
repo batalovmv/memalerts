@@ -139,6 +139,9 @@ This table mirrors `ENV.example` and lists all supported environment variables f
 | MEME_DAILY_STATS_ROLLUP_DAYS | no | 45 | Meme daily rollup window (days) | non-secret |
 | MEME_DAILY_STATS_ROLLUP_INTERVAL_MS | no | 3600000 | Meme daily rollup interval (ms) | non-secret |
 | MEME_DAILY_STATS_ROLLUP_INITIAL_DELAY_MS | no | 75000 | Meme daily rollup initial delay (ms) | non-secret |
+| COOCCURRENCE_RECALC_ENABLED | no | true | Enable co-occurrence matrix recalculation | non-secret |
+| COOCCURRENCE_RECALC_INTERVAL_MS | no | 3600000 | Co-occurrence recalculation interval (ms) | non-secret |
+| COOCCURRENCE_RECALC_INITIAL_DELAY_MS | no | 60000 | Co-occurrence recalculation initial delay (ms) | non-secret |
 | DB_SLOW_MS | no | 500 | Slow DB query logging threshold (ms) | non-secret |
 | LOG_LEVEL | no | -- | Log verbosity (`debug`, etc) | non-secret |
 | LOG_DESTINATION | no | -- | Log file destination (optional) | non-secret |

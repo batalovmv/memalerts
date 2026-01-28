@@ -5,6 +5,7 @@ import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-
 
 import { SocketProvider } from './contexts/SocketContext';
 import { api } from './lib/api';
+import { DockPage } from './pages/DockPage';
 import { Spinner } from './shared/ui';
 import { useAppDispatch, useAppSelector } from './store/hooks';
 import { fetchUser, setUnauthenticated } from './store/slices/authSlice';
@@ -230,6 +231,7 @@ function App() {
               <Route path="/search" element={<Search />} />
               <Route path="/pool" element={<Pool />} />
               <Route path="/moderation" element={<Moderation />} />
+              <Route path="/dock" element={<DockPage />} />
               <Route path="/beta-access" element={<BetaAccess />} />
               <Route path="/terms" element={<TermsOfService />} />
               <Route path="/privacy" element={<PrivacyPolicy />} />

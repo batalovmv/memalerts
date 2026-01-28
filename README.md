@@ -68,6 +68,10 @@ gh run list --limit 5
 
 > **При изменении гайда** — обнови все 3 файла!
 
+### Персонализированные рекомендации
+- `GET /channels/:slug/memes/personalized` (beta, auth required)
+- `exploration` — доля случайных мемов (0..0.3, по умолчанию 0.1 = 10%)
+
 ### Архитектура
 - [Backend Architecture](./apps/backend/ARCHITECTURE.md)
 - [Frontend Architecture](./apps/frontend/docs/ARCHITECTURE.md)

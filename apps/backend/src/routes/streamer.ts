@@ -12,6 +12,7 @@ import { getStarterMemes } from '../controllers/streamer/starterMemesController.
 import { getLatestStreamRecap } from '../controllers/streamer/streamRecapController.js';
 import { createVote, closeVote, getActiveVote } from '../controllers/streamer/voteController.js';
 import { getWheelSettings, updateWheelSettings } from '../controllers/streamer/wheelController.js';
+import dockRouter from '../api/v1/dock/router.js';
 
 // Streamer control panel API (role: streamer | admin).
 // NOTE: This router is mounted with authenticate + requireBetaAccess in routes/index.ts.
@@ -68,6 +69,9 @@ streamerRoutes.get('/overlay/preview-meme', adminController.getOverlayPreviewMem
 streamerRoutes.get('/overlay/preview-memes', adminController.getOverlayPreviewMemes);
 streamerRoutes.get('/overlay/presets', adminController.getOverlayPresets);
 streamerRoutes.put('/overlay/presets', adminController.putOverlayPresets);
+
+// Dock
+streamerRoutes.use('/dock', dockRouter);
 
 // Global chat bot subscription (joins streamer's chat as lotas_bot)
 streamerRoutes.post('/bot/enable', streamerBotController.enable);

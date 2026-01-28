@@ -7,28 +7,28 @@ DO $$
 BEGIN
     IF NOT EXISTS (
         SELECT 1 FROM pg_type t JOIN pg_namespace n ON n.oid = t.typnamespace
-        WHERE t.typname = 'ExternalRewardProvider' AND n.nspname = 'public'
+        WHERE t.typname = 'ExternalRewardProvider' AND n.nspname = current_schema()
     ) THEN
         CREATE TYPE "ExternalRewardProvider" AS ENUM ('kick', 'trovo', 'vkvideo');
     END IF;
 
     IF NOT EXISTS (
         SELECT 1 FROM pg_type t JOIN pg_namespace n ON n.oid = t.typnamespace
-        WHERE t.typname = 'ExternalRewardEventType' AND n.nspname = 'public'
+        WHERE t.typname = 'ExternalRewardEventType' AND n.nspname = current_schema()
     ) THEN
         CREATE TYPE "ExternalRewardEventType" AS ENUM ('kick_reward_redemption', 'trovo_spell', 'vkvideo_channel_points_redemption');
     END IF;
 
     IF NOT EXISTS (
         SELECT 1 FROM pg_type t JOIN pg_namespace n ON n.oid = t.typnamespace
-        WHERE t.typname = 'ExternalRewardCurrency' AND n.nspname = 'public'
+        WHERE t.typname = 'ExternalRewardCurrency' AND n.nspname = current_schema()
     ) THEN
         CREATE TYPE "ExternalRewardCurrency" AS ENUM ('kick_channel_points', 'trovo_mana', 'trovo_elixir', 'vkvideo_channel_points');
     END IF;
 
     IF NOT EXISTS (
         SELECT 1 FROM pg_type t JOIN pg_namespace n ON n.oid = t.typnamespace
-        WHERE t.typname = 'ExternalRewardEventStatus' AND n.nspname = 'public'
+        WHERE t.typname = 'ExternalRewardEventStatus' AND n.nspname = current_schema()
     ) THEN
         CREATE TYPE "ExternalRewardEventStatus" AS ENUM ('observed', 'eligible', 'ignored', 'claimed', 'failed');
     END IF;

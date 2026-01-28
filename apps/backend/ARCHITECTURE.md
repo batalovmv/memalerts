@@ -48,6 +48,10 @@ src/
 ## Legacy зоны
 Часть модулей ещё остаётся в `controllers/`, `routes/`, `services/`. Новые endpoints добавляются только в `api/v1` + `domain`, старые постепенно мигрируются.
 
+## Персонализированные рекомендации (legacy)
+- Эндпоинт: `GET /channels/:slug/memes/personalized` (legacy controller `src/controllers/viewer/personalizedMemes.ts`).
+- Exploration: параметр `exploration` задаёт долю случайных мемов (0..0.3, default 0.1).
+
 ## Как добавить новый endpoint
 1. Создать схемы в `packages/api-contracts`.
 2. Добавить `router.ts` + `handlers.ts` в `api/v1`.

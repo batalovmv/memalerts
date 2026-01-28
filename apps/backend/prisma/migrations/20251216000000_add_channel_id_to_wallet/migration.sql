@@ -1,5 +1,5 @@
 -- Step 1: Add channelId column as nullable first
-ALTER TABLE "Wallet" ADD COLUMN "channelId" TEXT;
+ALTER TABLE "Wallet" ADD COLUMN IF NOT EXISTS "channelId" TEXT;
 
 -- Step 2: Update existing wallets to use user's channelId
 UPDATE "Wallet" 
