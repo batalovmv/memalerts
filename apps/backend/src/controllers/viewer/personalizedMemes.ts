@@ -32,7 +32,41 @@ type ScoredItem = {
   score: number;
   createdAt: Date;
   key: string;
+  tagNames: string[];
 };
+
+function diversifyResults(scoredItems: ScoredItem[], limit: number): ScoredItem[] {
+  const MAX_SAME_TOP_TAG = 2;
+  const result: ScoredItem[] = [];
+  const usedKeys = new Set<string>();
+  const topTagCounts: Record<string, number> = {};
+
+  for (const entry of scoredItems) {
+    if (result.length >= limit) break;
+    if (usedKeys.has(entry.key)) continue;
+
+    const topTag = entry.tagNames?.[0];
+    if (topTag) {
+      const currentCount = topTagCounts[topTag] ?? 0;
+      if (currentCount >= MAX_SAME_TOP_TAG) continue;
+      topTagCounts[topTag] = currentCount + 1;
+    }
+
+    usedKeys.add(entry.key);
+    result.push(entry);
+  }
+
+  if (result.length < limit) {
+    for (const entry of scoredItems) {
+      if (result.length >= limit) break;
+      if (usedKeys.has(entry.key)) continue;
+      usedKeys.add(entry.key);
+      result.push(entry);
+    }
+  }
+
+  return result;
+}
 
 async function loadChannelCandidates(channelId: string, limit: number, userId?: string | null) {
   const where: Prisma.ChannelMemeWhereInput = { channelId, status: 'approved', deletedAt: null };
@@ -136,24 +170,18 @@ function pickTopItems(scored: ScoredItem[], limit: number): Array<ChannelMemeLis
   const sorted = scored
     .slice()
     .sort((a, b) => b.score - a.score || b.createdAt.getTime() - a.createdAt.getTime());
-  const selected: Array<ChannelMemeListItemDto | Record<string, unknown>> = [];
-  const used = new Set<string>();
+
+  const positive = sorted.filter((entry) => entry.score > 0);
+  const diversified = diversifyResults(positive, limit);
+
+  const selected: Array<ChannelMemeListItemDto | Record<string, unknown>> = diversified.map((entry) => entry.item);
+  const used = new Set<string>(diversified.map((entry) => entry.key));
 
   for (const entry of sorted) {
-    if (entry.score <= 0) continue;
     if (selected.length >= limit) break;
     if (used.has(entry.key)) continue;
     used.add(entry.key);
     selected.push(entry.item);
-  }
-
-  if (selected.length < limit) {
-    for (const entry of sorted) {
-      if (selected.length >= limit) break;
-      if (used.has(entry.key)) continue;
-      used.add(entry.key);
-      selected.push(entry.item);
-    }
   }
 
   return selected;
@@ -264,7 +292,7 @@ async function buildChannelPersonalizedItems(
     const item = toChannelMemeListItemDto(req, channelId, row);
     const itemWithTags =
       legacyTags && legacyTags.length > 0 ? ({ ...item, tags: legacyTags } as ChannelMemeListItemDto) : item;
-    return { item: itemWithTags, score, createdAt: row.createdAt, key: row.id };
+    return { item: itemWithTags, score, createdAt: row.createdAt, key: row.id, tagNames };
   });
 
   return pickTopItems(scored, limit) as ChannelMemeListItemDto[];
@@ -307,7 +335,7 @@ async function buildPoolPersonalizedItems(
           : [];
     const score = TasteProfileService.scoreMemeForUser(profile, { tagNames });
     const item = mapPoolAssetToItem(req, channelId, row, defaultPriceCoins, legacyTagsById);
-    return { item, score, createdAt: row.createdAt, key: row.id };
+    return { item, score, createdAt: row.createdAt, key: row.id, tagNames };
   });
 
   return pickTopItems(scored, limit);
