@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { Card } from '@/shared/ui';
 import type { QueueState } from '../types';
 
 interface CurrentCardProps {
   current: QueueState['current'];
+  playbackPaused?: boolean;
 }
 
 const formatTime = (ms: number) => {
@@ -15,12 +16,39 @@ const formatTime = (ms: number) => {
   return `${minutes}:${String(seconds).padStart(2, '0')}`;
 };
 
-export function CurrentCard({ current }: CurrentCardProps) {
+export function CurrentCard({ current, playbackPaused = false }: CurrentCardProps) {
   const [now, setNow] = useState(() => Date.now());
+  const pausedAtRef = useRef<number | null>(null);
+  const totalPausedRef = useRef<number>(0);
+  const lastActivationIdRef = useRef<string | null>(null);
+
+  // Reset total paused time when activation changes
+  useEffect(() => {
+    if (current?.activationId !== lastActivationIdRef.current) {
+      lastActivationIdRef.current = current?.activationId ?? null;
+      totalPausedRef.current = 0;
+      pausedAtRef.current = null;
+    }
+  }, [current?.activationId]);
+
+  // Track pause state and accumulate total pause duration
+  useEffect(() => {
+    if (playbackPaused && pausedAtRef.current === null) {
+      pausedAtRef.current = Date.now();
+    } else if (!playbackPaused && pausedAtRef.current !== null) {
+      totalPausedRef.current += Date.now() - pausedAtRef.current;
+      pausedAtRef.current = null;
+    }
+  }, [playbackPaused]);
 
   useEffect(() => {
     if (!current?.startedAt) {
       setNow(Date.now());
+      return;
+    }
+
+    // Don't update timer when paused
+    if (playbackPaused) {
       return;
     }
 
@@ -29,7 +57,7 @@ export function CurrentCard({ current }: CurrentCardProps) {
     }, 1000);
 
     return () => window.clearInterval(interval);
-  }, [current?.activationId, current?.startedAt, current?.durationMs]);
+  }, [current?.activationId, current?.startedAt, current?.durationMs, playbackPaused]);
 
   if (!current) {
     return (
@@ -41,7 +69,9 @@ export function CurrentCard({ current }: CurrentCardProps) {
 
   const durationMs = Math.max(0, current.durationMs);
   const startedAt = current.startedAt ? new Date(current.startedAt).getTime() : null;
-  const elapsedMs = startedAt ? Math.max(0, now - startedAt) : 0;
+  // When paused, use pausedAt as "now" to freeze the display
+  const effectiveNow = pausedAtRef.current ?? now;
+  const elapsedMs = startedAt ? Math.max(0, effectiveNow - startedAt - totalPausedRef.current) : 0;
   const clampedMs = durationMs > 0 ? Math.min(elapsedMs, durationMs) : 0;
   const progress = durationMs > 0 ? (clampedMs / durationMs) * 100 : 0;
 

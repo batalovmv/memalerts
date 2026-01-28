@@ -388,16 +388,20 @@ export const activateMeme = async (req: AuthRequest, res: Response) => {
           });
           for (const threshold of VIRAL_THRESHOLDS) {
             if (totalActivations < threshold.count) continue;
-            let created = false;
-            try {
-              await tx.memeViralBonus.create({
-                data: { channelMemeId: resolvedChannelMeme.id, threshold: threshold.count },
-              });
-              created = true;
-            } catch (error: unknown) {
-              if (!isUniqueError(error)) throw error;
-            }
-            if (!created) continue;
+            // Use upsert to avoid unique constraint errors that abort PostgreSQL transactions
+            const existing = await tx.memeViralBonus.findUnique({
+              where: {
+                channelMemeId_threshold: {
+                  channelMemeId: resolvedChannelMeme.id,
+                  threshold: threshold.count,
+                },
+              },
+            });
+            if (existing) continue; // Already granted
+
+            await tx.memeViralBonus.create({
+              data: { channelMemeId: resolvedChannelMeme.id, threshold: threshold.count },
+            });
 
             if (authorId && threshold.coins > 0) {
               const updated = await WalletService.incrementBalance(tx, { userId: authorId, channelId }, threshold.coins);
@@ -445,11 +449,14 @@ export const activateMeme = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    if (!result.activation) {
-      throw new Error('Activation not created');
+    if (!activation) {
+      return res.status(500).json({
+        error: 'Activation creation failed',
+        code: 'INTERNAL_ERROR',
+      });
     }
 
-    const activation = result.activation;
+    const activation = activation;
     const channelSlug = String(channel.slug || '').toLowerCase();
     const overlayRow = await prisma.channelMeme.findUnique({
       where: { id: activation.channelMemeId },
@@ -565,8 +572,8 @@ export const activateMeme = async (req: AuthRequest, res: Response) => {
     if (Array.isArray(result.eventAchievementGrants) && result.eventAchievementGrants.length > 0) {
       result.eventAchievementGrants.forEach((entry) => emitAchievementGrant(activation.userId, entry.key));
     }
-    const authorId = result.authorId;
-    if (Array.isArray(result.bonusGrants) && result.bonusGrants.length > 0 && authorId) {
+    if (Array.isArray(result.bonusGrants) && result.bonusGrants.length > 0 && result.authorId) {
+      const authorId = result.authorId;
       result.bonusGrants.forEach((key) => emitAchievementGrant(authorId, key));
     }
 
@@ -595,7 +602,7 @@ export const activateMeme = async (req: AuthRequest, res: Response) => {
     }
 
     res.json({
-      activation,
+      activation: activation,
       wallet: result.wallet,
       originalPrice: result.originalPrice,
       finalPrice: result.finalPrice,

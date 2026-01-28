@@ -86,7 +86,7 @@ export class QueueService {
     });
 
     try {
-      const result = await withRetry<FinishResult>(
+      const result = await withRetry(
         () =>
           prisma.$transaction(
             async (tx) => {
@@ -155,7 +155,7 @@ export class QueueService {
 
               if (channel?.overlayPlaybackPaused) {
                 return {
-                  ok: true,
+                  ok: true as const,
                   finishedId: activation.id,
                   finishedReason: reason,
                   refunded: refundAmount > 0,
@@ -195,7 +195,7 @@ export class QueueService {
               }
 
               return {
-                ok: true,
+                ok: true as const,
                 finishedId: activation.id,
                 finishedReason: reason,
                 refunded: refundAmount > 0,
@@ -208,29 +208,16 @@ export class QueueService {
         { maxRetries: 3 }
       );
 
-      const finishLog = result.ok
-        ? {
-            channelId,
-            reason,
-            ok: true,
-            code: null,
-            finishedId: result.finishedId,
-            nextId: result.next?.activationId ?? null,
-            refundAmount: result.refundAmount,
-            playbackPaused: result.playbackPaused ?? false,
-          }
-        : {
-            channelId,
-            reason,
-            ok: false,
-            code: result.code,
-            finishedId: null,
-            nextId: null,
-            refundAmount: null,
-            playbackPaused: null,
-          };
-
-      logger.info('queue.finish.result', finishLog);
+      logger.info('queue.finish.result', {
+        channelId,
+        reason,
+        ok: result.ok,
+        code: result.ok ? null : result.code,
+        finishedId: result.ok ? result.finishedId : null,
+        nextId: result.ok ? result.next?.activationId ?? null : null,
+        refundAmount: result.ok ? result.refundAmount : null,
+        playbackPaused: result.ok ? result.playbackPaused ?? false : null,
+      });
 
       return result;
     } catch (error: unknown) {
@@ -259,7 +246,7 @@ export class QueueService {
       initiatorRole: initiator?.role ?? null,
     });
 
-    const result = await withRetry<ClearResult>(
+    const result = await withRetry(
       () =>
         prisma.$transaction(
           async (tx) => {
@@ -275,7 +262,7 @@ export class QueueService {
             });
 
             if (!queued.length) {
-              return { ok: true, clearedCount: 0, refundTotal: 0, refundedCount: 0 };
+              return { ok: true as const, clearedCount: 0, refundTotal: 0, refundedCount: 0 };
             }
 
             const now = new Date();
@@ -304,14 +291,33 @@ export class QueueService {
               }
             }
 
-            if (clearedCount > 0) {
-              await tx.channel.update({
-                where: { id: channelId },
-                data: { queueRevision: { increment: 1 } },
+            // Also stop the currently playing meme
+            const channel = await tx.channel.findUnique({
+              where: { id: channelId },
+              select: { currentActivationId: true },
+            });
+
+            if (channel?.currentActivationId) {
+              await tx.memeActivation.updateMany({
+                where: { id: channel.currentActivationId, status: 'playing' },
+                data: {
+                  status: 'cancelled',
+                  endedAt: now,
+                  endedReason: 'cleared',
+                },
               });
             }
 
-            return { ok: true, clearedCount, refundTotal, refundedCount };
+            // Reset currentActivationId and increment revision
+            await tx.channel.update({
+              where: { id: channelId },
+              data: {
+                currentActivationId: null,
+                queueRevision: { increment: 1 },
+              },
+            });
+
+            return { ok: true as const, clearedCount, refundTotal, refundedCount };
           },
           { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
         ),
@@ -340,7 +346,7 @@ export class QueueService {
         intakePaused: !current.activationsEnabled,
         changed: false,
       });
-      return { ok: true, intakePaused: !current.activationsEnabled };
+      return { ok: true as const, intakePaused: !current.activationsEnabled };
     }
 
     const channel = await prisma.channel.update({
@@ -357,7 +363,7 @@ export class QueueService {
       changed: true,
     });
 
-    return { ok: true, intakePaused: !channel.activationsEnabled };
+    return { ok: true as const, intakePaused: !channel.activationsEnabled };
   }
 
   static async setPlaybackPaused(channelId: string, paused: boolean) {
@@ -371,7 +377,7 @@ export class QueueService {
         playbackPaused: current.overlayPlaybackPaused,
         changed: false,
       });
-      return { ok: true, playbackPaused: current.overlayPlaybackPaused };
+      return { ok: true as const, playbackPaused: current.overlayPlaybackPaused };
     }
 
     const channel = await prisma.channel.update({
@@ -388,7 +394,7 @@ export class QueueService {
       changed: true,
     });
 
-    return { ok: true, playbackPaused: channel.overlayPlaybackPaused };
+    return { ok: true as const, playbackPaused: channel.overlayPlaybackPaused };
   }
 
   /**
@@ -398,7 +404,7 @@ export class QueueService {
   static async resumePlayback(channelId: string): Promise<ResumeResult> {
     logger.info('queue.resume.start', { channelId });
 
-    const result = await withRetry<ResumeResult>(
+    const result = await withRetry(
       () =>
         prisma.$transaction(
           async (tx) => {
@@ -419,7 +425,7 @@ export class QueueService {
             const currentActivationId = channel?.currentActivationId ?? null;
             if (currentActivationId) {
               return {
-                ok: true,
+                ok: true as const,
                 playbackPaused,
                 alreadyCurrent: true,
                 currentActivationId,
@@ -445,7 +451,7 @@ export class QueueService {
 
             if (!nextRow) {
               return {
-                ok: true,
+                ok: true as const,
                 playbackPaused,
                 alreadyCurrent: false,
                 currentActivationId: null,
@@ -459,7 +465,7 @@ export class QueueService {
             });
             if (!channelUpdate?.count) {
               return {
-                ok: true,
+                ok: true as const,
                 playbackPaused,
                 alreadyCurrent: true,
                 currentActivationId: null,
@@ -477,7 +483,7 @@ export class QueueService {
                 data: { currentActivationId: null },
               });
               return {
-                ok: true,
+                ok: true as const,
                 playbackPaused,
                 alreadyCurrent: false,
                 currentActivationId: null,
@@ -486,7 +492,7 @@ export class QueueService {
             }
 
             return {
-              ok: true,
+              ok: true as const,
               playbackPaused,
               alreadyCurrent: false,
               currentActivationId: nextRow.id,

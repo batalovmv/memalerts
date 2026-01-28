@@ -330,6 +330,45 @@ jobs:
             echo "$output"
           }
 
+          verify_core_counts() {
+            local label="$1"
+            local output
+            output="$(cd "$BACKEND_DIR" && VERIFY_LABEL="$label" DATABASE_URL="$DATABASE_URL_RESOLVED" node --input-type=module - <<'NODE'
+            import { PrismaClient } from '@prisma/client';
+
+            const label = process.env.VERIFY_LABEL || 'unknown';
+            const allowEmptyRaw = (process.env.ALLOW_EMPTY_DB || '').toLowerCase();
+            const allowEmpty = ['1', 'true', 'yes', 'on'].includes(allowEmptyRaw);
+            const prisma = new PrismaClient();
+
+            try {
+              const [channels, channelMemes, memeAssets] = await Promise.all([
+                prisma.channel.count(),
+                prisma.channelMeme.count(),
+                prisma.memeAsset.count(),
+              ]);
+              const counts = { channels, channelMemes, memeAssets };
+
+              console.log(JSON.stringify({ label, counts, allowEmpty }));
+
+              const empty = Object.entries(counts)
+                .filter(([, value]) => value === 0)
+                .map(([key]) => key);
+              if (empty.length && !allowEmpty) {
+                console.error(`Empty core tables (${label}): ${empty.join(', ')}`);
+                process.exit(1);
+              }
+            } catch (err) {
+              console.error('verify_core_counts failed', err);
+              process.exit(1);
+            } finally {
+              await prisma.$disconnect();
+            }
+          NODE
+            )"
+            echo "$output"
+          }
+
           attempt_rollback() {
             if [ -z "$PREV_SHA" ]; then
               log_rollback_event "skipped" "no_previous_sha"
@@ -584,6 +623,7 @@ jobs:
           fi
           DATABASE_URL="$DATABASE_URL_RESOLVED" apply_ai_lock_migration
           verify_ai_lock_columns "production"
+          verify_core_counts "production"
 
           pm2 stop "$PM2_NAME" 2>/dev/null || true
           pm2 delete "$PM2_NAME" 2>/dev/null || true
@@ -1033,6 +1073,45 @@ jobs:
             echo "$output"
           }
 
+          verify_core_counts() {
+            local label="$1"
+            local output
+            output="$(cd "$BACKEND_DIR" && VERIFY_LABEL="$label" DATABASE_URL="$DATABASE_URL_RESOLVED" node --input-type=module - <<'NODE'
+            import { PrismaClient } from '@prisma/client';
+
+            const label = process.env.VERIFY_LABEL || 'unknown';
+            const allowEmptyRaw = (process.env.ALLOW_EMPTY_DB || '').toLowerCase();
+            const allowEmpty = ['1', 'true', 'yes', 'on'].includes(allowEmptyRaw);
+            const prisma = new PrismaClient();
+
+            try {
+              const [channels, channelMemes, memeAssets] = await Promise.all([
+                prisma.channel.count(),
+                prisma.channelMeme.count(),
+                prisma.memeAsset.count(),
+              ]);
+              const counts = { channels, channelMemes, memeAssets };
+
+              console.log(JSON.stringify({ label, counts, allowEmpty }));
+
+              const empty = Object.entries(counts)
+                .filter(([, value]) => value === 0)
+                .map(([key]) => key);
+              if (empty.length && !allowEmpty) {
+                console.error(`Empty core tables (${label}): ${empty.join(', ')}`);
+                process.exit(1);
+              }
+            } catch (err) {
+              console.error('verify_core_counts failed', err);
+              process.exit(1);
+            } finally {
+              await prisma.$disconnect();
+            }
+          NODE
+            )"
+            echo "$output"
+          }
+
           attempt_rollback() {
             if [ -z "$PREV_SHA" ]; then
               log_rollback_event "skipped" "no_previous_sha"
@@ -1326,6 +1405,7 @@ jobs:
           DATABASE_URL="$DATABASE_URL_RESOLVED" pnpm --filter @memalerts/backend exec prisma migrate deploy
           DATABASE_URL="$DATABASE_URL_RESOLVED" apply_ai_lock_migration
           verify_ai_lock_columns "beta"
+          verify_core_counts "beta"
 
           pm2 stop "$PM2_NAME" 2>/dev/null || true
           pm2 delete "$PM2_NAME" 2>/dev/null || true

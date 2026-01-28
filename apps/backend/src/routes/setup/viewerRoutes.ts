@@ -32,6 +32,20 @@ export function registerViewerRoutes(app: Router) {
   app.get('/channels/:slug/wheel', optionalAuthenticate, viewerController.getWheelState);
   app.post('/channels/:slug/wheel/spin', authenticate, requireBetaAccess, viewerController.spinWheel);
   app.get('/channels/:slug/achievements/me', authenticate, requireBetaAccess, viewerController.getMyChannelAchievements);
+
+  app.get('/channels/:slug/achievements/streamer', (req, res) => {
+    if (isBetaDomain(req)) {
+      return optionalAuthenticate(req as AuthRequest, res, () =>
+        requireBetaAccessOrGuestForbidden(req as AuthRequest, res, () =>
+          viewerController.getChannelStreamerAchievements(req as AuthRequest, res)
+        )
+      );
+    }
+    return optionalAuthenticate(req as AuthRequest, res, () =>
+      viewerController.getChannelStreamerAchievements(req as AuthRequest, res)
+    );
+  });
+
   app.get('/channels/:slug/memes/personalized', authenticate, requireBetaAccess, viewerController.getPersonalizedMemes);
   app.post(
     '/channels/:slug/memes/:memeAssetId/favorite',

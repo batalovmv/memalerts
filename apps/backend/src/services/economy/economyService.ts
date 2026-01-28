@@ -294,11 +294,6 @@ export async function buildEconomySnapshot(params: {
   return snapshot;
 }
 
-function isPrismaUniqueError(error: unknown): boolean {
-  const err = error as { code?: string };
-  return err?.code === 'P2002';
-}
-
 export async function ensureEconomyStateWithStartBonus(params: {
   tx: Prisma.TransactionClient;
   userId: string;
@@ -309,21 +304,21 @@ export async function ensureEconomyStateWithStartBonus(params: {
   const { tx, userId, channelId, lockedWallet } = params;
   const now = params.now ?? new Date();
 
-  try {
-    await tx.channelViewerEconomy.create({
-      data: {
+  const created = await tx.channelViewerEconomy.createMany({
+    data: [
+      {
         channelId,
         userId,
         startBonusGrantedAt: now,
       },
-    });
-
+    ],
+    skipDuplicates: true,
+  });
+  if (created.count > 0) {
     const wallet = await WalletService.incrementBalance(tx, { userId, channelId }, ECONOMY_CONSTANTS.startBonusCoins, {
       lockedWallet,
     });
     return { startBonusGranted: true, wallet };
-  } catch (error: unknown) {
-    if (!isPrismaUniqueError(error)) throw error;
   }
 
   const existing = await tx.channelViewerEconomy.findUnique({

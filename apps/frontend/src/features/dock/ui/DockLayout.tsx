@@ -84,7 +84,7 @@ export function DockLayout({
                     </span>
                   ) : null}
                 </div>
-                <CurrentCard current={queueState?.current ?? null} />
+                <CurrentCard current={queueState?.current ?? null} playbackPaused={playbackPaused} />
               </section>
 
               <ControlPanel

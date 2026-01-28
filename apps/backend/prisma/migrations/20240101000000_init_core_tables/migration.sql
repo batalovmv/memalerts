@@ -1,4 +1,4 @@
-CREATE TABLE IF NOT EXISTS "Channel" (
+CREATE TABLE "Channel" (
     "id" TEXT NOT NULL,
     "twitchChannelId" TEXT,
     "slug" TEXT NOT NULL,
@@ -47,7 +47,7 @@ CREATE TABLE IF NOT EXISTS "Channel" (
     CONSTRAINT "Channel_pkey" PRIMARY KEY ("id")
 );
 
-CREATE TABLE IF NOT EXISTS "User" (
+CREATE TABLE "User" (
     "id" TEXT NOT NULL,
     "twitchUserId" TEXT,
     "displayName" TEXT NOT NULL,
@@ -62,7 +62,7 @@ CREATE TABLE IF NOT EXISTS "User" (
     CONSTRAINT "User_pkey" PRIMARY KEY ("id")
 );
 
-CREATE TABLE IF NOT EXISTS "Wallet" (
+CREATE TABLE "Wallet" (
     "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "channelId" TEXT NOT NULL,
@@ -72,7 +72,7 @@ CREATE TABLE IF NOT EXISTS "Wallet" (
     CONSTRAINT "Wallet_pkey" PRIMARY KEY ("id")
 );
 
-CREATE TABLE IF NOT EXISTS "UserBanState" (
+CREATE TABLE "UserBanState" (
     "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "banCount" INTEGER NOT NULL DEFAULT 0,
@@ -84,7 +84,7 @@ CREATE TABLE IF NOT EXISTS "UserBanState" (
     CONSTRAINT "UserBanState_pkey" PRIMARY KEY ("id")
 );
 
-CREATE TABLE IF NOT EXISTS "MemeSubmission" (
+CREATE TABLE "MemeSubmission" (
     "id" TEXT NOT NULL,
     "channelId" TEXT NOT NULL,
     "submitterUserId" TEXT NOT NULL,
@@ -124,7 +124,7 @@ CREATE TABLE IF NOT EXISTS "MemeSubmission" (
     CONSTRAINT "MemeSubmission_pkey" PRIMARY KEY ("id")
 );
 
-CREATE TABLE IF NOT EXISTS "Redemption" (
+CREATE TABLE "Redemption" (
     "id" TEXT NOT NULL,
     "channelId" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
@@ -137,7 +137,7 @@ CREATE TABLE IF NOT EXISTS "Redemption" (
     CONSTRAINT "Redemption_pkey" PRIMARY KEY ("id")
 );
 
-CREATE TABLE IF NOT EXISTS "MemeActivation" (
+CREATE TABLE "MemeActivation" (
     "id" TEXT NOT NULL,
     "channelMemeId" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
@@ -152,7 +152,7 @@ CREATE TABLE IF NOT EXISTS "MemeActivation" (
     CONSTRAINT "MemeActivation_pkey" PRIMARY KEY ("id")
 );
 
-CREATE TABLE IF NOT EXISTS "AuditLog" (
+CREATE TABLE "AuditLog" (
     "id" TEXT NOT NULL,
     "actorId" TEXT,
     "channelId" TEXT NOT NULL,
@@ -163,7 +163,7 @@ CREATE TABLE IF NOT EXISTS "AuditLog" (
     CONSTRAINT "AuditLog_pkey" PRIMARY KEY ("id")
 );
 
-CREATE TABLE IF NOT EXISTS "ChannelMemeTag" (
+CREATE TABLE "ChannelMemeTag" (
     "id" TEXT NOT NULL,
     "channelMemeId" TEXT NOT NULL,
     "tagId" TEXT NOT NULL,
@@ -173,64 +173,64 @@ CREATE TABLE IF NOT EXISTS "ChannelMemeTag" (
 
 
 
-CREATE UNIQUE INDEX IF NOT EXISTS "Channel_twitchChannelId_key" ON "Channel"("twitchChannelId");
+CREATE UNIQUE INDEX "Channel_twitchChannelId_key" ON "Channel"("twitchChannelId");
 
-CREATE UNIQUE INDEX IF NOT EXISTS "Channel_slug_key" ON "Channel"("slug");
+CREATE UNIQUE INDEX "Channel_slug_key" ON "Channel"("slug");
 
-CREATE UNIQUE INDEX IF NOT EXISTS "Channel_submissionsControlTokenHash_key" ON "Channel"("submissionsControlTokenHash");
+CREATE UNIQUE INDEX "Channel_submissionsControlTokenHash_key" ON "Channel"("submissionsControlTokenHash");
 
-CREATE UNIQUE INDEX IF NOT EXISTS "User_twitchUserId_key" ON "User"("twitchUserId");
+CREATE UNIQUE INDEX "User_twitchUserId_key" ON "User"("twitchUserId");
 
-CREATE INDEX IF NOT EXISTS "User_twitchUserId_idx" ON "User"("twitchUserId");
+CREATE INDEX "User_twitchUserId_idx" ON "User"("twitchUserId");
 
-CREATE INDEX IF NOT EXISTS "User_channelId_idx" ON "User"("channelId");
+CREATE INDEX "User_channelId_idx" ON "User"("channelId");
 
-CREATE INDEX IF NOT EXISTS "Wallet_userId_idx" ON "Wallet"("userId");
+CREATE INDEX "Wallet_userId_idx" ON "Wallet"("userId");
 
-CREATE UNIQUE INDEX IF NOT EXISTS "UserBanState_userId_key" ON "UserBanState"("userId");
+CREATE UNIQUE INDEX "UserBanState_userId_key" ON "UserBanState"("userId");
 
-CREATE INDEX IF NOT EXISTS "MemeSubmission_channelId_idx" ON "MemeSubmission"("channelId");
+CREATE INDEX "MemeSubmission_channelId_idx" ON "MemeSubmission"("channelId");
 
-CREATE INDEX IF NOT EXISTS "MemeSubmission_status_idx" ON "MemeSubmission"("status");
+CREATE INDEX "MemeSubmission_status_idx" ON "MemeSubmission"("status");
 
-CREATE INDEX IF NOT EXISTS "MemeSubmission_submitterUserId_idx" ON "MemeSubmission"("submitterUserId");
+CREATE INDEX "MemeSubmission_submitterUserId_idx" ON "MemeSubmission"("submitterUserId");
 
-CREATE INDEX IF NOT EXISTS "MemeSubmission_memeAssetId_idx" ON "MemeSubmission"("memeAssetId");
+CREATE INDEX "MemeSubmission_memeAssetId_idx" ON "MemeSubmission"("memeAssetId");
 
-CREATE INDEX IF NOT EXISTS "MemeSubmission_sourceKind_idx" ON "MemeSubmission"("sourceKind");
+CREATE INDEX "MemeSubmission_sourceKind_idx" ON "MemeSubmission"("sourceKind");
 
-CREATE INDEX IF NOT EXISTS "MemeSubmission_fileHash_idx" ON "MemeSubmission"("fileHash");
+CREATE INDEX "MemeSubmission_fileHash_idx" ON "MemeSubmission"("fileHash");
 
-CREATE INDEX IF NOT EXISTS "MemeSubmission_status_sourceKind_aiStatus_aiNextRetryAt_cre_idx" ON "MemeSubmission"("status", "sourceKind", "aiStatus", "aiNextRetryAt", "createdAt");
+CREATE INDEX "MemeSubmission_status_sourceKind_aiStatus_aiNextRetryAt_cre_idx" ON "MemeSubmission"("status", "sourceKind", "aiStatus", "aiNextRetryAt", "createdAt");
 
-CREATE INDEX IF NOT EXISTS "MemeSubmission_aiStatus_aiLockExpiresAt_idx" ON "MemeSubmission"("aiStatus", "aiLockExpiresAt");
+CREATE INDEX "MemeSubmission_aiStatus_aiLockExpiresAt_idx" ON "MemeSubmission"("aiStatus", "aiLockExpiresAt");
 
-CREATE INDEX IF NOT EXISTS "MemeSubmission_channelId_status_createdAt_idx" ON "MemeSubmission"("channelId", "status", "createdAt" DESC);
+CREATE INDEX "MemeSubmission_channelId_status_createdAt_idx" ON "MemeSubmission"("channelId", "status", "createdAt" DESC);
 
-CREATE INDEX IF NOT EXISTS "MemeSubmission_submitterUserId_status_createdAt_idx" ON "MemeSubmission"("submitterUserId", "status", "createdAt" DESC);
+CREATE INDEX "MemeSubmission_submitterUserId_status_createdAt_idx" ON "MemeSubmission"("submitterUserId", "status", "createdAt" DESC);
 
-CREATE INDEX IF NOT EXISTS "MemeSubmission_submitterUserId_createdAt_idx" ON "MemeSubmission"("submitterUserId", "createdAt" DESC);
+CREATE INDEX "MemeSubmission_submitterUserId_createdAt_idx" ON "MemeSubmission"("submitterUserId", "createdAt" DESC);
 
-CREATE UNIQUE INDEX IF NOT EXISTS "Redemption_twitchRedemptionId_key" ON "Redemption"("twitchRedemptionId");
+CREATE UNIQUE INDEX "Redemption_twitchRedemptionId_key" ON "Redemption"("twitchRedemptionId");
 
-CREATE INDEX IF NOT EXISTS "Redemption_channelId_idx" ON "Redemption"("channelId");
+CREATE INDEX "Redemption_channelId_idx" ON "Redemption"("channelId");
 
-CREATE INDEX IF NOT EXISTS "Redemption_userId_idx" ON "Redemption"("userId");
+CREATE INDEX "Redemption_userId_idx" ON "Redemption"("userId");
 
-CREATE INDEX IF NOT EXISTS "Redemption_twitchRedemptionId_idx" ON "Redemption"("twitchRedemptionId");
+CREATE INDEX "Redemption_twitchRedemptionId_idx" ON "Redemption"("twitchRedemptionId");
 
-CREATE INDEX IF NOT EXISTS "MemeActivation_channelMemeId_status_idx" ON "MemeActivation"("channelMemeId", "status");
+CREATE INDEX "MemeActivation_channelMemeId_status_idx" ON "MemeActivation"("channelMemeId", "status");
 
-CREATE INDEX IF NOT EXISTS "MemeActivation_userId_createdAt_idx" ON "MemeActivation"("userId", "createdAt");
+CREATE INDEX "MemeActivation_userId_createdAt_idx" ON "MemeActivation"("userId", "createdAt");
 
-CREATE INDEX IF NOT EXISTS "MemeActivation_channelId_createdAt_idx" ON "MemeActivation"("channelId", "createdAt");
+CREATE INDEX "MemeActivation_channelId_createdAt_idx" ON "MemeActivation"("channelId", "createdAt");
 
-CREATE INDEX IF NOT EXISTS "AuditLog_channelId_idx" ON "AuditLog"("channelId");
+CREATE INDEX "AuditLog_channelId_idx" ON "AuditLog"("channelId");
 
-CREATE INDEX IF NOT EXISTS "AuditLog_actorId_idx" ON "AuditLog"("actorId");
+CREATE INDEX "AuditLog_actorId_idx" ON "AuditLog"("actorId");
 
-CREATE INDEX IF NOT EXISTS "AuditLog_createdAt_idx" ON "AuditLog"("createdAt");
+CREATE INDEX "AuditLog_createdAt_idx" ON "AuditLog"("createdAt");
 
-CREATE INDEX IF NOT EXISTS "ChannelMemeTag_tagId_idx" ON "ChannelMemeTag"("tagId");
+CREATE INDEX "ChannelMemeTag_tagId_idx" ON "ChannelMemeTag"("tagId");
 
-CREATE UNIQUE INDEX IF NOT EXISTS "ChannelMemeTag_channelMemeId_tagId_key" ON "ChannelMemeTag"("channelMemeId", "tagId");
+CREATE UNIQUE INDEX "ChannelMemeTag_channelMemeId_tagId_key" ON "ChannelMemeTag"("channelMemeId", "tagId");

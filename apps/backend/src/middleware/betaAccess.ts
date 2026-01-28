@@ -96,10 +96,38 @@ export async function requireBetaAccess(req: AuthRequest, res: Response, next: N
     // Cache miss - check database
     const user = await prisma.user.findUnique({
       where: { id: req.userId },
-      select: { hasBetaAccess: true },
+      select: { hasBetaAccess: true, betaAccess: { select: { status: true } } },
     });
 
-    let hasAccess = user?.hasBetaAccess || false;
+    const betaStatus = user?.betaAccess?.status ?? null;
+    let hasAccess = false;
+    if (betaStatus === 'revoked') {
+      hasAccess = false;
+    } else if (user?.hasBetaAccess || betaStatus === 'approved') {
+      hasAccess = true;
+    }
+
+    if (hasAccess && user && !user.hasBetaAccess && betaStatus === 'approved') {
+      try {
+        await prisma.user.update({
+          where: { id: req.userId },
+          data: { hasBetaAccess: true },
+        });
+      } catch (error) {
+        debugError('Failed to sync hasBetaAccess from approved betaAccess', error);
+      }
+    }
+
+    if (!hasAccess && user?.hasBetaAccess && betaStatus === 'revoked') {
+      try {
+        await prisma.user.update({
+          where: { id: req.userId },
+          data: { hasBetaAccess: false },
+        });
+      } catch (error) {
+        debugError('Failed to sync hasBetaAccess from revoked betaAccess', error);
+      }
+    }
 
     // Cache the result
     setCachedBetaAccess(req.userId, hasAccess);

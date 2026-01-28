@@ -35,6 +35,10 @@ export default function OverlayView() {
 
   const [queue, setQueue] = useState<QueuedActivation[]>([]);
   const [active, setActive] = useState<QueuedActivation[]>([]);
+  const [isPaused, setIsPaused] = useState(false);
+  const isPausedRef = useRef(false);
+  const pausedAtRef = useRef<number | null>(null);
+  const totalPausedMsRef = useRef<number>(0);
   const itemRefs = useRef<Map<string, HTMLDivElement | null>>(new Map());
   const [liveParams, setLiveParams] = useState<Record<string, string>>({});
   const demoSeqRef = useRef(0);
@@ -156,6 +160,18 @@ export default function OverlayView() {
     activeEventRef.current = activeEvent;
   }, [activeEvent]);
 
+  // Pause/resume all video elements when isPaused changes
+  useEffect(() => {
+    const videos = document.querySelectorAll<HTMLVideoElement>('video');
+    videos.forEach((video) => {
+      if (isPaused) {
+        video.pause();
+      } else {
+        void video.play().catch(() => {});
+      }
+    });
+  }, [isPaused]);
+
   useEffect(() => {
     if (demo) return;
     let cancelled = false;
@@ -224,12 +240,30 @@ export default function OverlayView() {
       transports: ['websocket'],
     });
 
+    let pingInterval: ReturnType<typeof setInterval> | null = null;
+
     newSocket.on('connect', () => {
       if (overlayToken) {
         newSocket.emit('join:overlay', { token: overlayToken });
       } else if (slug) {
         // Back-compat only; new OBS links should use tokenized route.
         newSocket.emit('join:channel', slug);
+      }
+
+      // Send periodic ping to maintain "overlay connected" status on backend.
+      // Backend expects ping every 40s (stale threshold), so we ping every 25s for safety.
+      if (pingInterval) clearInterval(pingInterval);
+      pingInterval = setInterval(() => {
+        newSocket.emit('overlay:ping');
+      }, 25_000);
+      // Also send an immediate ping after joining.
+      newSocket.emit('overlay:ping');
+    });
+
+    newSocket.on('disconnect', () => {
+      if (pingInterval) {
+        clearInterval(pingInterval);
+        pingInterval = null;
       }
     });
 
@@ -254,41 +288,61 @@ export default function OverlayView() {
       }
     };
 
-    const toOverlayActivation = (incoming: {
-      activationId?: unknown;
-      meme?: Partial<Activation> & { id?: unknown };
-      activator?: { displayName?: unknown };
-    }): Activation | null => {
-      const activationId = String(incoming?.activationId || '').trim();
-      const meme = incoming?.meme ?? {};
-      const memeId = String((meme as { id?: unknown })?.id || '').trim();
-      const type = typeof meme.type === 'string' ? meme.type : '';
-      const fileUrl = typeof meme.fileUrl === 'string' ? meme.fileUrl : '';
-      if (!activationId || !memeId || !type || !fileUrl) return null;
-      const title = typeof meme.title === 'string' ? meme.title : '';
-      const durationMs = typeof meme.durationMs === 'number' && Number.isFinite(meme.durationMs) ? meme.durationMs : 0;
-      const playFileUrl = typeof meme.playFileUrl === 'string' ? meme.playFileUrl : null;
-      const senderDisplayName =
-        typeof incoming?.activator?.displayName === 'string' ? String(incoming.activator.displayName) : null;
-      return {
-        id: activationId,
-        memeId,
-        type,
-        fileUrl,
-        playFileUrl,
-        durationMs,
-        title,
-        senderDisplayName,
-      };
-    };
+    // NOTE: activation:new and overlay:meme-play are legacy events.
+    // We now use only activation:play for queue-based playback to avoid duplicates.
+    // These events still exist for backwards compatibility with non-queue scenarios.
 
-    newSocket.on('activation:new', (activation: Activation) => {
-      pushActivation(activation);
+    // Handle skip/clear from dock - stop current playback only
+    newSocket.on('activation:stop', () => {
+      // Clear all timers
+      for (const timer of timersRef.current.values()) clearTimeout(timer);
+      timersRef.current.clear();
+      for (const timer of fadeTimersRef.current.values()) clearTimeout(timer);
+      fadeTimersRef.current.clear();
+      // Reset pause state
+      totalPausedMsRef.current = 0;
+      pausedAtRef.current = null;
+      isPausedRef.current = false;
+      setIsPaused(false);
+      // Clear only active (current playing), keep queue for next activation:play
+      setActive([]);
     });
 
-    newSocket.on('overlay:meme-play', (incoming: { activationId?: unknown; meme?: Partial<Activation>; activator?: { displayName?: unknown } }) => {
-      const activation = toOverlayActivation(incoming);
-      if (!activation) return;
+    // Handle pause from dock
+    newSocket.on('activation:pause', () => {
+      pausedAtRef.current = Date.now();
+      isPausedRef.current = true;
+      // Clear all timers - they will be recreated on resume with remaining time
+      for (const timer of timersRef.current.values()) {
+        clearTimeout(timer);
+      }
+      timersRef.current.clear();
+      setIsPaused(true);
+    });
+
+    // Handle resume from dock
+    newSocket.on('activation:resume', () => {
+      const pauseDuration = pausedAtRef.current ? Date.now() - pausedAtRef.current : 0;
+      totalPausedMsRef.current += pauseDuration;
+      pausedAtRef.current = null;
+      isPausedRef.current = false;
+      setIsPaused(false);
+    });
+
+    // Handle activation:play for queue-based playback
+    newSocket.on('activation:play', (incoming: { activationId?: unknown; memeTitle?: unknown; fileUrl?: unknown; durationMs?: unknown; senderName?: unknown; memeAssetId?: unknown }) => {
+      const activationId = String(incoming?.activationId || '').trim();
+      const fileUrl = String(incoming?.fileUrl || '').trim();
+      if (!activationId || !fileUrl) return;
+      const activation: Activation = {
+        id: activationId,
+        memeId: String(incoming?.memeAssetId || activationId),
+        type: fileUrl.match(/\.(mp4|webm|mov)$/i) ? 'video' : fileUrl.match(/\.(gif)$/i) ? 'gif' : 'image',
+        fileUrl,
+        durationMs: typeof incoming?.durationMs === 'number' ? incoming.durationMs : 10000,
+        title: typeof incoming?.memeTitle === 'string' ? incoming.memeTitle : '',
+        senderDisplayName: typeof incoming?.senderName === 'string' ? incoming.senderName : null,
+      };
       pushActivation(activation);
     });
 
@@ -336,6 +390,10 @@ export default function OverlayView() {
     socketRef.current = newSocket;
 
     return () => {
+      if (pingInterval) {
+        clearInterval(pingInterval);
+        pingInterval = null;
+      }
       socketRef.current = null;
       newSocket.disconnect();
     };
@@ -487,6 +545,8 @@ export default function OverlayView() {
   const updateFallbackTimer = useCallback((activationId: string, durationMs: number) => {
     const id = String(activationId || '').trim();
     if (!id) return;
+    // Don't create timers while paused
+    if (isPausedRef.current) return;
     const duration = clampInt(Number(durationMs ?? 0), 800, 120000);
     const fallbackMs = clampInt(duration + 900, 1200, 130000);
 
@@ -670,17 +730,21 @@ export default function OverlayView() {
       }
     }
 
-    // Add timers for newly-active items.
-    for (const a of active) {
-      if (!a?.id) continue;
-      if (timersRef.current.has(a.id)) continue;
-      const duration = clampInt(Number(a.effectiveDurationMs ?? a.durationMs ?? 0), 1000, 120000);
-      // Extra grace to allow media decode / buffering.
-      const fallbackMs = clampInt(duration + 1000, 1500, 130000);
-      const timer = setTimeout(() => doneActivation(a.id), fallbackMs);
-      timersRef.current.set(a.id, timer);
+    // Add timers for newly-active items (skip if paused).
+    if (!isPaused) {
+      for (const a of active) {
+        if (!a?.id) continue;
+        if (timersRef.current.has(a.id)) continue;
+        const now = Date.now();
+        // Account for total paused time when calculating elapsed
+        const elapsed = a.startTime ? now - a.startTime - totalPausedMsRef.current : 0;
+        const totalDuration = clampInt(Number(a.effectiveDurationMs ?? a.durationMs ?? 0), 1000, 120000);
+        const remaining = Math.max(totalDuration - elapsed + 1000, 1500); // +1000 grace
+        const timer = setTimeout(() => doneActivation(a.id), remaining);
+        timersRef.current.set(a.id, timer);
+      }
     }
-  }, [active, doneActivation]);
+  }, [active, doneActivation, isPaused]);
 
   // Cleanup on unmount.
   useEffect(() => {
